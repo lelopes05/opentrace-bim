@@ -6,6 +6,27 @@
 
 > **Limite documental importante:** o histórico recuperável da conversa original inclui decisões, trechos resumidos e mensagens datadas, **não uma transcrição integral verificável**. As quatro capturas fornecidas pelo mantenedor foram usadas para reconstruir diagramas e pormenores visíveis. Itens não comprovadamente aprovados aparecem como **proposta/pendente**, nunca como decisão ratificada. Esta versão não declara implementadas telas que só foram desenhadas.
 
+## 0. Política de blocos da interface e ordem entre frentes (vigente em 11/10/2026)
+
+**Autoridade cruzada:** o capítulo **“Plano executivo entre frentes — autoridade operacional (2026-10-11)”** em [DEVELOPMENT_MASTER.md](DEVELOPMENT_MASTER.md) define **a ordem obrigatória entre A (aberturas) e B (interface), os gates técnicos e o tamanho dos blocos**. Este capítulo especifica apenas **o corte de escopo e a aceitação visual de cada bloco B**; não cria um segundo cronograma divergente.
+
+**Ordem da interface:** verificar e preservar B1/B2 e o código existente de B3a → **implementar B3b primeiro** como bloco visual completo → integrar B3a e a paleta ao resultado → B4 ajuda/Sobre → B5 aceitação real no Windows → etapas 05 e 06 no tempo definido pelo mestre geral. **B3b e A1 devem progredir paralelamente**; nenhum espera a aprovação manual do outro quando não há dependência de código. Fluxos que compartilham arquivos/callbacks de UI serão reconciliados sequencialmente.
+
+| Bloco UI | Escopo mínimo que o torna um bloco substancial | Evidência e condição de conclusão |
+|---|---|---|
+| **UI-0: baseline B1/B2/B3a** | Auditar menus, QActions, dock, estado de seleção, propriedades do projeto, alinhamento e regressões existentes; **não refazer** sem falha | Lista curta do que de fato existe na HEAD; referência de commits e testes; **não é entrega visual nova** |
+| **UI-1: B3b, faixa contextual** | **No mesmo bloco**: criar faixa única recolhível junto aos menus nativos; ligar à ferramenta/seleção; variar métodos por Parede, Laje, Abertura, Porta/Janela (somente modos operantes); ícones + tooltip; atributos rápidos com sincronização à paleta; preservar estado e viewport | Testes de troca de contexto, valor e recolhimento + evidência visual; ferramenta não pode ficar inerte/duplicada; **primeira entrega visual prioritária** |
+| **UI-2: B3a + paleta** | Integrar/limpar menus e comandos, cabeçalho horizontal, navegação, grupos recolhíveis e coexistência das ações com a nova faixa, sem criar ferramentas paralelas | Todos os acessos levam ao mesmo comando/propriedade; abertura e edição continuam funcionando; sem toolbar empilhada |
+| **UI-3: B4** | Manual ? contextual, início “O que há de novo”, página Sobre com informações e links reais; descrição honesta de atualização | Acesso e navegação operantes, links verificados, sem recurso prometido que não exista; sem alterar manifesto aprovado |
+| **UI-4: B5** | Testar a interface integrada em situação real Windows/IngeTrazo, incluindo viewport vazia, objetos distintos, foco, atalhos, barra recolhida e edição de aberturas | **Aceitação expressa do usuário** após ver/tentar os novos fluxos; Qt offscreen sozinho é insuficiente |
+| **UI-5: vistas futuras** | Vista 3D/planta/corte/elevação + corte/vínculo a pavimento/escala; documentação gráfica subsequentemente | Depende das etapas oficiais 05/06 do mestre geral; não antecipar como pronta |
+
+**Critério de bloco completo:** entrega observável de ponta a ponta, incluindo integração ao estado real do host, persistência pertinente, regressões, documentação, gates e pacote de teste quando necessário. **Não dividir B3b** em “colocar botão”, “mudar cor”, “ícones” e “layout” como se fossem sucessivas versões de teste para o usuário; implementar o conjunto coerente e validar tecnicamente antes da solicitação de aceite.
+
+**Critério negativo:** se a nova versão ainda parece a barra congestionada rejeitada em 11/10/2026, B3b **falhou**, mesmo que compilações e testes passem. Não rotular as melhorias B1/B2 ou menus B3a como “interface reformulada”. Esperar **confirmação do usuário** para marcar B5 aceito; enquanto isso, a frente A pode continuar.
+
+**Regra de manutenção:** ao fechar cada bloco B, atualizar **este documento e o capítulo executivo do mestre geral** com estado padronizado (implementado / CI / artifact / validação manual), SHA do código efetivamente validado, workflow e resultado, alteração visual, pendências e próximo bloco. Preservar `main`, versão 0.12.9 e catálogo sem autorização.
+
 ## 1. Decisão central — uma barra CONTEXTUAL, não um Ribbon fixo
 
 **APROVADO (09/10):** uma **faixa contextual dinâmica, imediatamente sob os menus nativos do IngeTrazo**, próxima ao menu Arquivo. Ela muda **conforme a ferramenta ativada OU o objeto selecionado**, exibindo em primeiro plano:
@@ -230,6 +251,8 @@ O mantenedor testou uma versão dita “interface atualizada” e relatou, em **
 **REGRA INEGOCIÁVEL:** não rotular B1/B2 como **“reformulação da interface concluída”**. O objetivo-chave **é B3b**, seguido da aprovação visual B5. Preservar a release pública 0.12.9 e não mesclar na main ou publicar release/catálogo sem autorização.
 
 ## 12. Plano operacional — blocos grandes e frentes paralelas
+
+> **Ordem, cortes de escopo e aceite de blocos B estão definidos na seção 0 e subordinados ao plano executivo do caderno geral.** Os blocos UI-1 a UI-6 abaixo são uma **descrição histórica de escopo**, não uma autorização para inverter a prioridade vigente ou começar pelas ações B1/B2 já existentes.
 
 Acordo de execução: trabalhar em **blocos substantivos**; o mantenedor valida a aparência/usabilidade e o assistente assume auditoria de arquitetura/código; manter frentes A (aberturas) e B (interface) paralelas quando não conflitam.
 
