@@ -59,6 +59,17 @@ class InstallationSmokeTests(unittest.TestCase):
             # Integrated interface modules must coexist with the live opening UI.
             suite=window._arquitetura_parametrica_suite_panel
             self.assertIn("project",suite.pages)
+            from PySide6.QtCore import Qt
+            self.assertEqual(suite.buttons["wall"].toolButtonStyle(),Qt.ToolButtonIconOnly)
+            self.assertEqual(suite.buttons["wall"].accessibleName(),"Wall")
+            fold=suite._property_sections["wall"]
+            self.assertTrue(fold.isChecked())
+            fold.click()
+            self.assertFalse(fold.isChecked())
+            self.assertIn("▸",fold.text())
+            fold.click()
+            self.assertTrue(fold.isChecked())
+            self.assertIn("▾",fold.text())
             self.assertEqual(suite.project_info_button.accessibleName(),"Informações do Projeto")
             self.assertEqual(suite.arrange_button.accessibleName(),"Alinhar e distribuir objetos")
             old_tool=window.viewport.active_tool
@@ -97,6 +108,9 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertIn("wall",bar.pages)
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
+            self.assertIn("polygon_edit",bar.pages)
+            self.assertIn("door_edit",bar.pages)
+            self.assertIn("window_edit",bar.pages)
             self.assertEqual(bar._context_key(),"idle")
             self.assertEqual(
                 [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
