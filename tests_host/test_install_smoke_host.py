@@ -98,7 +98,10 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
             self.assertEqual(bar._context_key(),"idle")
-            self.assertFalse(any(a.isVisible() for a in bar.hidden_legacy_actions))
+            self.assertEqual(
+                [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
+                 if a.isVisible()],
+                [bar])
             ctl.action.trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"wall")
