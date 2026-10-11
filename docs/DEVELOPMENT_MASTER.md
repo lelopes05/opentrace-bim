@@ -3,6 +3,8 @@
 **Referência:** 2026-10-10 · **Repositório:** `lelopes05/opentrace-bim` · **Release preservado:** 0.12.9
 
 > Abrir a próxima conversa lendo este arquivo na branch/PR de desenvolvimento mais recente. Validar commits/arquivos reais antes de declarar algo integrado. Atualizar este registro ao fechar cada bloco.
+> **Caderno exclusivo de interface (decisões 09/10 + diagramas e aceitação 11/10):** [INTERFACE_MASTER.md](INTERFACE_MASTER.md). A reformulação visual fundamental é a **barra contextual dinâmica e recolhível abaixo do menu original do IngeTrazo** — **B3b ainda pendente**. B1/B2 (Informações do Projeto e alinhamento XYZ) não equivalem a redesign concluído. Não trocar essa solução por um Ribbon fixo.
+
 
 ## Ponto de retomada prioritário — 2026-10-10
 
@@ -372,3 +374,10 @@ O mantenedor **autorizou o trabalho simultâneo**. Esta decisão substitui a ins
 - A paleta lateral continua sendo o local de **edição**; o menu novo apenas organiza **criação e acesso a painéis**. Teste Qt no MainWindow verifica que a hierarquia e as próprias ações de Abertura permanecem identicamente referenciadas.
 - **B3b Barra de criação unificada, grupos de ícones/atalhos e navegação visual detalhada continua pendente**; planejar a migração sem duplicar as barras do IngeTrazo. B4 (Manual/Sobre) e B5 (aceitação visual) continuam pendentes.
 - **Gate necessário após este novo commit:** CI 3 jobs + verificação do único ZIP / `OpenTrace_BIM/`. Não relatar como validado no Windows até o mantenedor testar.
+
+
+## Referência visual vinculada — 2026-10-11
+
+- A conversa **“Melhorias De Interface”** (09/10/2026), retomada com quatro capturas em 11/10, foi consolidada em **[docs/INTERFACE_MASTER.md](INTERFACE_MASTER.md)**. Contém a especificação de **barra dinâmica**, papéis da paleta/radial/menus, matriz por ferramenta, informações do projeto, alinhamento XYZ, manual/Sobre, vistas e escala, **um SVG de interface** e checklist de aceitação.
+- O usuário rejeitou a versão B1/B2 como **reformulação visual insuficiente**: ferramentas ainda congestionadas no topo e painel essencialmente igual. A execução de 118 testes no run 38063649346 não prova aceitação visual; **B3b + B5 são gates ainda abertos**. Não anunciar a interface redesenhada até existir implementação e teste visual Windows.
+- Decisão permanente: esta documentação exclusiva é a referência de UX; o presente registro continua fonte de desenvolvimento integrado e status de PRs. Conservar `main` e release 0.12.9.
