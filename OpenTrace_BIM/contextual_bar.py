@@ -22,6 +22,10 @@ class _CompactStack(QStackedWidget):
         page = self.currentWidget()
         return page.sizeHint() if page is not None else super().sizeHint()
 
+    def minimumSizeHint(self):
+        page = self.currentWidget()
+        return page.minimumSizeHint() if page is not None else super().minimumSizeHint()
+
 
 class ContextualBar(QWidget):
     """Compact, collapsible view onto the SAME actions and fields as the dock."""
@@ -265,13 +269,29 @@ class ContextualBar(QWidget):
                     self._method(p, symbol, label,
                                  lambda k=kind, a=anchor: wall.begin_hosted_fill(k, a))
             p.addWidget(QLabel("Clique na parede para posicionar"))
-        p = self._page("opening_edit", "Vão selecionado")
-        for key, label in (
-            ("width", "Larg."), ("height", "Alt."),
-            ("sill", "Peitoril"), ("position", "Pos."),
+        # A selected opening is EDIT CONTEXT, never another creation tool.
+        # A real hosted door has reverse-swing and anchor; a window has only
+        # anchor; polygons go to the established radial/vertex editor.
+        for page, title in (
+            ("opening_edit", "Vão livre selecionado"),
+            ("door_edit", "Porta selecionada"),
+            ("window_edit", "Janela selecionada"),
         ):
-            self._field(p, label, wall.opening_fields[key])
-        self._method(p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
+            p = self._page(page, title)
+            for key, label in (
+                ("width", "Larg."), ("height", "Alt."),
+                ("sill", "Peitoril"), ("position", "Pos."),
+            ):
+                self._field(p, label, wall.opening_fields[key])
+            if page in ("door_edit", "window_edit"):
+                self._field(p, "Âncora", wall.fill_anchor_combo)
+            if page == "door_edit":
+                self._method(p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
+            self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
+        p = self._page("polygon_edit", "Abertura poligonal")
+        p.addWidget(QLabel("Vértices e arestas: paleta/radial"))
+        self._method(p, "⬡", "Abrir editor da abertura na paleta lateral",
+                     lambda: self.suite.show_page("wall"))
         self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
 
     def _wall_mode(self, mode):
@@ -309,6 +329,22 @@ class ContextualBar(QWidget):
         if ((getattr(vp, "extension_pick", None) is not None
              or selected_hosted_opening(scene) is not None)
                 and wall.target is not None and wall._active_opening_id):
+            from .model import read_wall
+            from .door_window_commands import _fill_record
+            try:
+                op = next(x for x in read_wall(wall.target)["openings"]
+                          if x.get("id") == wall._active_opening_id)
+                if op.get("kind") == "polygon":
+                    return "polygon_edit"
+                fill = wall._find_linked_fill(op)
+                if fill is not None:
+                    params = (_fill_record(fill) or {}).get("params") or {}
+                    if params.get("kind") == "door":
+                        return "door_edit"
+                    if params.get("kind") == "window":
+                        return "window_edit"
+            except (ValueError, KeyError, StopIteration, TypeError):
+                pass
             return "opening_edit"
         if len(selected_walls(scene)) == 1:
             return "wall_edit"
