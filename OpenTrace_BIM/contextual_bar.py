@@ -257,6 +257,8 @@ class ContextualBar(QWidget):
         self._field(p, "Estrutura", wall.structure)
         self._field(p, "Esp.", wall.fields["thickness"])
         self._field(p, "Alt.", wall.fields["height"])
+        self._field(p, "Nível base", wall.base_level, width=135)
+        self._field(p, "Nível topo", wall.top_level, width=135)
         p = self._page("wall_curve", "Parede curva")
         self._section(p, "Mét. construtivos")
         for symbol, title, mode in (
@@ -271,6 +273,8 @@ class ContextualBar(QWidget):
         self._method(p, "／", "Voltar à parede reta", wall.action.trigger)
         self._field(p, "Esp.", wall.fields["thickness"])
         self._field(p, "Alt.", wall.fields["height"])
+        self._field(p, "Nível base", wall.base_level, width=135)
+        self._field(p, "Nível topo", wall.top_level, width=135)
         p = self._page("wall_edit", "Parede selecionada")
         self._field(p, "Esp.", wall.fields["thickness"])
         self._field(p, "Alt.", wall.fields["height"])
