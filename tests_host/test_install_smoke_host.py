@@ -67,6 +67,8 @@ class InstallationSmokeTests(unittest.TestCase):
                 __import__("PySide6.QtWidgets",fromlist=["QLabel"]).QLabel,
                 "opentrace_sidebar_brand").text(),"OpenTrace BIM")
             self.assertEqual(len(suite._editor_sections),3)
+            self.assertFalse(suite._mode_buttons.get("wall"),
+                             "The sidebar must not recreate the old text mode toolbar")
             for section,editor in suite._editor_sections:
                 self.assertIs(editor.parentWidget(),section.body)
                 section.toggle.click()
@@ -93,6 +95,12 @@ class InstallationSmokeTests(unittest.TestCase):
                 suite.open_arrange()
             self.assertIsNotNone(suite._arrange_panel)
             self.assertEqual(suite._arrange_panel.axis.count(),3)
+            self.assertIn("arrange",suite.pages)
+            self.assertIs(suite.stack.currentWidget(),suite.pages["arrange"])
+            self.assertIsNone(suite._arrange_dock,"XYZ must use the existing sidebar, not open a second dock")
+            bim=window._arquitetura_parametrica_bim_controller
+            for part in ("project_identity_section","project_people_section","project_structure_section"):
+                self.assertIsNotNone(getattr(bim,part,None))
             self.assertIs(window.viewport.active_tool,old_tool)
             # The organized menus REUSE the existing opening creation actions.
             creation=suite.workspace_menus["create"]
