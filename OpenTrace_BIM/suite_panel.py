@@ -28,6 +28,7 @@ class ArchitectureSuitePanel:
         self._mode_buttons={}
         self._property_sections={}
         self._editor_sections=[]
+        self._help_dialog=None
         self._arrange_panel = None
         self._arrange_dock = None
         self.panel=QWidget();self.panel.setMinimumSize(0,0)
@@ -64,6 +65,13 @@ class ArchitectureSuitePanel:
         self.project_info_button.setFixedSize(QSize(32,32))
         self.project_info_button.clicked.connect(lambda: self.show_page("project"))
         h.addWidget(self.project_info_button)
+        self.help_button=QToolButton(header)
+        self.help_button.setText("?")
+        self.help_button.setFixedSize(QSize(32,32))
+        self.help_button.setToolTip("Manual contextual e Sobre")
+        self.help_button.setAccessibleName("Ajuda OpenTrace BIM")
+        self.help_button.clicked.connect(self.open_help)
+        h.addWidget(self.help_button)
         root.addWidget(header)
         self.nav=QFrame(self.panel)
         self.nav.setObjectName("opentrace_sidebar_navigation")
@@ -374,6 +382,15 @@ class ArchitectureSuitePanel:
             QMessageBox.warning(
                 self.panel,"OpenTrace BIM",
                 f"Não foi possível abrir alinhamento: {type(exc).__name__}: {exc}")
+
+    def open_help(self,context=None):
+        """Show chaptered documentation, without modifying modelling tool."""
+        if self._help_dialog is None:
+            from .help_dialog import HelpDialog
+            self._help_dialog=HelpDialog(self.app.window)
+        # A regular header click starts at "O que há de novo".
+        self._help_dialog.show_for_context(
+            context if isinstance(context,str) else None)
 
     def _auto_update_toggled(self, enabled):
         if enabled and self.update_manager is not None:
