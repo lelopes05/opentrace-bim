@@ -41,6 +41,7 @@ class ContextualBar(QWidget):
         self._mode_controls = []
         self._collapsed = False
         self._key = None
+        self._opening_kind = "opening"
 
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 2, 6, 2)
@@ -96,6 +97,7 @@ class ContextualBar(QWidget):
         label = QLabel(title)
         label.setStyleSheet("font-size:9pt; color:palette(mid);")
         layout.addWidget(label)
+        return label
 
     def _method(self, layout, symbol, title, callback, *, active=None):
         button = QToolButton(self)
@@ -119,7 +121,7 @@ class ContextualBar(QWidget):
     def _field(self, layout, text, source, *, width=90):
         if source is None:
             return
-        self._section(layout, text)
+        label = self._section(layout, text)
         if isinstance(source, QComboBox):
             mirror = QComboBox(self)
             mirror.setMinimumWidth(width)
@@ -144,6 +146,7 @@ class ContextualBar(QWidget):
         mirror.setAccessibleName(text)
         self._mirrors.append((mirror, source))
         layout.addWidget(mirror)
+        return label, mirror
 
     @staticmethod
     def _apply_value(mirror, source):
@@ -269,25 +272,18 @@ class ContextualBar(QWidget):
                     self._method(p, symbol, label,
                                  lambda k=kind, a=anchor: wall.begin_hosted_fill(k, a))
             p.addWidget(QLabel("Clique na parede para posicionar"))
-        # A selected opening is EDIT CONTEXT, never another creation tool.
-        # A real hosted door has reverse-swing and anchor; a window has only
-        # anchor; polygons go to the established radial/vertex editor.
-        for page, title in (
-            ("opening_edit", "Vão livre selecionado"),
-            ("door_edit", "Porta selecionada"),
-            ("window_edit", "Janela selecionada"),
+        # One set of live opening fields: variants use visibility, not
+        # duplicate signal-connected spinboxes for the same source widgets.
+        p = self._page("opening_edit", "Vão selecionado")
+        for key, label in (
+            ("width", "Larg."), ("height", "Alt."),
+            ("sill", "Peitoril"), ("position", "Pos."),
         ):
-            p = self._page(page, title)
-            for key, label in (
-                ("width", "Larg."), ("height", "Alt."),
-                ("sill", "Peitoril"), ("position", "Pos."),
-            ):
-                self._field(p, label, wall.opening_fields[key])
-            if page in ("door_edit", "window_edit"):
-                self._field(p, "Âncora", wall.fill_anchor_combo)
-            if page == "door_edit":
-                self._method(p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
-            self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
+            self._field(p, label, wall.opening_fields[key])
+        self._anchor_controls = self._field(p, "Âncora", wall.fill_anchor_combo)
+        self._swing_button = self._method(
+            p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
+        self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
         p = self._page("polygon_edit", "Abertura poligonal")
         p.addWidget(QLabel("Vértices e arestas: paleta/radial"))
         self._method(p, "⬡", "Abrir editor da abertura na paleta lateral",
@@ -338,14 +334,14 @@ class ContextualBar(QWidget):
                 op = next(x for x in read_wall(wall.target)["openings"]
                           if x.get("id") == wall._active_opening_id)
                 if op.get("kind") == "polygon":
+                    self._opening_kind = "polygon"
                     return "polygon_edit"
+                self._opening_kind = "opening"
                 fill = wall._find_linked_fill(op)
                 if fill is not None:
                     params = (_fill_record(fill) or {}).get("params") or {}
-                    if params.get("kind") == "door":
-                        return "door_edit"
-                    if params.get("kind") == "window":
-                        return "window_edit"
+                    if params.get("kind") in ("door", "window"):
+                        self._opening_kind = params["kind"]
             except (ValueError, KeyError, StopIteration, TypeError):
                 pass
             return "opening_edit"
@@ -378,6 +374,12 @@ class ContextualBar(QWidget):
             # hidden because the native suite switched pages, not because the
             # model became read-only. Respect source.enabled but not visibility.
             self._sync_field(mirror, source)
+        # Do not display inapplicable buttons: only hosted doors can swing,
+        # and only hosted elements have an anchor.
+        show_anchor = self._opening_kind in ("door", "window")
+        for widget in self._anchor_controls:
+            widget.setVisible(show_anchor)
+        self._swing_button.setVisible(self._opening_kind == "door")
         for button, predicate in self._mode_controls:
             checked = bool(predicate())
             old = button.blockSignals(True)
