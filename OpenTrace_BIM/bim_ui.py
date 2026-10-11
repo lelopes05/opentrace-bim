@@ -48,16 +48,39 @@ class BimController:
         project_root.setSpacing(9)
         project_heading = QLabel("<b style='font-size:14pt'>Informações do Projeto</b>")
         project_root.addWidget(project_heading)
-        project_box = QFrame(); project_box.setFrameShape(QFrame.StyledPanel)
-        form = QFormLayout(project_box); form.setContentsMargins(8, 8, 8, 8); form.setSpacing(6)
-        self.project_name = QLineEdit(); self.site_name = QLineEdit(); self.building_name = QLineEdit()
-        self.author = QLineEdit(); self.organization = QLineEdit(); self.description = QLineEdit()
-        self.client = QLineEdit(); self.location = QLineEdit()
-        form.addRow("Projeto", self.project_name); form.addRow("Cliente", self.client)
-        form.addRow("Localização", self.location); form.addRow("Descrição", self.description)
-        form.addRow("Terreno IFC", self.site_name); form.addRow("Edifício IFC", self.building_name)
-        form.addRow("Autor", self.author); form.addRow("Organização", self.organization)
-        project_root.addWidget(project_box)
+        from .panel_sections import EditorSection
+        # The existing record fields stay exactly the same QObject instances.
+        # Only their presentation is reorganized into the approved areas.
+        self.project_name = QLineEdit()
+        self.client = QLineEdit()
+        self.location = QLineEdit()
+        self.description = QLineEdit()
+        self.author = QLineEdit()
+        self.organization = QLineEdit()
+        self.site_name = QLineEdit()
+        self.building_name = QLineEdit()
+
+        def project_section(title, rows):
+            content=QWidget(self.project_panel)
+            form=QFormLayout(content)
+            form.setContentsMargins(0,0,0,0);form.setSpacing(7)
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            for label, field in rows:
+                form.addRow(label,field)
+            section=EditorSection(title,content,parent=self.project_panel)
+            project_root.addWidget(section)
+            return section
+
+        self.project_identity_section=project_section(
+            "Identificação",
+            (("Projeto",self.project_name),("Cliente",self.client),
+             ("Localização",self.location),("Descrição",self.description)))
+        self.project_people_section=project_section(
+            "Responsáveis",
+            (("Autor",self.author),("Escritório / Organização",self.organization)))
+        self.project_structure_section=project_section(
+            "Estrutura do projeto",
+            (("Terreno IFC",self.site_name),("Edifício IFC",self.building_name)))
         self.project_levels_summary = QLabel()
         self.project_levels_summary.setWordWrap(True)
         project_root.addWidget(self.project_levels_summary)
