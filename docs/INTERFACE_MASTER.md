@@ -373,3 +373,19 @@ Em toda alteração de interface, registrar **data / branch / commit / áreas vi
 4. **UI-B4 e UI-B5:** manual/Sobre e screenshot real de Windows; somente após aprovação marcar interface visualmente entregue.
 
 **Regra de suspensão de “concluído”:** qualquer pacote que mantenha a faixa esmagada ao lado dos botões da toolbar nativa, a Home `Parametric Architecture` ou botões grosseiros sem hierarquia está **REPROVADO**, independentemente de número de commits/testes. Não repetir a terminologia “B3b implementado/aceito” até a validação visual do mantenedor.
+
+## 16. Reimplementação da interface geral — Rodadas B3b, B3a/paleta e B4 (11/10/2026)
+
+**Revisão experimental de código:** [`5a6a394`](https://github.com/lelopes05/opentrace-bim/commit/5a6a39470431ea0713ccaafc6ee8f3c2d4f35825) · [CI #38154500406](https://github.com/lelopes05/opentrace-bim/actions/runs/38154500406) **success**: 58 testes puros + 60 host PySide6 offscreen (118), empacotamento validado. Artefato `OpenTrace_BIM-EXPERIMENTAL-INSTALL` ID `11707862571`, ZIP de raiz única `OpenTrace_BIM/`.
+
+A auditoria/reprovação do capítulo 15 **continua historicamente válida para a versão ANTERIOR**; este é um novo candidato não homologado visualmente.
+
+**Rodada B3b — faixa dinâmica:** `contextual_bar.py` separa agora a toolbar OpenTrace da fileira nativa usando `QMainWindow.insertToolBarBreak()`; contexto ocupa linha própria da área superior de toolbars Qt. Métodos e propriedades seguem organizados verticalmente em conjuntos `Mét. construtivos`, `Alinhamento`, `Estrutura`, dimensões e níveis, com espelhamento dos campos reais já conectados ao modelo. Ícones próprios de métodos e contraste adaptado a tema escuro/claro em `icons.py`. Recolhimento continua preservando ferramenta ativa. O menu nativo não foi substituído. **O alinhamento exato e o comportamento com layout/sessão restaurados ainda precisam de captura Windows**.
+
+**Rodada B3a / paleta completa:** `suite_panel.py` dá identidade **OpenTrace BIM** ao dock, cabeçalho horizontal com texto, ferramenta, informações e ajuda; navegação de abas com ícone+nome em português; Home refeita por tarefas reais (Modelagem / Vãos / Projeto); elimina a antiga barra de botões textuais dentro do formulário de Parede. `panel_sections.py` reúne os próprios editores Qt existentes em grupos de geometria, camadas e vãos, sem duplicar estado BIM nem desconectar undo/edição. Em `bim_ui.py`, **Informações do Projeto** usa três seções claras (Identificação, Responsáveis, Estrutura). Alinhar/Distribuir X/Y/Z abre uma página no mesmo dock OpenTrace, sem criar paleta concorrente. Os formulários próprios de lajes, pilares, vigas e IFC permanecem conectados.
+
+**Rodada B4 — manual/Sobre:** `help_dialog.py` implementa janela por capítulos, iniciando em `O que há de novo`, ajuda contextual ligada à ferramenta e `Sobre` com repositório e licença real, sem anunciar instalação automática. Acesso `?` no cabeçalho lateral e na faixa contextual.
+
+**Teste automatizado adicional:** `tests_host/test_install_smoke_host.py` agora verifica explicitamente barra com `toolBarBreak`, navegação rotulada, seção recolhível REAL, páginas Projeto/Alinhar sem novo dock, abertura do manual e links internos, editor de abertura e sincronização de controles. Não há novo motor de modelagem.
+
+**Gate de aceite (ainda aberto):** confrontar visualmente no Windows as nove imagens do capítulo 15: faixa exclusiva e legível, troca de contexto Parede/Laje/Porta/Vão/seleção, paleta completa (não a Home antiga), biblioteca e propriedades, modo recolhido, ajudas e páginas do projeto; clicar, editar mais de uma vez e usar Undo/Redo. B5 só será marcado aceito mediante confirmação expressa do mantenedor. **CI verde não comprova estética, proporção, visibilidade nem ausência de recorte na GPU do Windows.**
