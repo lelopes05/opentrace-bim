@@ -356,25 +356,24 @@ class ArchitectureSuitePanel:
         self.schedule_sync_context()
 
     def open_arrange(self):
-        # Lazy native dock creation. The modelling tool stays unchanged.
+        """Open XYZ organization IN the same anchorable OpenTrace sidebar.
+
+        Previously this created a second, disconnected Qt dock. The
+        inspector navigation now returns naturally to the prior modelling
+        page without moving focus to another floating window.
+        """
         try:
             if self._arrange_panel is None:
                 from .arrange_ui import ArrangePanel
-                panel = ArrangePanel(self.app)
-                dock = self.app.add_panel(
-                    "Alinhar e distribuir", panel, name="arrange")
-                self._arrange_panel = panel
-                self._arrange_dock = dock
+                self._arrange_panel=ArrangePanel(self.app)
+                self._add_page("arrange",self._arrange_panel)
             self._arrange_panel.refresh()
-            try:
-                self.app.show_panel(self._arrange_dock)
-            except Exception:
-                self._arrange_dock.show()
+            self.show_page("arrange")
         except Exception as exc:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(
-                self.panel, "OpenTrace BIM",
-                f"Não foi possível abrir a paleta de alinhamento: {type(exc).__name__}: {exc}")
+                self.panel,"OpenTrace BIM",
+                f"Não foi possível abrir alinhamento: {type(exc).__name__}: {exc}")
 
     def _auto_update_toggled(self, enabled):
         if enabled and self.update_manager is not None:
