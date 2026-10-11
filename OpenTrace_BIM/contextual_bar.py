@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""One context-sensitive OpenTrace Info Box in the existing architecture toolbar.
+"""A single dynamic Info Box in its OWN toolbar row below the host tools.
 
 Never registers a second modelling tool, modifies the host menu bar, or stores
 a second copy of a BIM property. Quick edits proxy the controller's live Qt
@@ -10,7 +10,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
-    QToolButton, QWidget, QWidgetAction,
+    QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
 )
 
 from .icons import set_symbol_icon
@@ -44,15 +44,16 @@ class ContextualBar(QWidget):
         self._opening_kind = "opening"
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(6, 2, 6, 2)
-        row.setSpacing(7)
+        row.setContentsMargins(8, 3, 8, 3)
+        row.setSpacing(12)
         self.brand = QLabel("OpenTrace BIM")
         self.brand.setObjectName("opentrace_context_brand")
-        self.brand.setStyleSheet("font-weight:600;")
+        self.brand.setMinimumWidth(116)
+        self.brand.setStyleSheet("font-size:11pt; font-weight:700; padding-right:8px;")
         row.addWidget(self.brand)
         self.stack = _CompactStack(self)
         row.addWidget(self.stack, 1)
-        self.collapsed_label = QLabel("Contexto recolhido")
+        self.collapsed_label = QLabel("Contexto · abrir ▾")
         self.collapsed_label.hide()
         row.addWidget(self.collapsed_label, 1)
         self.collapse_button = QToolButton(self)
@@ -64,54 +65,98 @@ class ContextualBar(QWidget):
 
         self.pages = {}
         self._build_pages()
-        # Existing fixed toolbar is REUSED (including its host toggle action).
-        # Hide its old fixed wall/slab/door/window controls; keep QAction
-        # objects and menus alive, so native shortcuts are not disturbed.
+        # Important: this MUST be a separate Qt toolbar ROW. The old design
+        # simply added a widget to the native row, compressing it out of view.
+        # Qt keeps native menus / native toolbars and their actions unchanged.
         toolbar = self.wall.toolbar
         self.hidden_legacy_actions = tuple(toolbar.actions())
         for action in self.hidden_legacy_actions:
             if isinstance(action, QWidgetAction):
                 action.setVisible(False)
             else:
-                # QAction also belongs to menus; removing it ONLY from the
-                # toolbar avoids hiding the same menu/keyboard command.
-                toolbar.removeAction(action)
+                toolbar.removeAction(action)  # QAction stays alive in menus.
+        window = self.app.window
+        # QMainWindow manages full-width rows and persistence for toolbars.
+        # Insert one break BEFORE our toolbar; do not create Ribbon bars.
+        if not window.toolBarBreak(toolbar):
+            window.insertToolBarBreak(toolbar)
         toolbar.addWidget(self)
+        toolbar.setWindowTitle("OpenTrace BIM · Barra contextual")
         toolbar.setMovable(False)
         toolbar.setFloatable(False)
+        toolbar.setIconSize(QSize(24,24))
         self.refresh()
 
     def _page(self, key, title):
         w = QWidget(self.stack)
+        w.setObjectName("opentrace_context_" + key)
         layout = QHBoxLayout(w)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(9)
         label = QLabel(title)
-        label.setStyleSheet("font-weight:600;")
+        label.setObjectName("opentrace_context_name")
+        label.setStyleSheet("font-weight:600; padding-right:5px;")
         layout.addWidget(label)
         self.stack.addWidget(w)
         self.pages[key] = (w, layout)
         return layout
 
     def _section(self, layout, title):
-        label = QLabel(title)
+        # Every section has a real hierarchy: a small heading ABOVE methods
+        # and dimensions, not inline fragments mixed with buttons.
+        group = QFrame(self)
+        group.setObjectName("opentrace_context_section")
+        group.setStyleSheet(
+            "QFrame#opentrace_context_section {"
+            " border-left:1px solid palette(mid); padding-left:5px; }")
+        v = QVBoxLayout(group)
+        v.setContentsMargins(4,0,3,0)
+        v.setSpacing(2)
+        label = QLabel(title,group)
         label.setStyleSheet("font-size:9pt; color:palette(mid);")
-        layout.addWidget(label)
+        v.addWidget(label)
+        controls=QHBoxLayout()
+        controls.setContentsMargins(0,0,0,0)
+        controls.setSpacing(3)
+        v.addLayout(controls)
+        layout.addWidget(group)
+        if not hasattr(self,"_group_rows"): self._group_rows={}
+        self._group_rows[id(layout)]=controls
         return label
+
+    def _target(self,layout):
+        return getattr(self,"_group_rows",{}).get(id(layout),layout)
 
     def _method(self, layout, symbol, title, callback, *, active=None):
         button = QToolButton(self)
         button.setAutoRaise(True)
         button.setToolTip(title)
         button.setAccessibleName(title)
-        button.setFixedSize(30, 30)
-        button.setIconSize(QSize(20, 20))
-        set_symbol_icon(button, symbol, 20)
+        button.setFixedSize(34, 32)
+        button.setIconSize(QSize(22, 22))
+        from .icons import icon as pa_icon
+        names={
+            "／":"wall","▏":"wall","▱":"rect","□":"opening",
+            "⊥":"wall_base","⌒":"wall_curve","⊙":"center_arc",
+            "∴":"three_points","⬡":"polygon","◧":"anchor_left",
+            "⊕":"anchor_center","◨":"anchor_right",
+            "↶":"swing","⊘":"delete","ⓘ":"bim"}
+        chosen=("slab" if title=="Criar laje" else names.get(symbol))
+        if chosen:
+            button.setIcon(pa_icon(chosen,32))
+            button.setText("")
+        else:
+            set_symbol_icon(button,symbol,22)
+        button.setStyleSheet(
+            "QToolButton {border:1px solid transparent; border-radius:4px;}"
+            "QToolButton:hover {background:palette(midlight);}"
+            "QToolButton:checked {background:palette(highlight);"
+            "border:1px solid palette(highlight);}")
         if active is not None:
             button.setCheckable(True)
             self._mode_controls.append((button, active))
         button.clicked.connect(lambda checked=False, cb=callback: self._run(cb))
-        layout.addWidget(button)
+        self._target(layout).addWidget(button)
         return button
 
     def _run(self, callback):
@@ -146,7 +191,7 @@ class ContextualBar(QWidget):
         mirror.setToolTip(source.toolTip() or text)
         mirror.setAccessibleName(text)
         self._mirrors.append((mirror, source))
-        layout.addWidget(mirror)
+        self._target(layout).addWidget(mirror)
         return label, mirror
 
     @staticmethod
@@ -190,7 +235,8 @@ class ContextualBar(QWidget):
         column = self.controllers.get("column")
         beam = self.controllers.get("beam")
 
-        p = self._page("idle", "Selecione uma ferramenta ou objeto BIM")
+        p = self._page("idle", "Pronto para modelar")
+        self._section(p, "Ferramentas")
         self._method(p, "▏", "Criar parede", wall.action.trigger)
         if slab is not None:
             self._method(p, "▱", "Criar laje", slab.action.trigger)
@@ -272,7 +318,8 @@ class ContextualBar(QWidget):
                 ):
                     self._method(p, symbol, label,
                                  lambda k=kind, a=anchor: wall.begin_hosted_fill(k, a))
-            p.addWidget(QLabel("Clique na parede para posicionar"))
+                # Guided placement remains on the viewport, never in a modal.
+            # Existing modelling actions control actual placement.
         # One set of live opening fields: variants use visibility, not
         # duplicate signal-connected spinboxes for the same source widgets.
         p = self._page("opening_edit", "Vão selecionado")
@@ -295,7 +342,8 @@ class ContextualBar(QWidget):
             p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
         self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
         p = self._page("polygon_edit", "Abertura poligonal")
-        p.addWidget(QLabel("Vértices e arestas: paleta/radial"))
+        self._section(p, "Edição da geometria")
+        p.addWidget(QLabel("Vértices e arestas: paleta lateral / radial"))
         self._method(p, "⬡", "Abrir editor da abertura na paleta lateral",
                      lambda: self.suite.show_page("wall"))
         self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
@@ -375,6 +423,8 @@ class ContextualBar(QWidget):
         self._collapsed = not self._collapsed
         self.stack.setVisible(not self._collapsed)
         self.collapsed_label.setVisible(self._collapsed)
+        # Collapsing is a true layout shrink, not simply painting over the UI.
+        self.wall.toolbar.updateGeometry()
         self.collapse_button.setText("▾" if self._collapsed else "▴")
         self.collapse_button.setToolTip(
             "Expandir a barra contextual" if self._collapsed
