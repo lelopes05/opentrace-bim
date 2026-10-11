@@ -8,7 +8,7 @@ of bitmap assets.
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
 
 BLUE = QColor("#42658d")
 BLUE_LIGHT = QColor("#a9bfd7")
@@ -41,6 +41,22 @@ def _pen(color=BLUE, width=2.0):
 
 def icon(name: str, size: int = 32) -> QIcon:
     name = str(name or "").lower()
+    # Runtime palette makes vector symbols legible on the DARK IngeTrazo
+    # theme used by the maintainer; previous blue strokes almost disappeared.
+    palette = QGuiApplication.palette()
+    dark = palette.color(QPalette.Window).lightness() < 128
+    if dark:
+        BLUE = QColor("#c7e0f4")
+        BLUE_LIGHT = QColor("#648fb0")
+        BLUE_MID = QColor("#406d91")
+        ORANGE = QColor("#ffac68")
+        SAND = QColor("#c2a47d")
+        INK = QColor("#d3e1ed")
+    else:
+        BLUE, BLUE_LIGHT, BLUE_MID, ORANGE, SAND, INK = (
+            globals()["BLUE"], globals()["BLUE_LIGHT"],
+            globals()["BLUE_MID"], globals()["ORANGE"],
+            globals()["SAND"], globals()["INK"])
     pm = _pm(size)
     p = _painter(pm)
     s = float(size) / 32.0
