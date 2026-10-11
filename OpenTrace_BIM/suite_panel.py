@@ -29,6 +29,14 @@ class ArchitectureSuitePanel:
         self._arrange_panel = None
         self._arrange_dock = None
         self.panel=QWidget();self.panel.setMinimumSize(0,0)
+        # Lifecycle-owned timers: unlike unparented QTimer.singleShot, they
+        # cannot invoke Python methods after a document/window is destroyed.
+        self._context_timer=QTimer(self.panel)
+        self._context_timer.setSingleShot(True)
+        self._context_timer.timeout.connect(self._run_sync_context)
+        self._auto_check_timer=QTimer(self.panel)
+        self._auto_check_timer.setSingleShot(True)
+        self._auto_check_timer.timeout.connect(self._auto_check_updates_on_startup)
         root=QVBoxLayout(self.panel);root.setContentsMargins(4,4,4,4);root.setSpacing(4)
         self.nav=QFrame()
         self.nav.setObjectName("opentrace_sidebar_navigation")
@@ -105,7 +113,7 @@ class ArchitectureSuitePanel:
         # context-sensitive Info Box instead of an always-visible tool pile.
         from .contextual_bar import ContextualBar
         self.context_bar = ContextualBar(self)
-        QTimer.singleShot(1800,self._auto_check_updates_on_startup)
+        self._auto_check_timer.start(1800)
 
     def _add_page(self,key,widget):
         self.pages[key]=widget;self.stack.addWidget(widget)
@@ -301,7 +309,7 @@ class ArchitectureSuitePanel:
 
     def schedule_sync_context(self,*_):
         if self._sync_queued:return
-        self._sync_queued=True;QTimer.singleShot(0,self._run_sync_context)
+        self._sync_queued=True;self._context_timer.start(0)
 
     def schedule_tool_sync_context(self,*_):
         active_id=id(getattr(self.app.viewport,"active_tool",None))
