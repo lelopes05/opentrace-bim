@@ -85,6 +85,13 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertIn("▾",fold.text())
             self.assertEqual(suite.project_info_button.accessibleName(),"Informações do Projeto")
             self.assertEqual(suite.arrange_button.accessibleName(),"Alinhar e distribuir objetos")
+            self.assertEqual(suite.help_button.accessibleName(),"Ajuda OpenTrace BIM")
+            suite.open_help()
+            self.assertEqual(suite._help_dialog.chapters.currentRow(),0)
+            self.assertIn("O que há de novo",suite._help_dialog.article.toPlainText())
+            suite.open_help("opening_edit")
+            self.assertIn("Aberturas e esquadrias",suite._help_dialog.article.toPlainText())
+            suite._help_dialog.close()
             old_tool=window.viewport.active_tool
             suite.project_info_button.click()
             self.assertIs(suite.stack.currentWidget(),suite.pages["project"])
