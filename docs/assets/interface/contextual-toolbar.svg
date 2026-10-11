@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="680" viewBox="0 0 1320 680" role="img" aria-labelledby="title desc">
+<title id="title">OpenTrace BIM - barra contextual dinamica e paleta lateral</title>
+<desc id="desc">Diagrama conceitual da barra dinamica em tres estados e da separacao entre viewport, barra e paleta lateral.</desc>
+<rect width="1320" height="680" fill="#f5f6f8"/>
+<text x="44" y="43" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#202630">OpenTrace BIM | Interface contextual aprovada (esquema)</text>
+<text x="44" y="71" font-family="Arial,sans-serif" font-size="15" fill="#667085">O menu original do IngeTrazo e preservado. Uma unica faixa abaixo dele muda conforme ferramenta ou selecao.</text>
+<rect x="44" y="92" width="1232" height="42" rx="6" fill="#24272e"/>
+<text x="61" y="119" font-family="Arial,sans-serif" font-size="15" fill="#f2f4f7">Arquivo     Editar     Camera     Desenhar     Ferramentas     Janela     Ajuda</text>
+<text x="1090" y="119" font-family="Arial,sans-serif" font-size="13" fill="#c7cdd6">IngeTrazo nativo</text>
+<text x="44" y="167" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#344054">1  Ferramenta PAREDE ativa</text>
+<rect x="44" y="181" width="1232" height="81" rx="8" fill="#20252c"/>
+<rect x="54" y="192" width="222" height="59" rx="6" fill="#363c46"/>
+<text x="69" y="214" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">OpenTrace BIM - Parede</text>
+<text x="69" y="238" font-family="Arial,sans-serif" font-size="12" fill="#cfd5dd">Ocultar faixa  ^</text>
+<g fill="#cdd4dd" font-family="Arial,sans-serif" font-size="11"><text x="303" y="202">Metodos construtivos</text><text x="592" y="202">Alinhamento</text><text x="795" y="202">Estrutura</text><text x="965" y="202">Espessura</text><text x="1101" y="202">Altura</text></g>
+<g fill="#363c46" stroke="#697182"><rect x="298" y="211" width="55" height="38" rx="5"/><rect x="358" y="211" width="55" height="38" rx="5"/><rect x="418" y="211" width="55" height="38" rx="5"/><rect x="478" y="211" width="55" height="38" rx="5"/><rect x="587" y="211" width="59" height="38" rx="5"/><rect x="650" y="211" width="59" height="38" rx="5"/><rect x="713" y="211" width="59" height="38" rx="5"/><rect x="790" y="211" width="140" height="38" rx="5"/><rect x="960" y="211" width="130" height="38" rx="5"/><rect x="1097" y="211" width="159" height="38" rx="5"/></g>
+<g font-family="Arial,sans-serif" font-size="14" fill="#fff" text-anchor="middle"><text x="325" y="235">|</text><text x="385" y="235">▭</text><text x="445" y="235">⌒</text><text x="505" y="235">◉</text><text x="616" y="235">E</text><text x="679" y="235">C</text><text x="742" y="235">D</text><text x="860" y="235">Simples ▾</text><text x="1025" y="235">0,15 m</text><text x="1175" y="235">3,00 m</text></g>
+<text x="44" y="302" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#344054">2  PORTA selecionada (a faixa troca de conteudo, nao soma outra barra)</text>
+<rect x="44" y="314" width="1232" height="72" rx="8" fill="#20252c"/>
+<rect x="54" y="325" width="222" height="49" rx="6" fill="#363c46"/>
+<text x="69" y="346" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#fff">OpenTrace BIM - Porta</text>
+<text x="69" y="364" font-family="Arial,sans-serif" font-size="12" fill="#cfd5dd">Objeto selecionado</text>
+<g fill="#363c46" stroke="#697182"><rect x="296" y="326" width="162" height="47" rx="6"/><rect x="469" y="326" width="163" height="47" rx="6"/><rect x="643" y="326" width="201" height="47" rx="6"/><rect x="855" y="326" width="203" height="47" rx="6"/></g>
+<g fill="#fff" font-family="Arial,sans-serif" font-size="15" text-anchor="middle"><text x="377" y="356">Largura  0,90 m</text><text x="550" y="356">Altura  2,10 m</text><text x="743" y="356">Inverter giro</text><text x="957" y="356">Ancoragem ▾</text></g>
+<text x="44" y="426" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#344054">3  Organizacao espacial (sem substituir a viewport)</text>
+<rect x="44" y="442" width="784" height="190" rx="8" fill="#e1e5e8" stroke="#9ca6b4"/>
+<path d="M 437 476 L 437 608 M 114 588 L 762 494 M 113 495 L 732 608" fill="none" stroke-width="2" stroke="#bdc6ce"/>
+<text x="313" y="535" font-family="Arial,sans-serif" font-size="19" font-weight="700" fill="#56616c">Viewport nativa do IngeTrazo</text>
+<text x="296" y="559" font-family="Arial,sans-serif" font-size="14" fill="#56616c">Construcao e manipulacao visual</text>
+<rect x="847" y="442" width="429" height="190" rx="8" fill="#22272d"/>
+<text x="865" y="470" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#fff">Paleta lateral OpenTrace BIM</text>
+<rect x="864" y="484" width="393" height="33" rx="4" fill="#373f48"/>
+<text x="882" y="506" font-family="Arial,sans-serif" font-size="14" fill="#f1f4f7">Elementos   |   Propriedades   |   BIM   |   Projeto ⓘ</text>
+<text x="865" y="545" font-family="Arial,sans-serif" font-size="14" fill="#d1d7df">Edicao detalhada, subpaletas, vertices, arestas</text>
+<text x="865" y="570" font-family="Arial,sans-serif" font-size="14" fill="#d1d7df">Camadas, perfis, inclinacoes, propriedades IFC</text>
+<text x="865" y="596" font-family="Arial,sans-serif" font-size="13" fill="#97a5b5">Cabecalho horizontal; pode recolher / ancorar</text>
+<text x="44" y="661" font-family="Arial,sans-serif" font-size="13" fill="#667085">Diagrama de requisitos, nao captura do software nem indicacao de funcionalidades implementadas.</text>
+</svg>
