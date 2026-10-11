@@ -89,6 +89,41 @@ class InstallationSmokeTests(unittest.TestCase):
             suite.show_page("wall")
             self.assertIs(suite.stack.currentWidget(),suite.pages["wall"])
             self.assertIs(window.viewport.active_tool,old_tool)
+            # B3b is not a static row of duplicated modelling actions:
+            # a single toolbar changes its real method controls per tool.
+            bar = suite.context_bar
+            self.assertEqual(bar.objectName(),"opentrace_contextual_bar")
+            self.assertIs(bar.parent(),ctl.toolbar)
+            self.assertIn("wall",bar.pages)
+            self.assertIn("slab",bar.pages)
+            self.assertIn("opening_edit",bar.pages)
+            self.assertEqual(bar._context_key(),"idle")
+            self.assertFalse(any(a.isVisible() for a in bar.hidden_legacy_actions))
+            ctl.action.trigger()
+            bar.refresh()
+            self.assertEqual(bar._context_key(),"wall")
+            bar._wall_mode("rect_diagonal")
+            self.assertEqual(ctl.tool.mode,"rect_diagonal")
+            bar.refresh()
+            self.assertTrue(any(btn.isChecked() for btn,_ in bar._mode_controls))
+            mirror=next(w for w,source in bar._mirrors
+                        if source is ctl.fields["thickness"])
+            ctl.fields["thickness"].setValue(0.34)
+            bar.refresh()
+            self.assertAlmostEqual(mirror.value(),0.34)
+            mirror.setValue(0.29)
+            self.assertAlmostEqual(ctl.fields["thickness"].value(),0.29)
+            bar.toggle_collapsed()
+            self.assertFalse(bar.stack.isVisible())
+            self.assertEqual(bar._context_key(),"wall")
+            bar.toggle_collapsed()
+            self.assertTrue(bar.stack.isVisibleTo(bar))
+            ctl.begin_hosted_fill("door","left")
+            bar.refresh()
+            self.assertEqual(bar._context_key(),"door")
+            # Existing creation and editor actions are still shared.
+            self.assertIn(ctl.simple_wall_action,
+                          suite.workspace_menus["create"].actions()[0].menu().actions())
         finally:
             window.deleteLater()
             qt.processEvents()
@@ -134,6 +169,31 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertAlmostEqual(model["openings"][1]["width"],.9)
             self.assertAlmostEqual(model["openings"][1]["sill"],.8)
             self.assertAlmostEqual(model["openings"][1]["height"],1.1)
+            # A: a second/third change still addresses B after the first
+            # scene-version invalidation; the contextual field writes through
+            # the same controller (no duplicate opening state).
+            suite=window._arquitetura_parametrica_suite_panel
+            bar=suite.context_bar
+            bar._key=None
+            # Selection by the actual opening combobox sets the wall/ID pair.
+            self.assertEqual(ctl._active_opening_id,"edit-B")
+            scene.version+=1
+            ctl._state_key=None
+            ctl.refresh()
+            self.assertEqual(ctl._fields_opening_id,"edit-B")
+            ctl.opening_fields["width"].setValue(1.0)
+            ctl.opening_fields["width"].setValue(1.1)
+            model=read_wall(wall)
+            self.assertAlmostEqual(model["openings"][0]["width"],.7)
+            self.assertAlmostEqual(model["openings"][1]["width"],1.1)
+            # Failed history execution must retain the controller's selected ID.
+            from unittest.mock import patch
+            before=ctl._active_opening_id
+            with patch.object(window.viewport.history,"execute",
+                              side_effect=ValueError("reject deletion")):
+                ctl.delete_wall_opening()
+            self.assertEqual(ctl._active_opening_id,before)
+            self.assertEqual(len(read_wall(wall)["openings"]),2)
         finally:
             window.deleteLater()
             qt.processEvents()
