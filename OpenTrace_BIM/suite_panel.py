@@ -25,14 +25,30 @@ class ArchitectureSuitePanel:
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
         self._mode_buttons={}
+        self._property_sections={}
         self._arrange_panel = None
         self._arrange_dock = None
         self.panel=QWidget();self.panel.setMinimumSize(0,0)
         root=QVBoxLayout(self.panel);root.setContentsMargins(4,4,4,4);root.setSpacing(4)
-        self.nav=QFrame();navlay=QHBoxLayout(self.nav);navlay.setContentsMargins(0,0,0,0);navlay.setSpacing(2)
+        self.nav=QFrame()
+        self.nav.setObjectName("opentrace_sidebar_navigation")
+        navlay=QHBoxLayout(self.nav)
+        navlay.setContentsMargins(0,0,0,0)
+        navlay.setSpacing(2)
         self.group=QButtonGroup(self.panel);self.group.setExclusive(True);self.buttons={}
         for key,label,ico in self.PAGE_INFO:
-            b=QToolButton();b.setCheckable(True);b.setAutoRaise(True);b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon);b.setIcon(icon(ico));b.setIconSize(QSize(26,26));b.setText(label);b.setToolTip(label)
+            b=QToolButton(self.nav)
+            b.setObjectName("opentrace_nav_"+key)
+            b.setCheckable(True)
+            b.setAutoRaise(True)
+            b.setToolButtonStyle(Qt.ToolButtonIconOnly)
+            b.setIcon(icon(ico))
+            b.setIconSize(QSize(20,20))
+            b.setFixedSize(QSize(26,26))
+            b.setText(label)
+            b.setToolTip(label)
+            b.setAccessibleName(label)
+            b.setStyleSheet("QToolButton:checked { background: palette(midlight); border-radius:4px; }")
             b.clicked.connect(lambda _=False,k=key:self.user_show_page(k))
             navlay.addWidget(b);self.group.addButton(b);self.buttons[key]=b
         # Project information lives on its own page, outside the BIM
@@ -181,7 +197,24 @@ class ArchitectureSuitePanel:
         # hints from forcing the top-level window away from its restored size.
         page.setMinimumSize(0,0)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.NoFrame);scroll.setMinimumSize(0,0);scroll.setWidget(page)
-        lay.addWidget(scroll,1);return wrapper
+        # Do not detach/rebuild the existing editor: the section only
+        # collapses its VIEW, preserving widgets, values and Undo handlers.
+        toggle=QToolButton(wrapper)
+        toggle.setObjectName("opentrace_properties_"+key)
+        toggle.setCheckable(True)
+        toggle.setChecked(True)
+        toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        toggle.setText("▾ Propriedades e edição")
+        toggle.setToolTip("Recolher ou expandir propriedades detalhadas")
+        toggle.setAccessibleName("Propriedades e edição")
+        def switch_properties(expanded, sc=scroll, bt=toggle):
+            sc.setVisible(expanded)
+            bt.setText(("▾" if expanded else "▸")+" Propriedades e edição")
+        toggle.toggled.connect(switch_properties)
+        lay.addWidget(toggle)
+        lay.addWidget(scroll,1)
+        self._property_sections[key]=toggle
+        return wrapper
 
     def _trigger_mode(self,key,action,index):
         self._set_mode_button(key,index)
