@@ -128,6 +128,7 @@ class ContextualBar(QWidget):
             mirror.setMaximumWidth(max(width, 145))
             mirror.currentIndexChanged.connect(
                 lambda _=0, a=mirror, b=source: self._apply_combo(a, b))
+            source.currentIndexChanged.connect(self.suite.schedule_sync_context)
         else:
             mirror = QDoubleSpinBox(self)
             mirror.setLocale(source.locale())
@@ -138,10 +139,10 @@ class ContextualBar(QWidget):
             mirror.setKeyboardTracking(False)
             mirror.setMinimumWidth(width)
             mirror.setMaximumWidth(width + 12)
-            mirror.valueChanged.connect(
-                lambda _=0, a=mirror, b=source: self._apply_value(a, b))
-            source.valueChanged.connect(
-                lambda _=0, a=mirror, b=source: self._sync_field(a, b))
+            # A direct QObject-to-QObject Qt connection avoids referencing
+            # destroyed mirrors from Python signal closures during teardown.
+            mirror.valueChanged.connect(source.setValue)
+            source.valueChanged.connect(self.suite.schedule_sync_context)
         mirror.setToolTip(source.toolTip() or text)
         mirror.setAccessibleName(text)
         self._mirrors.append((mirror, source))
