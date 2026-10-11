@@ -281,7 +281,16 @@ class ContextualBar(QWidget):
             ("sill", "Peitoril"), ("position", "Pos."),
         ):
             self._field(p, label, wall.opening_fields[key])
-        self._anchor_controls = self._field(p, "Âncora", wall.fill_anchor_combo)
+        self._section(p, "Âncora")
+        self._anchor_buttons = []
+        for symbol, name, title in (
+            ("◧", "left", "Âncora esquerda"),
+            ("⊕", "center", "Âncora central"),
+            ("◨", "right", "Âncora direita"),
+        ):
+            self._anchor_buttons.append(
+                self._method(p, symbol, title,
+                             lambda value=name: self._edit_fill_anchor(value)))
         self._swing_button = self._method(
             p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
         self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
@@ -290,6 +299,14 @@ class ContextualBar(QWidget):
         self._method(p, "⬡", "Abrir editor da abertura na paleta lateral",
                      lambda: self.suite.show_page("wall"))
         self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
+
+    def _edit_fill_anchor(self, anchor):
+        # Use the EXISTING hosted-fill combobox, hence its EditHostedFill
+        # handler, source_id and one undoable history command.
+        field = self.wall.fill_anchor_combo
+        index = field.findData(anchor)
+        if index >= 0:
+            field.setCurrentIndex(index)
 
     def _wall_mode(self, mode):
         if self.app.viewport.active_tool is not self.wall.tool:
@@ -378,7 +395,7 @@ class ContextualBar(QWidget):
         # Do not display inapplicable buttons: only hosted doors can swing,
         # and only hosted elements have an anchor.
         show_anchor = self._opening_kind in ("door", "window")
-        for widget in self._anchor_controls:
+        for widget in self._anchor_buttons:
             widget.setVisible(show_anchor)
         self._swing_button.setVisible(self._opening_kind == "door")
         for button, predicate in self._mode_controls:
