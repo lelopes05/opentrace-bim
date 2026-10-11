@@ -10,7 +10,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
-    QToolButton, QWidget,
+    QToolButton, QWidget, QWidgetAction,
 )
 
 from .icons import set_symbol_icon
@@ -65,7 +65,12 @@ class ContextualBar(QWidget):
         toolbar = self.wall.toolbar
         self.hidden_legacy_actions = tuple(toolbar.actions())
         for action in self.hidden_legacy_actions:
-            action.setVisible(False)
+            if isinstance(action, QWidgetAction):
+                action.setVisible(False)
+            else:
+                # QAction also belongs to menus; removing it ONLY from the
+                # toolbar avoids hiding the same menu/keyboard command.
+                toolbar.removeAction(action)
         toolbar.addWidget(self)
         toolbar.setMovable(False)
         toolbar.setFloatable(False)
@@ -151,7 +156,7 @@ class ContextualBar(QWidget):
     def _sync_field(self, mirror, source):
         old = mirror.blockSignals(True)
         try:
-            mirror.setEnabled(source.isEnabled() and source.isVisibleTo(self.suite.panel))
+            mirror.setEnabled(source.isEnabled())
             if isinstance(mirror, QComboBox):
                 current = source.currentData()
                 options = [(source.itemText(i), source.itemData(i))
