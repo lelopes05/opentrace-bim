@@ -203,6 +203,17 @@ class InstallationSmokeTests(unittest.TestCase):
             model=read_wall(wall)
             self.assertAlmostEqual(model["openings"][0]["width"],.7)
             self.assertAlmostEqual(model["openings"][1]["width"],1.1)
+            # Switching from the list to the Info Box does not implicitly
+            # select another void; source field still owns EditWall/history.
+            bar.refresh()
+            self.assertEqual(bar._context_key(),"opening_edit")
+            self.assertIs(bar.stack.currentWidget(),bar.pages["opening_edit"][0])
+            quick=next(w for w,source in bar._mirrors
+                       if source is ctl.opening_fields["width"])
+            self.assertAlmostEqual(quick.value(),1.1)
+            quick.setValue(1.2)
+            self.assertAlmostEqual(read_wall(wall)["openings"][0]["width"],.7)
+            self.assertAlmostEqual(read_wall(wall)["openings"][1]["width"],1.2)
             # Failed history execution must retain the controller's selected ID.
             from unittest.mock import patch
             before=ctl._active_opening_id
