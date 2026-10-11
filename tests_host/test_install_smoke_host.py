@@ -109,8 +109,7 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
             self.assertIn("polygon_edit",bar.pages)
-            self.assertIn("door_edit",bar.pages)
-            self.assertIn("window_edit",bar.pages)
+            self.assertEqual(len([k for k in bar.pages if k.endswith("_edit") and k.startswith(("door","window"))]),0)
             self.assertEqual(bar._context_key(),"idle")
             self.assertEqual(
                 [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
