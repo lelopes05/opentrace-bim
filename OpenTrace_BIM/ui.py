@@ -1409,20 +1409,41 @@ class WallController(QObject):
             self.schedule_refresh()
 
     def delete_wall_opening(self):
-        if self.target is None or not self._active_opening_id:return
+        """Delete only after the host history confirms the change.
+
+        Failed or rejected deletion must not discard the selected opening ID:
+        its virtual controls and the newly bound contextual Info Box should
+        still point to the same opening for correction/retry.
+        """
+        if self.target is None or not self._active_opening_id:
+            return
+        target_id = self._active_opening_id
         try:
-            vals=read_wall(self.target)
-            target_id=self._active_opening_id
-            item=next((x for x in vals["openings"] if x.get("id")==target_id),None)
-            if item is None:return
-            linked=self._find_linked_fill(item)
-            vals["openings"]=[x for x in vals["openings"] if x.get("id")!=target_id]
-            self._active_opening_id=None
-            cmd=DeleteHostedOpening(self.app.scene,self.target,target_id) if linked else EditWall(self.app.scene,self.target,vals)
+            vals = read_wall(self.target)
+            item = next((x for x in vals["openings"]
+                         if x.get("id") == target_id), None)
+            if item is None:
+                return
+            linked = self._find_linked_fill(item)
+            vals["openings"] = [x for x in vals["openings"]
+                                if x.get("id") != target_id]
+            cmd = (DeleteHostedOpening(self.app.scene, self.target, target_id)
+                   if linked else EditWall(self.app.scene, self.target, vals))
             self.app.viewport.history.execute(cmd)
-            if self.app.viewport.history.last_error:raise WallError(self.app.viewport.history.last_error)
-            self.app.viewport.notify_scene_changed();self._state_key=None;self.refresh();self.message("Abertura excluída.")
-        except WallError as exc:self.message(str(exc),error=True)
+            if self.app.viewport.history.last_error:
+                raise WallError(self.app.viewport.history.last_error)
+            self._active_opening_id = None
+            self._fields_opening_id = None
+            self.app.viewport.notify_scene_changed()
+            self._state_key = None
+            self.refresh()
+            self.message("Abertura excluída.")
+        except (WallError, ValueError, KeyError) as exc:
+            self._active_opening_id = target_id
+            self._loaded_key = None
+            self._state_key = None
+            self.schedule_refresh()
+            self.message(str(exc), error=True)
 
     def begin_curve_arc(self):
         wall, anchor = self._palette_target()
