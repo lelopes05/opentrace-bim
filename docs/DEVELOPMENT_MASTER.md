@@ -6,6 +6,59 @@
 > **Caderno exclusivo de interface (decisões 09/10 + diagramas e aceitação 11/10):** [INTERFACE_MASTER.md](INTERFACE_MASTER.md). A reformulação visual fundamental é a **barra contextual dinâmica e recolhível abaixo do menu original do IngeTrazo** — **B3b ainda pendente**. B1/B2 (Informações do Projeto e alinhamento XYZ) não equivalem a redesign concluído. Não trocar essa solução por um Ribbon fixo.
 
 
+## Plano executivo entre frentes — autoridade operacional (2026-10-11)
+
+> **Esta seção prevalece sobre ordens de retomada históricas conflitantes acima/abaixo**, inclusive “não iniciar novas frentes antes” e “pedir resultado do pacote antigo”. A numeração oficial das etapas **00–07 NÃO muda**; a regra é sua **ordem de execução efetiva no estágio atual**, com as frentes A e B simultâneas. As especificações de aparência/UX e o checklist particular de B3b ficam em [INTERFACE_MASTER.md](INTERFACE_MASTER.md); este documento é a **fonte de verdade da prioridade cruzada, tamanho dos blocos e gates**.
+
+### 1. Critérios obrigatórios para formar um bloco
+
+- **Unidade funcional, não arquivo/commit:** agrupar mudanças necessárias para um **fluxo completo verificável** pelo mantenedor (ex.: ativar ferramenta → configurar → executar → editar/confirmar → Undo). Não criar um bloco por ícone, callback, pequena correção ou ajuste de rótulo.
+- **Tamanho substancial com fronteira técnica segura:** reunir componentes coerentes, testes e integração até uma entrega testável; dividir se houver risco de misturar motores independentes, regressão grave, conflito em arquivos compartilhados ou necessidade de uma decisão ainda não aprovada. **Não inventar números mínimos de commits, duração nem escopo artificial.**
+- **Contrato explícito antes de escrever:** identificar código existente, arquivos afetados, comportamento observável, dependências, regressões, critérios de pronto e os itens fora do escopo. Reutilizar código validado; não reimplementar por preferência.
+- **Trabalho humano vs técnico:** assistente audita, programa, faz testes e corrige; mantenedor faz **aceitação visual/funcional no Windows** quando há um pacote substancial. Não pedir “OK” a cada microetapa nem transferir revisão de código ao usuário.
+- **Dois gates diferentes:** `código integrado + CI verde` autoriza **candidato experimental**; `validação manual real do usuário` autoriza **“aceito”**. Falha de aceite gera regressão direcionada, sem declarar etapa concluída.
+- **Entrega verificável de bloco:** commits reais na branch correta, testes executados com resultados verificáveis, link para artifact instalável (se bloco for de teste), diferença funcional demonstrável, pendências específicas e atualização do(s) caderno(s). Artefato **não** pode ser anunciado enquanto CI não confirmar os três jobs e sua estrutura.
+- **Nunca bloquear frente independente por feedback pendente na outra.** Se A precisa de teste de mouse no Windows e B não depende dele, avançar B; se B aguarda aceite visual e A tem trabalho de motor, avançar A. Isolar alterações e não mexer simultaneamente em `ui.py`/`suite_panel.py` ou outras áreas comuns sem reconciliar.
+
+### 2. Ordem de execução cruzada e dependências obrigatórias
+
+| Ordem relativa | Frente B — interface (prioridade **visual imediata**) | Frente A — aberturas e hospedeiros (paralela) | Condição de passagem |
+|---|---|---|---|
+| **0 — Auditoria única curta** | Conferir o que há **realmente** de B1/B2/B3a na HEAD e quais testes passaram; identificar dependência de widgets, dock e toolbar do IngeTrazo | Conferir o estado **real** de edição repetida, arestas, captura de parede e portas/janelas no mesmo PR | Registrar baseline **antes** de programar; não repetir uma auditoria longa em cada bloco |
+| **1 — Implementar já (ambas ativas)** | **B3b: barra contextual dinâmica, recolhível e sincronizada com a paleta**, completando fluxos das ferramentas BIM existentes; **principal prioridade da UI** | **A1: sessão completa de abertura** (criar, selecionar vértice/aresta, editar mais de uma vez, mover/excluir, Undo/Redo, recuo de parede), corrigindo apenas falhas reais | Gates independentes de testes; não esperar a validação de A1 para programar B3b, nem o inverso |
+| **2 — Consolidar a integração** | **B3a + paleta:** conectar hierarquia real dos menus, barra dinâmica e paleta lateral sem QActions duplicadas, recompor cabeçalho e navegação | **A2: hospedagem paramétrica**, porta/janela, âncoras/hotspots, associação do vão, persistência e IFC já compatíveis com o escopo | Só integrar manipulações conjuntas de `ui.py` após ambos os contratos ficarem estáveis e regressões passarem |
+| **3 — Fechar experiência e funcionalidade** | **B4:** manual contextual, “O que há de novo”, Sobre e vínculos reais (nenhum atualizador fictício) | **A3:** regressões adicionais de parede curva/inclinada, multicamadas, junções e edição com objeto hospedado, priorizando falhas reproduzíveis | Evitar expansão de escopo de motores avançados ou UX ainda não aprovada |
+| **4 — Aceitação integrada** | **B5:** verificar visualmente a interface de verdade no IngeTrazo Windows; confirmar barra/paleta/menu por capturas e fluxo de uso | **Gate A no Windows:** validar criação/edição repetida, arestas, recuos, Undo/Redo, porta/janela e persistência | **Aceite separado por frente:** não marcar B “concluída” porque A funcionou, nem A porque B ficou bonita |
+| **5 — Próximas etapas oficiais** | **Etapa 05**, depois **06**: vistas, escalas, cortes, documentação gráfica | Apoiar interoperabilidade e regressões necessárias, sem reiniciar etapas 01–03 concluídas | **07 por último:** consolidação IFC/Compositor/round-trip conforme gates prévios |
+
+**Desempate de prioridades:** (a) regressão que destrói dados, impede abrir projeto, corrompe viewport ou bloqueia a instalação interrompe a frente **afetada** para correção; (b) fora disso, **B3b é a próxima entrega visual a produzir**, sem suspender A1; (c) dependências reais prevalecem sobre a ordem de exibição da tabela; (d) a UX aprovada não é negociada por conveniência de implementação; proposta nova exige consulta ao mantenedor.
+
+**Entregas de teste:** consolidar alterações em **pacotes significativos**, preferindo um candidato integrado após os blocos paralelos estáveis; se independentes e uma pronta antes, um artifact experimental pode ser disponibilizado **sem esperar a outra**, desde que sua descrição diga exatamente o que contém. Cada pacote deve ter o ZIP único `OpenTrace_BIM/` e comparação contra o anterior. Não reenviar o pacote B1/B2 como se incluísse B3b.
+
+### 3. Gates mensuráveis e classificação de estado
+
+**Gate técnico comum a todo bloco que altere código:**
+
+1. Código auditado/compilável; diffs inspecionados e nenhum retrabalho de funcionalidades já validadas sem justificativa.
+2. Testes puros, testes de integração host/PySide6 e regressões relevantes; workflow/pacote coerentes com a **HEAD do commit entregue**, não um run anterior.
+3. Candidato instalável contendo **um único ZIP com `OpenTrace_BIM/` na raiz** (somente quando houver pacote), sem ZIP aninhado.
+4. Sem ferramentas duplicadas, promessas não implementadas ou interferência com seleção, Undo/Redo, arquivos `.igz` e IngeTrazo.
+5. Caderno geral e caderno de interface atualizados conforme a área; links reais para SHA, run e artifact quando existentes.
+
+**Gate manual por frente:**
+
+- **A1/A2/A3:** fluxo completo com clique e arraste, reedição da **mesma aresta** sucessivamente, mover/excluir o vão, recuar/alongar a parede, desfazer/refazer, persistência do ID e objeto hospedado, comportamento em projeto descartável. Resultado manual **pendente** até o mantenedor confirmar.
+- **B3b/B3a:** evidência de **mudança visual substantiva**, **uma só faixa contextual** sob menus nativos (não Ribbon fixo), troca automática de contexto Parede → Laje → Porta/Janela → objeto selecionado → Selecionar, parâmetros sincronizados, recolhimento, tooltips, paleta e atalhos coexistentes; sem interface mais congestionada. O checklist detalhado está no caderno da interface.
+- **B5:** testar a experiência integrada na GUI Windows, incluindo navegação, foco, seleção, variações de resolução quando possível e regressões da frente A. Teste Qt **offscreen não substitui** teste visual.
+
+**Estados permitidos e nunca intercambiáveis:** `planejado` → `implementado no código` → `CI aprovado` → `pacote experimental disponível` → `validado manualmente pelo usuário` → `aceito`. Um bloco pode ficar parcialmente validado sem impedir que a outra frente prossiga. **Nenhum bloco está aceito por omissão**.
+
+### 4. Ciclo de execução autônoma
+
+Iniciar com auditoria curta da HEAD, abrir/seguir um **bloco significativo em A** e um **em B**, trabalhar independentemente onde possível, rodar os gates, reconciliar conflitos de arquivos compartilhados sequencialmente, disponibilizar teste quando o conjunto estiver utilizável, pedir ao mantenedor somente a validação visual/funcional necessária, e **avançar automaticamente em outra frente desimpedida**. Após cada entrega, registrar **estado por frente, próximo bloco, bloqueio real, commit/run/link**. Não aguardar nova conversa para atualizar os cadernos; não publicar em `main`/release/catálogo sem autorização.
+
+---
+
 ## Ponto de retomada prioritário — 2026-10-10
 
 **Trabalho ativo:** [PR #8](https://github.com/lelopes05/opentrace-bim/pull/8), branch `dev/opening-controller-integration-2026-10-10`, base `dev/wall-openings-2026-10-09` (PR #5). Integra a implementação independente de esquadrias do [PR #7](https://github.com/lelopes05/opentrace-bim/pull/7). PRs #3–#7 seguem abertos e sem merge na `main`. **Release público 0.12.9 e catálogo preservados.**
