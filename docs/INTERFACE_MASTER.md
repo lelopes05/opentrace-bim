@@ -4,6 +4,8 @@
 **Repositório:** [lelopes05/opentrace-bim](https://github.com/lelopes05/opentrace-bim) · **Branch de trabalho:** dev/opening-controller-integration-2026-10-10 · **PR:** [#8, experimental](https://github.com/lelopes05/opentrace-bim/pull/8).  
 **Caráter deste documento:** especificação de **experiência e interface**, separada de geometria e motores BIM. É fonte de consulta obrigatória para qualquer alteração visual.
 
+> **ACEITAÇÃO VISUAL REPROVADA EM 11/10/2026.** As primeiras três capturas do mantenedor mostram a Info Box comprimida na toolbar nativa, uma paleta lateral ainda intitulada “Parametric Architecture” e controles de alinhamento sem a hierarquia visual combinada. B3b/UI-2 e a reformulação da paleta lateral **NÃO ESTÃO CONCLUÍDOS**, mesmo com CI verde. Consultar o [comparativo visual documentado](assets/interface/comparacao-aceite-2026-10-11.svg) e o capítulo de auditoria ao fim deste caderno. A referência é uma barra CONTEXTUAL em faixa própria abaixo dos menus nativos do IngeTrazo, não um Ribbon fixo.
+
 > **Limite documental importante:** o histórico recuperável da conversa original inclui decisões, trechos resumidos e mensagens datadas, **não uma transcrição integral verificável**. As quatro capturas fornecidas pelo mantenedor foram usadas para reconstruir diagramas e pormenores visíveis. Itens não comprovadamente aprovados aparecem como **proposta/pendente**, nunca como decisão ratificada. Esta versão não declara implementadas telas que só foram desenhadas.
 
 ## 0. Política de blocos da interface e ordem entre frentes (vigente em 11/10/2026)
@@ -320,3 +322,54 @@ Em toda alteração de interface, registrar **data / branch / commit / áreas vi
 - `contextual_bar.py`: edição de vão selecionado é contextual; abertura livre usa suas dimensões, polígono remete à edição de contorno na paleta/radial e esquadria real ganha acesso aos **mesmos** comandos de ancoragem e inversão de giro (somente porta). Mudança de seleção pelo seletor lateral preserva o `opening_id` na barra, sem iniciar criação; nenhuma cópia independente dos registros BIM.
 - **Estabilidade Qt:** temporizadores de sincronização/contexto e verificação de atualização passaram a pertencer ao QWidget do painel; sinais de propriedades atualizam a faixa via evento agendado para não manter callbacks de widgets destruídos. Builds intermediárias tiveram encerramento `none_dealloc` mesmo depois de 60 testes OK; o gate final `d3cbe6d` terminou sem esse erro. A causa provável foi ciclo de vida/conexões do Qt, não mudança geométrica.
 - **Não validado:** screenshots e uso mouse/GPU em IngeTrazo Windows, adequação de espaçamento em diferentes resoluções, foco, interação com barras nativas e persistência de janela. **B5 continua aberto.** B4 ajuda/manual/Sobre e os grupos internos mais finos de propriedades seguem pendentes; não afirmar UI totalmente aceita. `main`, 0.12.9 e catálogo permanecem preservados.
+
+## 15. Reprovação visual do candidato B3b/UI-3 — evidências e correção obrigatória (11/10/2026)
+
+**Fonte decisória inalterada:** conversa “Melhorias De Interface” de 09/10; referência ArchXQ capturada pelo mantenedor; deliberação expressa de barra contextual que muda por ferramenta/seleção **numa linha própria imediatamente sob a região de menus nativos**, evitando Ribbon fixo e controles de edição avançada no topo.
+
+### Imagens e rastreabilidade
+
+**Diagramas permanentes no repositório, com links efetivos:**
+
+1. [Esquema contextual originalmente reconstruído (SVG)](assets/interface/contextual-toolbar.svg).
+2. [Comparação da entrega reprovada × hierarquia aprovada (SVG)](assets/interface/comparacao-aceite-2026-10-11.svg), também reproduzida abaixo.
+
+![Comparação de arquitetura da interface entregue e a aprovada](assets/interface/comparacao-aceite-2026-10-11.svg)
+
+**AVISO IMPORTANTE:** esses dois arquivos são **diagramas**; não são cópias das capturas originais nem evidência de homologação. **As nove imagens originais recebidas na conversa em 11/10/2026 NÃO foram carregadas no repositório** e, portanto, **não têm URL estável do GitHub**. Não afirmar novamente que foram “anexadas” ou “linkadas” ao caderno. Uma cópia fiel das nove imagens foi reunida num arquivo ZIP disponibilizado na conversa de 11/10/2026; o link da conversa não é persistente no GitHub. O registro abaixo identifica cada imagem para posterior incorporação ao repo.
+
+| Captura original enviada em 11/10 | Papel na decisão |
+|---|---|
+| `image(20261011-153342).png` | **Entrega atual reprovada**: barra comprimida no topo e Home lateral “Parametric Architecture” |
+| `image(20261011-153426).png` | **Entrega atual reprovada**: editor de Parede, “Simple wall”, “Composite wall”, “Curved wall”, formulário e grupo único |
+| `image(20261011-153440).png` | **Entrega atual reprovada**: painel Alinhar/Distribuir apresentado de forma isolada |
+| `image(20261011-153543).png` | **Proposta estática ilustrativa não aprovada**: Ribbon agrupado em cinco famílias; NÃO implementar como substituto |
+| `image(20261011-153656).png` | **Discussão de contrato**: inventário por ferramenta, modos e parâmetros de criação |
+| `image(20261011-153720).png` | **Discussão de contrato**: distribuição visual por métodos, alinhamento, estrutura, espessura e altura |
+| `image(20261011-153738).png` | **Proposta futura**: vistas arquitetônicas, escala de representação e pavimento, não implementação atual |
+| `image(20261011-153819).png` | **Referência ArchXQ**: estrutura contextual, manual organizado e painel de biblioteca |
+| `image(20261011-153843).png` | **Referência ArchXQ**: uma faixa funcional de métodos/atributos com foco na tarefa selecionada |
+
+### Falhas técnicas verificáveis no código e critério negativo
+
+| Onde | Entrega e desvio | Condição objetiva antes de novo pacote visual |
+|---|---|---|
+| `ui.py::_make_actions` | Registra `self.toolbar = QToolBar(...)` e adiciona à `Qt.TopToolBarArea`; demais ferramentas inserem botões nesta toolbar | Preserve QActions e comandos do host, mas obtenha **posição própria** e faixa de contexto separada, sem comprimir a barra nativa |
+| `contextual_bar.py::ContextualBar.__init__` | Usa `toolbar.addWidget(self)` na mesma toolbar já compartilhada; no Windows ficou à direita, parcialmente comprimida | **Uma faixa própria** inteira, logo sob menus nativos, com redimensionamento/teste visual Windows; recolhida deve recuperar altura do viewport |
+| `contextual_bar.py::_build_pages` | Muitos símbolos Unicode/textos e grupos insuficientemente hierarquizados, sem linguagem visual coerente por método | Iconografia vetorial própria e verificável; títulos menores “Mét. construtivos”, “Alinhamento”, “Estrutura”, “Dimensões/Níveis”; apenas métodos implementados |
+| `suite_panel.py::PAGE_INFO`/`_make_home` | Mesmo conjunto antigo de botões em grade, nav em ícones minúsculos e título inglês `Parametric Architecture` | **Redesenhar toda a paleta lateral**, não apenas colocar um botão de recolher sobre formulários antigos. Cabeçalho horizontal, página de Projeto específica, categorias inteligíveis e grupos internos recolhíveis |
+| `suite_panel.py::_wrap_controller_page` | Toolbar de ações por texto ainda no início de cada formulário, como “Simple wall/Composite wall/Curved wall”; único botão “Propriedades e edição” envolve o formulário inteiro | Remover redundância visual desordenada e **reorganizar por responsabilidades**, conservando os widgets e handlers existentes; edição avançada só na paleta/radial |
+| `arrange_ui.py::ArrangePanel` | QWidgets simples em painel separado sem integração visual com o restante | Manter alinhamento X/Y/Z por grupos e Undo existentes, mas encaixar acesso e composição visual no sistema da paleta |
+| `__init__.py`, `suite_panel.py` | `Parametric Architecture`, `Wall`, `Slab`, `Column` e outras etiquetas em inglês no espaço projetado para OpenTrace | Marca visível **OpenTrace BIM**, nomenclatura/localização coerentes; evitar título genérico legado como identidade da UI |
+| `tests_host` | Qt `offscreen` comprovou criação de widgets, não geometria real da tela nem ergonomia | Gate **B5 Windows obrigatório**: captura real do topo e lateral, alternância Parede → Laje → Porta → Vão → Selecionar, ocultar/reabrir e Undo/Redo |
+
+**Status de aceite corrigido:** B1/B2 continuam integrados tecnicamente, B3a é parcial; **B3b apenas prototipado e reprovado**, UI-3 também reprovado no conjunto visual. B4/manual e B5 ainda pendentes. Testes 58 puros + 60 host e pacote verde **não anulam este resultado visual**.
+
+### Ordem para refazer sem destruir recursos existentes
+
+1. **UI-B3b/arquitetura da faixa:** separar o contexto em linha própria abaixo do menu nativo; impedir disputa por espaço com toolbar do host; troca real de modo, recolhimento e parâmetros sempre sincronizados.
+2. **UI-paleta lateral em bloco completo:** cabeçalho horizontal, organização de páginas e formulários em seções recolhíveis de verdade; rotulagem/idioma/ícones consistentes; Projeto/IFC/edição separados como aprovado.
+3. **UI-constituição por ferramenta:** inventário de métodos reais por ferramenta; ações existentes reutilizadas, tooltips legíveis, edit radial/hotspots só na viewport/paleta; alinhamento visual integrado.
+4. **UI-B4 e UI-B5:** manual/Sobre e screenshot real de Windows; somente após aprovação marcar interface visualmente entregue.
+
+**Regra de suspensão de “concluído”:** qualquer pacote que mantenha a faixa esmagada ao lado dos botões da toolbar nativa, a Home `Parametric Architecture` ou botões grosseiros sem hierarquia está **REPROVADO**, independentemente de número de commits/testes. Não repetir a terminologia “B3b implementado/aceito” até a validação visual do mantenedor.
