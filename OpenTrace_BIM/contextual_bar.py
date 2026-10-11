@@ -281,7 +281,7 @@ class ContextualBar(QWidget):
             ("sill", "Peitoril"), ("position", "Pos."),
         ):
             self._field(p, label, wall.opening_fields[key])
-        self._section(p, "Âncora")
+        self._anchor_label = self._section(p, "Âncora")
         self._anchor_buttons = []
         for symbol, name, title in (
             ("◧", "left", "Âncora esquerda"),
@@ -395,6 +395,7 @@ class ContextualBar(QWidget):
         # Do not display inapplicable buttons: only hosted doors can swing,
         # and only hosted elements have an anchor.
         show_anchor = self._opening_kind in ("door", "window")
+        self._anchor_label.setVisible(show_anchor)
         for widget in self._anchor_buttons:
             widget.setVisible(show_anchor)
         self._swing_button.setVisible(self._opening_kind == "door")
