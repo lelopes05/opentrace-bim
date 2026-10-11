@@ -327,7 +327,10 @@ class ContextualBar(QWidget):
         # selected door/window group. Do not assume the first wall opening.
         from .ui import selected_hosted_opening, selected_walls
         if ((getattr(vp, "extension_pick", None) is not None
-             or selected_hosted_opening(scene) is not None)
+             or selected_hosted_opening(scene) is not None
+             or (wall.target is not None
+                 and wall._active_opening_wall is wall.target
+                 and wall._fields_opening_id == wall._active_opening_id))
                 and wall.target is not None and wall._active_opening_id):
             from .model import read_wall
             from .door_window_commands import _fill_record
