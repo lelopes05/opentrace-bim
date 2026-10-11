@@ -1,5 +1,7 @@
 # OpenTrace BIM — Registro mestre de desenvolvimento
 
+> **ALERTA DE ACEITAÇÃO (11/10/2026): a interface B3b/UI-3 foi REPROVADA no Windows pelo mantenedor.** A barra não ocupa uma linha própria e a paleta lateral continua majoritariamente antiga. A execução automatizada aprovada era somente gate de código, não aprovação de interface. O diagnóstico visual, os links reais para SVGs e a identificação das nove capturas originais estão em [INTERFACE_MASTER.md](INTERFACE_MASTER.md#15-reprova%C3%A7%C3%A3o-visual-do-candidato-b3bui-3--evid%C3%AAncias-e-corre%C3%A7%C3%A3o-obrigat%C3%B3ria-11102026). **Não divulgar B3b/UI-3 como redesign concluído.**
+
 **Referência:** 2026-10-10 · **Repositório:** `lelopes05/opentrace-bim` · **Release preservado:** 0.12.9
 
 > Abrir a próxima conversa lendo este arquivo na branch/PR de desenvolvimento mais recente. Validar commits/arquivos reais antes de declarar algo integrado. Atualizar este registro ao fechar cada bloco.
@@ -451,3 +453,11 @@ O mantenedor **autorizou o trabalho simultâneo**. Esta decisão substitui a ins
 - **B/Interface:** `suite_panel.py` passa a ter navegação por ícones num cabeçalho horizontal e seção de propriedades recolhível sem alterar editores; `contextual_bar.py` distingue seleção de abertura livre, polígono e esquadrias com controles realmente aplicáveis. Compatibilidade com seleções repetidas via combobox lateral testada no host. Correção de ciclo de vida Qt evita temporizadores atuando em widgets destruídos.
 - **A/Aberturas:** barra superior usa os comandos/seletores nativos `EditWall` / `EditHostedFill` de um único `opening_id` sem recriar objetos e sem perder a escolha depois da edição; segurança de exclusão registrada no bloco anterior permanece.
 - **Próximos gates:** B5 **teste visual Windows**, seguida de ajustes de UI; A ainda precisa validação manual de arestas/vértices e arraste múltiplo em perspectiva. Ver [INTERFACE_MASTER.md](INTERFACE_MASTER.md) para critérios de aceitação. Não confundir 118 testes automatizados com aprovação visual.
+
+## Correção de status visual — 11/10/2026 (supersede avaliações B3b/UI-3 anteriores)
+
+**Observação visual concreta:** o mantenedor enviou nove capturas, sendo as três primeiras da instalação experimental reprovada. O contexto visual ficou amontoado à direita da antiga toolbar e a Home mantém `Parametric Architecture`, botões/idiomas misturados, além de arranjo de controles divergente da referência ArchXQ. O código presente (`contextual_bar.py` + `suite_panel.py`) não cumpriu a arquitetura visual aprovada. A CI verde de 118 testes permanece fato técnico, **mas B3b não passou no gate B5**.
+
+**Registro único das decisões, tabela de divergências e links para diagramas rastreáveis:** [INTERFACE_MASTER.md — auditoria visual 11/10](INTERFACE_MASTER.md#15-reprova%C3%A7%C3%A3o-visual-do-candidato-b3bui-3--evid%C3%AAncias-e-corre%C3%A7%C3%A3o-obrigat%C3%B3ria-11102026). [Ver comparativo SVG](assets/interface/comparacao-aceite-2026-10-11.svg).
+
+**Estado de publicação:** PR #8 draft. Não mexer em `main`, release público 0.12.9 ou catálogo. **Próximo trabalho da frente B:** layout com linha própria abaixo dos menus nativos + redesenho integral da paleta lateral; não converter isso em Ribbon estático. **Frente A** continua independente em aberturas e reedição, sem reescrita desnecessária da geometria. Evidências e decisões de interface ficam no documento específico, sem duplicar detalhes aqui.
