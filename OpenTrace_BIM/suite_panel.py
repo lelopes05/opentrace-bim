@@ -27,6 +27,7 @@ class ArchitectureSuitePanel:
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
         self._mode_buttons={}
         self._property_sections={}
+        self._editor_sections=[]
         self._arrange_panel = None
         self._arrange_dock = None
         self.panel=QWidget();self.panel.setMinimumSize(0,0)
@@ -259,8 +260,43 @@ class ArchitectureSuitePanel:
             if action is not None and action not in out:out.append(action)
         return out
 
+    def _organize_editor_sections(self,key,ctrl,page):
+        # Organize ACTUAL editor widgets without cloning form values or
+        # rewriting handlers. Only wall widgets are explicitly segmented;
+        # other controllers retain their proven form/layout unchanged.
+        if key!="wall":
+            return
+        from .panel_sections import EditorSection
+        layout=page.layout()
+        if layout is None:
+            return
+        for attr, title in (
+            ("form_widget","Geometria e propriedades"),
+            ("layer_editor","Composição e camadas"),
+            ("opening_widget","Vãos e esquadrias"),
+        ):
+            widget=getattr(ctrl,attr,None)
+            if widget is None: continue
+            index=layout.indexOf(widget)
+            if index<0: continue
+            initial_hidden=widget.isHidden()
+            layout.removeWidget(widget)
+            section=EditorSection(title,widget,parent=page)
+            section.setObjectName("opentrace_wall_section_"+attr)
+            layout.insertWidget(index,section)
+            widget.setVisible(not initial_hidden)
+            self._editor_sections.append((section,widget))
+        self._sync_editor_sections()
+
+    def _sync_editor_sections(self):
+        for section,widget in self._editor_sections:
+            # Explicit form hiding is driven by selected tool/structure;
+            # collapsing the body does not mean the editor is inapplicable.
+            section.setVisible(not widget.isHidden())
+
     def _wrap_controller_page(self,key,ctrl,page):
         wrapper=QWidget();wrapper.setMinimumSize(0,0)
+        self._organize_editor_sections(key,ctrl,page)
         lay=QVBoxLayout(wrapper);lay.setContentsMargins(0,0,0,0);lay.setSpacing(4)
         # The OLD text buttons (Simple wall / Composite wall / Curved wall)
         # were a duplicate toolbar INSIDE the properties panel. Construction
@@ -389,6 +425,7 @@ class ArchitectureSuitePanel:
         bar = getattr(self,"context_bar",None)
         if bar is not None:
             bar.refresh()
+        self._sync_editor_sections()
 
     def show_page(self,key,show_dock=True):
         if key not in self.pages:key="home"
@@ -406,6 +443,7 @@ class ArchitectureSuitePanel:
             try:self.app.show_panel(self.master_dock)
             except Exception:self.master_dock.show()
         if key=="home":self.refresh_home()
+        self._sync_editor_sections()
         self.sync_mode_buttons()
 
     def sync_mode_buttons(self):
