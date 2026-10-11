@@ -85,6 +85,10 @@ class ArchitectureSuitePanel:
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
         from .workspace_menu import install_workspace_menu
         self.workspace_menus = install_workspace_menu(self)
+        # Stage B3b: the EXISTING architecture toolbar now contains one
+        # context-sensitive Info Box instead of an always-visible tool pile.
+        from .contextual_bar import ContextualBar
+        self.context_bar = ContextualBar(self)
         QTimer.singleShot(1800,self._auto_check_updates_on_startup)
 
     def _add_page(self,key,widget):
@@ -204,6 +208,7 @@ class ArchitectureSuitePanel:
         # obvious default instead of making the user click a second control.
         if key in ("wall","slab","column","beam"):
             self._activate_default(key)
+        self.schedule_sync_context()
 
     def open_arrange(self):
         # Lazy native dock creation. The modelling tool stays unchanged.
@@ -248,6 +253,18 @@ class ArchitectureSuitePanel:
                 except Exception:pass
         self.app.viewport.sceneVersionChanged.connect(self.schedule_sync_context)
         self.app.viewport.measurementChanged.connect(self.schedule_tool_sync_context)
+        wall = self.controllers.get("wall")
+        if wall is not None:
+            # Toolbar, menu and keyboard all invoke the SAME host actions.
+            # Update the Info Box after their tool switch, without polling
+            # cursor moves or creating any parallel command registration.
+            for action in (getattr(wall,"action",None),
+                           getattr(wall,"curve_action",None),
+                           getattr(wall,"opening_toolbar_action",None)):
+                if action is not None:
+                    action.triggered.connect(self.schedule_sync_context)
+            for action in getattr(getattr(wall,"opening_toolbar_menu",None),"actions",lambda:[])():
+                action.triggered.connect(self.schedule_sync_context)
 
     def schedule_sync_context(self,*_):
         if self._sync_queued:return
@@ -260,6 +277,9 @@ class ArchitectureSuitePanel:
 
     def _run_sync_context(self):
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None));self.sync_context();self.sync_mode_buttons()
+        bar = getattr(self,"context_bar",None)
+        if bar is not None:
+            bar.refresh()
 
     def show_page(self,key,show_dock=True):
         if key not in self.pages:key="home"
