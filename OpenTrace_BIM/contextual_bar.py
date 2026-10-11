@@ -62,6 +62,15 @@ class ContextualBar(QWidget):
         self.collapse_button.setText("▴")
         self.collapse_button.clicked.connect(self.toggle_collapsed)
         row.addWidget(self.collapse_button)
+        self.help_button=QToolButton(self)
+        self.help_button.setObjectName("opentrace_context_help")
+        self.help_button.setText("?")
+        self.help_button.setToolTip("Ajuda desta ferramenta")
+        self.help_button.setAccessibleName("Ajuda contextual")
+        self.help_button.setFixedSize(28,28)
+        self.help_button.clicked.connect(
+            lambda: self.suite.open_help(self._context_key()))
+        row.addWidget(self.help_button)
 
         self.pages = {}
         self._build_pages()
