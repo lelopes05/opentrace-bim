@@ -431,7 +431,7 @@ class ArchitectureSuitePanel:
         self.stack.setCurrentWidget(self.pages[key]);b=self.buttons.get(key)
         if b is not None:
             b.setChecked(True)
-        elif key == "project":
+        elif key in ("project","arrange"):
             # A context page without a dedicated category tab must not
             # leave the BIM or a modelling tab misleadingly selected.
             self.group.setExclusive(False)
@@ -467,7 +467,7 @@ class ArchitectureSuitePanel:
         # the user back to the modelling page.
         if any(self.pages.get(key) is not None and
                self.stack.currentWidget() is self.pages[key]
-               for key in ("bim", "project")):
+               for key in ("bim", "project", "arrange")):
             return
         active=getattr(self.app.viewport,"active_tool",None)
         for key in ("wall","slab","column","beam"):
