@@ -60,8 +60,19 @@ class InstallationSmokeTests(unittest.TestCase):
             suite=window._arquitetura_parametrica_suite_panel
             self.assertIn("project",suite.pages)
             from PySide6.QtCore import Qt
-            self.assertEqual(suite.buttons["wall"].toolButtonStyle(),Qt.ToolButtonIconOnly)
-            self.assertEqual(suite.buttons["wall"].accessibleName(),"Wall")
+            self.assertEqual(suite.buttons["wall"].toolButtonStyle(),Qt.ToolButtonTextUnderIcon)
+            self.assertEqual(suite.buttons["wall"].accessibleName(),"Parede")
+            self.assertEqual(window._arquitetura_parametrica_suite_panel.master_dock.windowTitle(),"OpenTrace BIM")
+            self.assertEqual(suite.panel.findChild(
+                __import__("PySide6.QtWidgets",fromlist=["QLabel"]).QLabel,
+                "opentrace_sidebar_brand").text(),"OpenTrace BIM")
+            self.assertEqual(len(suite._editor_sections),3)
+            for section,editor in suite._editor_sections:
+                self.assertIs(editor.parentWidget(),section.body)
+                section.toggle.click()
+                self.assertFalse(section.body.isVisible())
+                section.toggle.click()
+                self.assertTrue(section.toggle.isChecked())
             fold=suite._property_sections["wall"]
             self.assertTrue(fold.isChecked())
             fold.click()
@@ -105,6 +116,8 @@ class InstallationSmokeTests(unittest.TestCase):
             bar = suite.context_bar
             self.assertEqual(bar.objectName(),"opentrace_contextual_bar")
             self.assertIs(bar.parent(),ctl.toolbar)
+            self.assertTrue(window.toolBarBreak(ctl.toolbar),
+                            "Context Info Box must have its OWN row below native tools")
             self.assertIn("wall",bar.pages)
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
