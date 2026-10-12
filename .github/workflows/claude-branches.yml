@@ -1,0 +1,69 @@
+name: Claude branches — tests, benchmark and test package
+
+on:
+  push:
+    branches: ['claude/**']
+  workflow_dispatch:
+
+env:
+  BASE_REF: a1c49aa66eb93bbb9fa74e6b03d4065dc9f70334
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: plugin}
+      - uses: actions/checkout@v4
+        with: {path: base, ref: '${{ env.BASE_REF }}'}
+      - uses: actions/checkout@v4
+        with: {repository: ingelibre/ingetrazo, path: ingetrazo}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Qt runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libegl1 libgl1 libopengl0 libxkbcommon0
+          python -m pip install -q 'PySide6>=6.9,<7' 'numpy>=1.26,<3'
+      - name: Pure tests
+        working-directory: plugin
+        run: |
+          python -m compileall -q OpenTrace_BIM
+          python -m unittest discover -s tests
+      - name: Host tests
+        working-directory: plugin
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ingetrazo:${{ github.workspace }}/plugin
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -s tests_host -v
+      - name: Benchmark against the base revision
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          for rev in base plugin; do
+            echo "== $rev =="
+            PYTHONPATH="$GITHUB_WORKSPACE/ingetrazo:$GITHUB_WORKSPACE/$rev" \
+              python plugin/tests_host/bench_curved_walls.py | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage the plugin folder
+        run: |
+          mkdir installable
+          rsync -a --exclude '__pycache__' --exclude '*.pyc' OpenTrace_BIM installable/
+          echo "Revision: $GITHUB_SHA ($GITHUB_REF_NAME) — test build, not a release" \
+            > installable/OpenTrace_BIM/TEST_BUILD.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenTrace_BIM-TEST-${{ github.run_number }}
+          path: installable/
+          if-no-files-found: error
+          retention-days: 30

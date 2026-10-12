@@ -29,11 +29,10 @@ from .palette import RadialPalette
 from .layer_ui import LayerEditor
 from .materials import material_names
 
-from .model import (DEFAULTS, MAX_DIM, MIN_DIM, WallError, arc_center_world, path_world,
-                    base_path_world, top_path_world, base_reference_vertices_world,
-                    top_reference_vertices_world, read_wall, reference_vertices_world, validate, wall_path,
+from .model import (DEFAULTS, MAX_DIM, MIN_DIM, WallError, path_world, read_wall, validate,
                     wall_path_kind, wall_record, nearest_path_distance_world)
 from .wall_tool import CurvedWallTool, WallTool
+from . import wall_cache
 from .snaprefs import snap_to_wall_references, snap_to_wall_top_references, snap_to_structure_reference_endpoints
 from .path_edit import (ArcWallTool, ChangeWallHeightTool, ConstrainedMoveWallTool,
                         InsertVertexTool, MoveWallVertexTool, MoveWallStationZTool, LeanWallTopTool, ChangeWholeWallHeightTool)
@@ -1473,12 +1472,12 @@ class WallController(QObject):
 
     def _reference_context(self, px, py, wall, line_threshold=8.0, vertex_threshold=9.0):
         try:
-            world = base_path_world(wall)
+            world = wall_cache.base_path(self.app.scene, wall)
         except WallError:
             return None
         screen = [self.app.viewport._world_to_pixel(p) for p in world]
         try:
-            ref_vertices = base_reference_vertices_world(wall)
+            ref_vertices = wall_cache.base_vertices(self.app.scene, wall)
         except WallError:
             ref_vertices = world
         vertex_screen = [self.app.viewport._world_to_pixel(p) for p in ref_vertices]
@@ -1489,7 +1488,7 @@ class WallController(QObject):
         # pixel; in that case the height handle is intentionally ignored so the
         # endpoint remains usable.
         try:
-            top_vertices = top_reference_vertices_world(wall)
+            top_vertices = wall_cache.top_vertices(self.app.scene, wall)
         except (WallError, KeyError, TypeError):
             top_vertices = []
         top_screen = [self.app.viewport._world_to_pixel(p) for p in top_vertices]
@@ -1694,9 +1693,10 @@ class WallController(QObject):
         vertex_pen = QPen(QColor("#1f83d6"), 1.5)
         height_pen = QPen(QColor("#f0a33b"), 1.6)
         center_pen = QPen(QColor("#e64646"), 1.4)
+        scene = self.app.scene
         for wall in walls:
             try:
-                pts = base_path_world(wall)
+                pts = wall_cache.base_path(scene, wall)
             except WallError:
                 continue
             pixels = [dot(p) for p in pts]
@@ -1704,7 +1704,7 @@ class WallController(QObject):
             for a,b in zip(pts,pts[1:]):
                 line(a,b)
             try:
-                vertex_pixels = [dot(p) for p in base_reference_vertices_world(wall)]
+                vertex_pixels = [dot(p) for p in wall_cache.base_vertices(scene, wall)]
             except WallError:
                 vertex_pixels = pixels
             painter.setPen(vertex_pen)
@@ -1717,9 +1717,8 @@ class WallController(QObject):
             # them in a view where top/base collapse to the same screen point;
             # there the base path vertex must remain the unambiguous control.
             try:
-                top_vertices = top_reference_vertices_world(wall)
-                top_pixels = [dot(p) for p in top_vertices]
-                top_curve = top_path_world(wall)
+                top_pixels = [dot(p) for p in wall_cache.top_vertices(scene, wall)]
+                top_curve = wall_cache.top_path(scene, wall)
                 painter.setPen(QPen(QColor("#f0a33b"), 1.4, Qt.DashLine))
                 for a,b in zip(top_curve,top_curve[1:]):
                     line(a,b)
@@ -1761,7 +1760,7 @@ class WallController(QObject):
                         rect_free=False
                         if not is_polygon:
                             try:
-                                op=next(o for o in read_wall(wall)["openings"]
+                                op=next(o for o in wall_cache.values(scene, wall)["openings"]
                                         if str(o.get("id"))==oid)
                                 rect_free=not op.get("source_id") and not op.get("fill")
                             except (WallError,StopIteration):
@@ -1782,7 +1781,7 @@ class WallController(QObject):
 
             # ArchiCAD-like hotspot at the mathematical centre of a selected arc.
             try:
-                centre = arc_center_world(wall) if wall_path_kind(wall) == "arc" else None
+                centre = wall_cache.arc_center(scene, wall)
             except WallError:
                 centre = None
             if centre is not None:

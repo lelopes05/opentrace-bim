@@ -7,9 +7,8 @@ import math
 from PySide6.QtGui import QVector3D
 from core.snap import SnapResult
 
-from .model import (WallError, path_world, base_path_world, top_path_world, read_wall,
-                    reference_vertices_world, base_reference_vertices_world, wall_record)
-from .junctions import junction_snap_aliases
+from . import wall_cache
+from .model import WallError, wall_record
 
 COLOR = (0.12, 0.55, 0.95)
 
@@ -51,7 +50,7 @@ def nearest_wall_reference_endpoint(viewport, px, py, *, base=None, exclude=None
         if group in excluded or wall_record(group) is None:
             continue
         try:
-            world = reference_vertices_world(group)
+            world = wall_cache.base_vertices(viewport.scene, group)
         except WallError:
             continue
         for point in world:
@@ -68,7 +67,7 @@ def nearest_wall_reference_endpoint(viewport, px, py, *, base=None, exclude=None
     # This is intentionally evaluated together with ordinary endpoints so the
     # candidate closest to the cursor wins.
     try:
-        aliases = junction_snap_aliases(viewport.scene, base=base)
+        aliases = wall_cache.junction_aliases(viewport.scene, base)
     except Exception:
         aliases = []
     for display, logical in aliases:
@@ -97,8 +96,8 @@ def snap_to_wall_references(app, viewport, snap, px, py):
         if wall_record(group) is None:
             continue
         try:
-            world = base_path_world(group)
-            endpoints = base_reference_vertices_world(group)
+            world = wall_cache.base_path(viewport.scene, group)
+            endpoints = wall_cache.base_vertices(viewport.scene, group)
         except WallError:
             continue
         pixels = [viewport._world_to_pixel(p) for p in world]
@@ -122,7 +121,7 @@ def snap_to_wall_references(app, viewport, snap, px, py):
     # Visible miter corners also snap to the logical reference node.
     best_alias = None
     try:
-        aliases = junction_snap_aliases(viewport.scene)
+        aliases = wall_cache.junction_aliases(viewport.scene)
     except Exception:
         aliases = []
     for display, logical in aliases:
@@ -166,7 +165,7 @@ def snap_to_wall_top_references(app, viewport, snap, px, py):
         if wall_record(group) is None:
             continue
         try:
-            top = top_path_world(group)
+            top = wall_cache.top_path(viewport.scene, group)
         except WallError:
             continue
         pixels = [viewport._world_to_pixel(p) for p in top]

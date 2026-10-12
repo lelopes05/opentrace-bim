@@ -821,7 +821,7 @@ def _profiled_sides(values, path, offsets=None, caps=None):
     top_z = []
     for i, q in enumerate(ref_pts):
         t = 0.0 if total <= 1.0e-12 else ref_cum[i] / total
-        bz, tz, off = _profile_interp(p, t)
+        bz, tz, off = _interp_validated(p, t)
         base_z.append(bz); top_z.append(tz)
         top_ref.append(QVector3D(q.x() + off.x(), q.y() + off.y(), 0.0))
 
@@ -846,10 +846,10 @@ def _profiled_sides(values, path, offsets=None, caps=None):
     return low_bottom, high_bottom, low_top, high_top, base_z, top_z, ref_cum
 
 
-def _profile_z_at(values, distance, total):
+def _profile_z_at(p, distance, total):
+    """Profile at a station; ``p`` must already be validated (body builders)."""
     t = 0.0 if total <= 1.0e-12 else max(0.0, min(1.0, float(distance)/total))
-    bz, tz, off = _profile_interp(values, t)
-    return bz, tz, off
+    return _interp_validated(p, t)
 
 
 def _lerp_side_point(bottom_xy, top_xy, base_z, top_z, z):
@@ -1601,7 +1601,15 @@ def path_world(group):
 
 
 def _profile_interp(values, fraction):
-    p = validate(values)
+    return _interp_validated(validate(values), fraction)
+
+
+def _interp_validated(p, fraction):
+    """Endpoint-profile interpolation for values already passed through validate().
+
+    Sampling loops call this once per path sample; re-validating there renormalised
+    every hosted opening hundreds of times per curved wall.
+    """
     t = max(0.0, min(1.0, float(fraction)))
     bz = p["base_profile"][0] + (p["base_profile"][1] - p["base_profile"][0]) * t
     tz = p["top_profile"][0] + (p["top_profile"][1] - p["top_profile"][0]) * t
@@ -1662,7 +1670,7 @@ def _profiled_sample_paths(values, path):
     bottoms, tops = [], []
     for i, ref in enumerate(pts):
         t = 0.0 if total <= 1.0e-12 else cum[i] / total
-        bz, tz, off = _profile_interp(p, t)
+        bz, tz, off = _interp_validated(p, t)
         bottoms.append(QVector3D(ref.x(), ref.y(), bz))
         tops.append(QVector3D(ref.x() + off.x(), ref.y() + off.y(), tz))
     return bottoms, tops, cum
