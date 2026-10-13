@@ -8,7 +8,7 @@ import math
 import unittest
 from types import SimpleNamespace
 
-from PySide6.QtCore import QPointF
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QVector3D
 from PySide6.QtWidgets import QApplication
 from core.history import History
@@ -370,7 +370,9 @@ class OpeningToolTests(unittest.TestCase):
         self.editor = self.ctl.openings
 
     def _activate(self, key):
-        from OpenTrace_BIM.host import activate_tool
+        """Pick the tool from a clean start; picking the active tool again cancels it."""
+        from OpenTrace_BIM.host import activate_select, activate_tool
+        activate_select(self.app)
         activate_tool(self.app, key)
 
     def test_opening_tools_are_host_tools(self):
@@ -402,14 +404,17 @@ class OpeningToolTests(unittest.TestCase):
             self.assertTrue(command.path.endswith(folder), command.path)
 
     def test_opening_shape_change_keeps_host_tool(self):
+        from OpenTrace_BIM.host import activate_select, activate_tool
+        activate_select(self.app)
         tool = self.editor.opening_tool
+        tool.set_shape("rect")
         log = []
         for label, inner in (("place", tool.place), ("draw", tool.draw)):
             for event in ("on_activate", "on_deactivate"):
                 original = getattr(inner, event)
                 setattr(inner, event,
                         lambda viewport, _o=original, _e=(label, event): (log.append(_e), _o(viewport)))
-        self._activate(OPENING_KEYS[0])
+        activate_tool(self.app, OPENING_KEYS[0])
         self.assertEqual(log, [("place", "on_activate")])
         previous = "place"
         for shape in ("square", "circle", "free", "rect"):
@@ -437,7 +442,7 @@ class OpeningToolTests(unittest.TestCase):
             viewport = self.window.viewport
             world = face.world(QVector3D(3.0, 1.0, 0))
             viewport.active_tool.on_click(SimpleNamespace(
-                viewport=viewport, world=world, snap=None, screen=QPointF(0, 0), modifiers=None))
+                viewport=viewport, world=world, snap=None, screen=QPointF(0, 0), modifiers=Qt.NoModifier))
 
         def fills():
             return [g for g in scene.groups if _fill_record(g)]
@@ -464,7 +469,7 @@ class OpeningToolTests(unittest.TestCase):
                     self.assertAlmostEqual(item["position"], 3.0, places=6)
                 if shape is None:
                     self.assertEqual(len(fills()), 1)
-                    self.assertEqual(item["source_id"], _fill_record(fills()[0])["id"])
+                    self.assertEqual(item["source_id"], _fill_record(fills()[0])["params"]["id"])
                 else:
                     self.assertEqual(fills(), [])
                 self.assertEqual(self.editor.active, (wall, item["id"]))
