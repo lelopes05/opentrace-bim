@@ -2,7 +2,7 @@
 """Viewport-owned floating controls, independent of QMainWindow toolbar state."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 
@@ -50,6 +50,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.setStyleSheet("QWidget#opentrace_overlay_dock { background: transparent; }")
         self.setMinimumWidth(0)
         self._repositioning = False
+        self._layout_request_queued = False
         self.row = tool_row
 
         layout = QVBoxLayout(self)
@@ -80,12 +81,20 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.raise_()
 
     def event(self, event):
-        # Qt posts LayoutRequest when child size hints or visibility change.
-        # Recalculate even if the contextual page key has not changed.
+        # The layout request is handled AFTER Qt updates this widget's layout.
         result = super().event(event)
-        if event.type() in (QEvent.LayoutRequest, QEvent.Resize):
+        if event.type() == QEvent.LayoutRequest:
+            self._layout_request_queued = False
+            self.reposition()
+        elif event.type() == QEvent.Resize:
             self.reposition()
         return result
+
+    def _request_layout(self):
+        if self._repositioning or self._layout_request_queued:
+            return
+        self._layout_request_queued = True
+        QCoreApplication.postEvent(self, QEvent(QEvent.LayoutRequest))
 
     def eventFilter(self, watched, event):
         if watched is self.parentWidget():
@@ -94,7 +103,9 @@ class OverlayDock(_BlockViewportInput, QWidget):
         elif watched in self._layout_sources:
             if event.type() in (QEvent.LayoutRequest, QEvent.Resize,
                                 QEvent.Show, QEvent.Hide):
-                self.reposition()
+                # A child's event filter runs before that child relayouts.
+                # Re-measure after Qt has applied the new size hint.
+                self._request_layout()
         return False
 
     def reposition(self):
