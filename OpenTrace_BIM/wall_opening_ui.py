@@ -146,6 +146,9 @@ class WallOpeningEditor(QObject):
                 register_tool(app, self.tools[action], key=KEY + action)
         self._make_radial()
         app.add_pickable(self._pick, self._on_pick, self._delete_pick)
+        # The registered entry is required by the host's set_extension_pick.
+        # ExtensionApp.add_pickable does not return it.
+        self._pick_entry = app.viewport._ext_pickables[-1]
         app.add_overlay(self._draw)
         app.viewport.installEventFilter(self)
 
@@ -186,12 +189,22 @@ class WallOpeningEditor(QObject):
         self.app.viewport.update()
 
     def select_opening(self, wall, opening_id):
-        self.active = (wall, str(opening_id))
+        identity = (str(wall.uid), str(opening_id))
+        viewport = self.app.viewport
+        pick = viewport.extension_pick
+        if (pick is None or pick[0] is not self._pick_entry
+                or pick[1] != identity or pick[2] != self.app.scene.version):
+            # A geometry command increments the scene version and invalidates
+            # the old pick even though the opening remains selected visually.
+            # set_extension_pick notifies on_select, keeping both in sync.
+            self.app.scene.clear_selection()
+            viewport.set_extension_pick((self._pick_entry, identity))
+        self.active = (wall, identity[1])
         self.walls._active_opening_wall = wall
-        self.walls._active_opening_id = str(opening_id)
+        self.walls._active_opening_id = identity[1]
         self.walls._state_key = None
         self.walls.schedule_refresh()
-        self.app.viewport.update()
+        viewport.update()
 
     def edit_finished(self, wall, opening_id):
         """After an edit (or its cancel): stay on the same opening, ready again."""
@@ -214,6 +227,7 @@ class WallOpeningEditor(QObject):
             self.message(str(exc), error=True)
             return
         self.clear_sticky()
+        self.app.release_pick()
         self.active = None
         self.walls._active_opening_id = None
         self.walls._state_key = None
@@ -286,7 +300,8 @@ class WallOpeningEditor(QObject):
         self.select_opening(wall, identity[1])
 
     def _release_if_unpicked(self):
-        if getattr(self.app.viewport, "extension_pick", None) is None:
+        pick = self.app.viewport.extension_pick
+        if pick is None or pick[0] is not self._pick_entry:
             self.active = None
             self.walls._active_opening_id = None
             self.walls._state_key = None
