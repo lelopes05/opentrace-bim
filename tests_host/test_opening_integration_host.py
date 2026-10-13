@@ -66,7 +66,7 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
         ctrl=SimpleNamespace(app=SimpleNamespace(scene=scene),
                              target=wall,_active_opening_wall=None,
                              _active_opening_id="extreme-clipping",
-                             curve_create_tool=None,move_vertex_continue_tool=None)
+                             draw_tool=None,move_vertex_continue_tool=None)
         vp.active_tool=object()
         vp.extension_pick=None
         image=QImage(800,600,QImage.Format_ARGB32)

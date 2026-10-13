@@ -15,10 +15,10 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .commands import EditWall, MeetWalls, root_edit_allowed
-from .host import (ARC_TOOL_KEY, CURVED_WALL_TOOL_KEY, HEIGHT_TOOL_KEY, WALL_TOTAL_HEIGHT_TOOL_KEY, MOVE_XY_TOOL_KEY,
+from .host import (ARC_TOOL_KEY, HEIGHT_TOOL_KEY, WALL_TOTAL_HEIGHT_TOOL_KEY, MOVE_XY_TOOL_KEY,
                    MOVE_Z_TOOL_KEY, MOVE_VERTEX_CONTINUE_TOOL_KEY, MOVE_VERTEX_FREE_TOOL_KEY,
                    WALL_STATION_Z_TOOL_KEY, WALL_LEAN_TOOL_KEY,
-                   VERTEX_TOOL_KEY, activate_arc, activate_curved_wall, activate_height, activate_wall_total_height,
+                   VERTEX_TOOL_KEY, activate_arc, activate_height, activate_wall_total_height,
                    activate_move_vertex_continue, activate_move_vertex_free, activate_move_xy,
                    activate_move_z, activate_wall_station_z, activate_wall_lean,
                    activate_select, activate_vertex_insert, activate_wall, register_tool, host_tool)
@@ -31,7 +31,7 @@ from .materials import material_names
 
 from .model import (DEFAULTS, MAX_DIM, MIN_DIM, WallError, path_world, read_wall, validate,
                     wall_path_kind, wall_record, nearest_path_distance_world)
-from .wall_tool import CurvedWallTool, WallTool
+from .wall_tool import CurvedWallTool, WallDrawTool, WallTool
 from . import wall_cache
 from .snaprefs import snap_to_wall_references, snap_to_wall_top_references, snap_to_structure_reference_endpoints
 from .path_edit import (ArcWallTool, ChangeWallHeightTool, ConstrainedMoveWallTool,
@@ -56,11 +56,6 @@ def wall_icon():
 
 def composite_wall_icon():
     return pa_icon("wall_composite")
-
-
-def curved_wall_icon():
-    return pa_icon("wall_curve")
-
 
 
 
@@ -171,6 +166,7 @@ class WallController(QObject):
         self.default_wall_status = None
         self.tool = WallTool(self)
         self.curve_create_tool = CurvedWallTool(self)
+        self.draw_tool = WallDrawTool(self.tool, self.curve_create_tool)
         self.vertex_tool = InsertVertexTool(self)
         self.move_xy_tool = ConstrainedMoveWallTool(self, "xy")
         self.move_z_tool = ConstrainedMoveWallTool(self, "z")
@@ -372,12 +368,7 @@ class WallController(QObject):
         self.action.setCheckable(True)
         self.action.setToolTip(t("Parede paramétrica\nDois pontos ou início, direção e comprimento."))
         self.action.setStatusTip("Criar parede reta com espessura, altura e alinhamento editáveis.")
-        register_tool(self.app, self.tool, self.action)
-        self.curve_action = QAction(curved_wall_icon(), t("Parede curva"), self.app.window)
-        self.curve_action.setCheckable(True)
-        self.curve_action.setToolTip(t("Parede curva\nArco padrão, pelo centro ou por 3 pontos."))
-        self.curve_action.setStatusTip("Criar parede curva paramétrica com três métodos de arco.")
-        register_tool(self.app, self.curve_create_tool, self.curve_action, key=CURVED_WALL_TOOL_KEY)
+        register_tool(self.app, self.draw_tool, self.action)
         register_tool(self.app, self.vertex_tool, key=VERTEX_TOOL_KEY)
         register_tool(self.app, self.move_xy_tool, key=MOVE_XY_TOOL_KEY)
         register_tool(self.app, self.move_z_tool, key=MOVE_Z_TOOL_KEY)
@@ -389,7 +380,6 @@ class WallController(QObject):
         register_tool(self.app, self.move_vertex_free_tool, key=MOVE_VERTEX_FREE_TOOL_KEY)
         register_tool(self.app, self.move_vertex_continue_tool, key=MOVE_VERTEX_CONTINUE_TOOL_KEY)
         self.action.triggered.connect(self.start_drawing)
-        self.curve_action.triggered.connect(self.start_curve_drawing)
         self.toolbar = QToolBar(t("Arquitetura"), self.app.window)
         self.toolbar.setObjectName("opentrace_options_toolbar")
         self._toolbar_grip = None
@@ -401,15 +391,15 @@ class WallController(QObject):
         self.toolbar.installEventFilter(self)
         self.simple_wall_action=QAction(wall_icon(),t("Parede simples"),self.app.window);self.simple_wall_action.triggered.connect(lambda:self.start_structure("simple"))
         self.composite_wall_action=QAction(composite_wall_icon(),t("Parede composta"),self.app.window);self.composite_wall_action.triggered.connect(lambda:self.start_structure("composite"))
-        self.wall_type_menu=QMenu(self.app.window);self.wall_type_menu.addAction(self.simple_wall_action);self.wall_type_menu.addAction(self.composite_wall_action);self.wall_type_menu.addSeparator();self.wall_type_menu.addAction(self.curve_action)
-        self.wall_menu_button=QToolButton(self.app.window);self.wall_menu_button.setDefaultAction(self.action);self.wall_menu_button.setMenu(self.wall_type_menu);self.wall_menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.wall_menu_button.setToolTip(t("Parede — use a seta para escolher simples, composta ou curva."))
+        self.wall_type_menu=QMenu(self.app.window);self.wall_type_menu.addAction(self.simple_wall_action);self.wall_type_menu.addAction(self.composite_wall_action)
+        self.wall_menu_button=QToolButton(self.app.window);self.wall_menu_button.setDefaultAction(self.action);self.wall_menu_button.setMenu(self.wall_type_menu);self.wall_menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.wall_menu_button.setToolTip(t("Parede — use a seta para escolher simples ou composta."))
         self.app.window.addToolBar(Qt.TopToolBarArea, self.toolbar)
         self.fit_toolbar()
         menu = self.app.add_menu(t("Ferramentas arquitetônicas"))
         self.arch_menu = menu
         self.arch_menu_end = None
         if menu is not None:
-            sub=menu.addMenu(t("Parede"));sub.addAction(self.simple_wall_action);sub.addAction(self.composite_wall_action);sub.addSeparator();sub.addAction(self.curve_action)
+            sub=menu.addMenu(t("Parede"));sub.addAction(self.simple_wall_action);sub.addAction(self.composite_wall_action)
             self.arch_menu_end = menu.addSeparator()
         self.app.add_context_menu(self.context_menu)
 
@@ -537,7 +527,7 @@ class WallController(QObject):
             b.setCheckable(True)
             b.setFixedSize(36, 36)
             font = b.font(); font.setPointSize(17); b.setFont(font)
-            b.clicked.connect(lambda _checked=False, m=mode: self.choose_straight_mode(m))
+            b.clicked.connect(lambda _checked=False, m=mode: self.choose_geometry(m))
             row.addWidget(b)
             self.straight_mode_buttons[mode] = b
 
@@ -548,7 +538,7 @@ class WallController(QObject):
 
     def show_straight_mode_palette(self, screen_pos):
         for mode, btn in self.straight_mode_buttons.items():
-            btn.setChecked(mode == self.tool.mode)
+            btn.setChecked(mode == self.draw_tool.geometry)
         pos = self.app.viewport.mapToGlobal(
             QPoint(int(screen_pos.x()), int(screen_pos.y())))
         self.straight_mode_palette.show_at(pos)
@@ -557,9 +547,11 @@ class WallController(QObject):
         if hasattr(self, "straight_mode_palette"):
             self.straight_mode_palette.hide()
 
-    def choose_straight_mode(self, mode):
-        self.tool.set_mode(mode)
+    def choose_geometry(self, geometry):
+        """The only way to change the Wall tool's geometry: bar and radial palettes."""
+        self.draw_tool.set_geometry(geometry)
         self.hide_straight_mode_palette()
+        self.hide_curve_mode_palette()
         self.app.viewport.setFocus()
 
     def _make_curve_mode_palette(self):
@@ -579,18 +571,18 @@ class WallController(QObject):
             b.setCheckable(True)
             b.setFixedSize(36, 36)
             font = b.font(); font.setPointSize(17); b.setFont(font)
-            b.clicked.connect(lambda _checked=False, m=mode: self.choose_curve_mode(m))
+            b.clicked.connect(lambda _checked=False, m=mode: self.choose_geometry(m))
             row.addWidget(b)
             self.curve_mode_buttons[mode] = b
 
-        add("⌒", t("Arco padrão: início, fim e depois puxe a flecha para qualquer lado."), "normal")
-        add("⊙", t("Arco pelo centro: centro, início da parede e fim do arco."), "center")
-        add("∴", t("Arco por 3 pontos: início, ponto intermediário e fim."), "three")
+        add("⌒", t("Arco padrão: início, fim e depois puxe a flecha para qualquer lado."), "arc_normal")
+        add("⊙", t("Arco pelo centro: centro, início da parede e fim do arco."), "arc_center")
+        add("∴", t("Arco por 3 pontos: início, ponto intermediário e fim."), "arc_three")
         self.curve_mode_palette.hide()
 
     def show_curve_mode_palette(self, screen_pos):
         for mode, btn in self.curve_mode_buttons.items():
-            btn.setChecked(mode == self.curve_create_tool.mode)
+            btn.setChecked(mode == self.draw_tool.geometry)
         pos = self.app.viewport.mapToGlobal(
             QPoint(int(screen_pos.x()), int(screen_pos.y())))
         self.curve_mode_palette.show_at(pos)
@@ -598,11 +590,6 @@ class WallController(QObject):
     def hide_curve_mode_palette(self):
         if hasattr(self, "curve_mode_palette"):
             self.curve_mode_palette.hide()
-
-    def choose_curve_mode(self, mode):
-        self.curve_create_tool.set_mode(mode)
-        self.hide_curve_mode_palette()
-        self.app.viewport.setFocus()
 
     def hide_path_palette(self):
         if hasattr(self, "path_palette"):
@@ -1057,7 +1044,8 @@ class WallController(QObject):
             return visible_pixel(viewport,p)
         # Centre-radius construction guide for the curved-wall centre method.
         # It is intentionally independent of selection because no wall exists yet.
-        if (viewport.active_tool is self.curve_create_tool
+        if (viewport.active_tool is self.draw_tool
+                and self.draw_tool.current is self.curve_create_tool
                 and self.curve_create_tool.mode == self.curve_create_tool.MODE_CENTER
                 and self.curve_create_tool.first_point is not None
                 and self.curve_create_tool.hover_point is not None):
@@ -1215,25 +1203,13 @@ class WallController(QObject):
         self.message("Clique no início da parede. A cota de base define o plano horizontal.")
         self.app.viewport.setFocus()
 
-    def start_curve_drawing(self, *_):
-        try:
-            root_edit_allowed(self.app.scene)
-            if self.app.workspace() is not None:
-                raise WallError("Volte ao modelo para desenhar paredes.")
-        except WallError as exc:
-            self.curve_action.setChecked(False)
-            self.app.viewport.flash_status(t(str(exc)), 6000)
-            return
-        self.app.scene.clear_selection()
-        self.curve_create_tool.reset()
-        activate_curved_wall(self.app)
-        self._state_key = None
-        self.refresh()
-        self.message("Clique no primeiro ponto. O arco padrão é o método inicial.")
-        self.app.viewport.setFocus()
+    def _drawing(self, inner, viewport=None):
+        """Whether the Wall tool is active with ``inner`` (straight or curved) at work."""
+        active = (viewport or self.app.viewport).active_tool
+        return active is self.draw_tool and self.draw_tool.current is inner
 
     def stop_drawing(self):
-        if self.app.viewport.active_tool in (self.tool, self.curve_create_tool):
+        if self.app.viewport.active_tool is self.draw_tool:
             activate_select(self.app)
         self.hide_straight_mode_palette()
         self.hide_curve_mode_palette()
@@ -1334,8 +1310,8 @@ class WallController(QObject):
         if key == self._state_key:
             return
         self._state_key = key
-        straight_drawing = vp.active_tool is self.tool
-        curve_drawing = vp.active_tool is self.curve_create_tool
+        straight_drawing = self._drawing(self.tool, vp)
+        curve_drawing = self._drawing(self.curve_create_tool, vp)
         drawing = straight_drawing or curve_drawing
         context = ("create" if drawing else
                    "edit" if len(walls) == 1 else
@@ -1640,7 +1616,7 @@ class WallController(QObject):
         # must not reactivate/toggle the same host tool.  Reactivating an active
         # tool made the first click merely leave the previous mode; the second
         # click was then required to start the requested structure.
-        if self.app.viewport.active_tool is self.tool:
+        if self.app.viewport.active_tool is self.draw_tool:
             self._state_key = None
             self.refresh()
             self.message("Clique no início da parede. A cota de base define o plano horizontal.")
@@ -1694,7 +1670,7 @@ class WallController(QObject):
         if self._loading:
             return
         self._update_bound_height_field()
-        if self.app.viewport.active_tool in (self.tool, self.curve_create_tool):
+        if self.app.viewport.active_tool is self.draw_tool:
             # Creation mode: controls define the next wall / live preview.
             # Do not call interpretText from valueChanged (would recurse).
             self.defaults.update({key: field.value() for key, field in self.fields.items()
@@ -1723,7 +1699,7 @@ class WallController(QObject):
                     self.defaults["height"] = max(
                         MIN_DIM, float(level["z"]) + self.defaults["top_offset"] - self.defaults["base"])
                     self.defaults["top_profile"]=[float(self.defaults["height"]),float(self.defaults["height"])]
-            if self.app.viewport.active_tool is self.tool:
+            if self._drawing(self.tool):
                 if self.tool.start_point is not None:
                     self.tool.start_point.setZ(self.defaults["base"])
                 if self.tool.hover_point is not None:
@@ -1744,7 +1720,7 @@ class WallController(QObject):
             self.apply_changes()
 
     def preview_length(self, length):
-        if self.app.viewport.active_tool not in (self.tool, self.curve_create_tool):
+        if self.app.viewport.active_tool is not self.draw_tool:
             return
         field = self.fields["length"]
         blocked = field.blockSignals(True)

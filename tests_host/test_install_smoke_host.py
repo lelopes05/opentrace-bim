@@ -141,8 +141,8 @@ class InstallationSmokeTests(unittest.TestCase):
             ctl.action.trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"wall")
-            bar._wall_mode("rect_diagonal")
-            self.assertEqual(ctl.tool.mode,"rect_diagonal")
+            ctl.choose_geometry("rect_diagonal")
+            self.assertEqual(ctl.draw_tool.geometry,"rect_diagonal")
             bar.refresh()
             self.assertTrue(any(btn.isChecked() for btn,_ in bar._mode_controls))
             mirror=next(w for w,source in bar._mirrors

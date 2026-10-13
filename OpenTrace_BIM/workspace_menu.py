@@ -36,7 +36,7 @@ def install_workspace_menu(suite):
     create=QMenu("Criar",root)
     create.setObjectName("opentrace_workspace_create")
     wall_menu=create.addMenu("Paredes")
-    for attr in ("simple_wall_action","composite_wall_action","curve_action"):
+    for attr in ("simple_wall_action","composite_wall_action"):
         action=getattr(wall,attr,None)
         if action is not None:
             wall_menu.addAction(action)
