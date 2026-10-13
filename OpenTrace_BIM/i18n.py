@@ -1440,7 +1440,8 @@ def t(text: str, **kw) -> str:
             out = catalog[text]
         else:
             MISSING.add((lang, text))
-            out = text
+            # English's legacy fallback is removed in T2.
+            out = english(text) if lang == "en" else text
     return out.format(**kw) if kw else out
 
 
