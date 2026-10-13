@@ -61,6 +61,8 @@ class DoorSchema2Tests(unittest.TestCase):
         for angle in (0, 45, 90, 180):
             result = normalize_fill(old(open_angle=angle))
             self.assertEqual(result["schema"], SCHEMA_DOOR)
+            self.assertNotIn("unit_width", result)
+            self.assertNotIn("unit_height", result)
             self.assertEqual(result["plan_angle"], angle)
             self.assertEqual(result["model_angle"], angle)
             self.assertNotIn("open_angle", result)
@@ -79,9 +81,46 @@ class DoorSchema2Tests(unittest.TestCase):
         self.assertEqual((result["clearance_left"], result["clearance_right"],
                           result["clearance_top"], result["clearance_bottom"]),
                          (0.04, 0.04, 0.04, 0.0))
-        self.assertEqual(result["unit_width"], result["width"])
-        self.assertEqual(result["unit_height"], result["height"])
+        self.assertNotIn("unit_width", result)
+        self.assertNotIn("unit_height", result)
+        self.assertAlmostEqual(wallhole_size(result)[0], result["width"] + 0.08)
+        self.assertAlmostEqual(wallhole_size(result)[1], result["height"] + 0.04)
         self.assertNotIn("open_angle", result)
+
+    def test_editing_nominal_moves_the_cut(self):
+        # Migrated schema-1 records have zero clearance, so the physical cut
+        # tracks edits exactly, without stale cached unit dimensions.
+        for raw, width_margin, height_margin in (
+            (old(anchor="center", width=0.90, height=2.10), 0.0, 0.0),
+            (new(anchor="center", width=0.90, height=2.10), 0.08, 0.04),
+        ):
+            with self.subTest(schema=raw.get("schema", 1)):
+                original = normalize_fill(raw)
+                self.assertNotIn("unit_width", original)
+                self.assertNotIn("unit_height", original)
+                first = opening_request(original)
+                width_edited = normalize_fill(dict(original, width=1.10))
+                height_edited = normalize_fill(dict(original, height=2.20))
+                self.assertNotIn("unit_width", width_edited)
+                self.assertNotIn("unit_height", height_edited)
+                widened = opening_request(width_edited)
+                raised = opening_request(height_edited)
+                self.assertAlmostEqual(widened["width"], 1.10 + width_margin)
+                self.assertAlmostEqual(raised["height"], 2.20 + height_margin)
+                self.assertAlmostEqual(widened["width"] - first["width"], 0.20)
+                self.assertAlmostEqual(raised["height"] - first["height"], 0.10)
+                self.assertAlmostEqual(widened["position"], first["position"])
+                self.assertEqual(widened["fill"]["overall_width"], 1.10)
+                self.assertEqual(raised["fill"]["overall_height"], 2.20)
+
+    def test_explicit_unit_override_stays_independent(self):
+        result = normalize_fill(new(width=0.9, height=2.1,
+                                    unit_width=1.0, unit_height=2.3))
+        self.assertEqual(result["unit_width"], 1.0)
+        self.assertEqual(result["unit_height"], 2.3)
+        changed = normalize_fill(dict(result, width=1.2, height=2.5))
+        self.assertEqual(wallhole_size(changed), wallhole_size(result))
+        self.assertEqual((changed["width"], changed["height"]), (1.2, 2.5))
 
     def test_instance_sizes_do_not_touch_family(self):
         initial_family = copy.deepcopy(DOOR_FAMILIES)
