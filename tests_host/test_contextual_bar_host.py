@@ -220,6 +220,50 @@ class BarTests(unittest.TestCase):
         wall_actions = self.suite._actions_for("wall", self.wall)
         self.assertEqual(wall_actions, [self.wall.simple_wall_action, self.wall.composite_wall_action])
 
+    def test_opening_anchor_from_bar(self):
+        from OpenTrace_BIM import model
+        from OpenTrace_BIM.wall_face import WallFace
+        wall = self.new_wall()
+        self.window._activate_tool(self.key_of(self.openings.tool_actions[0]))
+        tool = self.openings.opening_tool
+        tool.set_shape("rect")
+        self.bar.refresh()
+        page = self.bar.pages["opening"][0]
+        left = next(b for b in page.findChildren(QToolButton)
+                    if b.accessibleName() == "Left anchor")
+        left.click()
+        self.assertEqual(tool.place.anchor, "left")
+        self.addCleanup(setattr, tool.place, "anchor", "center")
+        self.assertIs(self.window.viewport.active_tool, tool)
+        face = WallFace(wall)
+        tool.on_click(self.ctx(face.world(QVector3D(3.0, 1.0, 0))))
+        item = model.read_wall(wall)["openings"][0]
+        self.assertAlmostEqual(item["position"] - item["width"] / 2.0, 3.0)
+        self.assertTrue(self.window.viewport.history.undo())
+        tool.set_shape("free")
+        self.bar.refresh()
+        for button in self.bar._opening_anchor_buttons:
+            self.assertFalse(button.isEnabled())
+        tool.set_shape("rect")
+        self.bar.refresh()
+
+    def test_door_window_floor_sill_is_zero(self):
+        for key, tool, kind in (
+            (1, self.openings.door_tool, "door"),
+            (2, self.openings.window_tool, "window"),
+        ):
+            self.window._activate_tool(self.key_of(self.openings.tool_actions[key]))
+            self.bar.refresh()
+            sill = self.size_controls(tool, "sill")[0]
+            self.assertEqual(sill.minimum(), 0.0)
+            previous = tool.sizes[kind]["sill"]
+            try:
+                sill.setValue(0.0)
+                self.assertEqual(tool.sizes[kind]["sill"], 0.0)
+            finally:
+                tool.sizes[kind]["sill"] = previous
+        self.bar.refresh()
+
     def test_door_anchor_from_bar(self):
         from OpenTrace_BIM import model
         from OpenTrace_BIM.door_window_commands import _fill_record

@@ -320,6 +320,18 @@ class ContextualBar(QWidget):
         self._size_fields(p, openings.opening_tool.place,
                           lambda: None if openings.opening_tool.shape == "free"
                           else openings.opening_tool.shape)
+        # Reuse the placement tool's existing anchor; free polygons have none.
+        self._section(p, t("Âncora"))
+        self._opening_anchor_buttons = []
+        for symbol, anchor, title in (
+            ("◧", "left", "Âncora esquerda"),
+            ("⊕", "center", "Âncora central"),
+            ("◨", "right", "Âncora direita"),
+        ):
+            self._opening_anchor_buttons.append(
+                self._method(p, symbol, t(title),
+                             lambda a=anchor: self._set_anchor(openings.opening_tool.place, a),
+                             active=lambda a=anchor: openings.opening_tool.place.anchor == a))
         for key, tool, title in (("door", openings.door_tool, "Porta"),
                                  ("window", openings.window_tool, "Janela")):
             p = self._page(key, t(title) + " · criação")
@@ -343,7 +355,7 @@ class ContextualBar(QWidget):
             title = self._section(layout, t(label))
             spin = QDoubleSpinBox(self)
             spin.setDecimals(2)
-            spin.setRange(MIN_DIM, 100.0)
+            spin.setRange(0.0 if key == "sill" else MIN_DIM, 100.0)
             spin.setSingleStep(0.05)
             spin.setSuffix(" m")
             spin.setKeyboardTracking(False)
@@ -365,6 +377,8 @@ class ContextualBar(QWidget):
         self.app.viewport.update()
 
     def _sync_size_controls(self):
+        for button in self._opening_anchor_buttons:
+            button.setEnabled(self.wall.openings.opening_tool.shape != "free")
         for spin, title, tool, kind_of, key in self._size_controls:
             kind = kind_of()
             spin.setEnabled(kind is not None
