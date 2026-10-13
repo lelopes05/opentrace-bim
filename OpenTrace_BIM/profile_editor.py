@@ -22,7 +22,8 @@ from core.history import History
 from core.scene import Scene
 from tools.base import Tool
 
-from .i18n import t, ui_locale
+from .i18n import t
+from .step_guide import show_step, step_text, ui_locale
 from .host import activate_tool, register_tool
 from .profile_library import (delete_profile, duplicate_profile, load_profiles,
                               upsert_profile)
@@ -194,12 +195,24 @@ class ProfileOriginTool(Tool):
     description="Choose the insertion/origin point of the complex profile."
     shortcut=None
     uses_snap=True
-    def __init__(self,controller): self.controller=controller
-    def on_activate(self,viewport): viewport.flash_status("Clique no ponto de origem do perfil.",3500)
-    def on_deactivate(self,viewport): pass
+    def __init__(self,controller):
+        self.controller=controller
+        self.step_id="profile.origin.start"
+
+    def on_activate(self,viewport):
+        show_step(self,viewport,"profile.origin.start")
+
+    def on_deactivate(self,viewport):
+        self.controller.app.window.statusBar().clearMessage()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_click(self,ctx):
         if not self.controller.is_profile_workspace(): return
         self.controller.set_anchor(float(ctx.world.x()),float(ctx.world.y()))
+        show_step(self,ctx.viewport,"profile.origin.done")
         activate_tool(self.controller.app, "select")
 
 
