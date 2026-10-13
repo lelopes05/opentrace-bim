@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter, QPixmap, QPixmapCache
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QImage, QPainter, QPixmap, QPixmapCache
 from views.theme import dark_palette, light_palette
 
 from OpenTrace_BIM.icons import _NAMES, icon, pixmap
@@ -109,7 +109,9 @@ class IconHostTests(unittest.TestCase):
         row_height, cell_width, label_width = 38, 47, 135
         width = label_width + len(palettes) * len(states) * cell_width
         height = 45 + row_height * len(_NAMES)
-        sheet = QPixmap(width, height)
+        # Keep the CI-only contact sheet on a CPU image; no giant
+        # platform QPixmap should survive the offscreen test renderer.
+        sheet = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
         sheet.fill(QColor("#FFFFFF"))
         p = QPainter(sheet)
         font = QFont(APP.font())
