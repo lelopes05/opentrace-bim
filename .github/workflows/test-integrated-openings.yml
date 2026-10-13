@@ -8,7 +8,6 @@ on:
       - 'OpenTrace_BIM/**'
       - 'tests/**'
       - 'tests_host/**'
-      - 'docs/DEVELOPMENT_MASTER.md'
       - '.github/workflows/test-integrated-openings.yml'
   workflow_dispatch:
 
