@@ -315,3 +315,37 @@ class SelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealWindowPlacementTests(unittest.TestCase):
+    """The same path the toolbar takes: activate, hover the real viewport, click."""
+
+    def test_button_activates_the_tool_and_the_real_viewport_finds_the_wall(self):
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from views.main_window import MainWindow
+        from views.extension_api import ExtensionApp
+        from OpenTrace_BIM import setup
+        from OpenTrace_BIM.wall_opening_place import wall_under_cursor
+        window = MainWindow()
+        try:
+            window.resize(1200, 800)
+            setup(ExtensionApp(window, "OpenTrace_BIM"))
+            ctl = window._arquitetura_parametrica_controller
+            vp = window.viewport
+            _s, wall = straight()
+            vp.scene.groups.append(wall)
+            vp.scene.version += 1
+            vp.notify_scene_changed()
+            ctl.begin_hosted_fill("opening")
+            self.assertIs(vp.active_tool, ctl.openings.place_tool)
+            face = WallFace(wall)
+            world = face.world(QVector3D(2.5, 1.5, 0))
+            pixel = vp._world_to_pixel(world)
+            self.assertIsNotNone(pixel, "test wall is off screen")
+            picked = vp.pick_group(pixel[0], pixel[1])
+            found = wall_under_cursor(vp, SimpleNamespace(screen=QPointF(*pixel)))
+            self.assertIs(found, wall, f"pick_group returned {picked!r}")
+        finally:
+            window.deleteLater()
+            APP.processEvents()
