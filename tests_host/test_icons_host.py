@@ -6,13 +6,14 @@ from pathlib import Path
 import unittest
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QImage, QPainter, QPixmap, QPixmapCache
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap, QPixmapCache
+from PySide6.QtWidgets import QApplication
 from views.theme import dark_palette, light_palette
 
 from OpenTrace_BIM.icons import _NAMES, icon, pixmap
 from OpenTrace_BIM.style import contrast, tokens
 
-APP = QGuiApplication.instance() or QGuiApplication([])
+APP = QApplication.instance() or QApplication([])
 
 
 def tearDownModule():
@@ -54,6 +55,10 @@ def opaque_mean(pm):
 
 
 class IconHostTests(unittest.TestCase):
+    def tearDown(self):
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        APP.processEvents()
+
     @classmethod
     def setUpClass(cls):
         # Keep native QPalette values alive while the same icon is repainted.
