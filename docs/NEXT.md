@@ -362,3 +362,20 @@ Nenhuma.
 - Testes puros em `tests/test_door_schema2.py`; teste real de persistência e histórico em `tests_host/test_door_schema2_igz_host.py`.
 - Especificação integral com erratas de 13/10 em `docs/PORTAS.md`.
 - **Limite do P0:** a ferramenta do host ainda cria registros sem `schema`, que são corretamente tratados como legados; emitir schema 2 na criação e reconciliar encaixe da geometria com o vão bruto pertencem ao bloco P1 e exigem avaliação específica das restrições dos arquivos compartilhados. Não anunciar o comportamento visual novo da ferramenta antes desse ajuste.
+
+## Tradução — T1 e T2 (13/10/2026)
+
+**T1 — infraestrutura e auditoria, branch `gpt/traducao`:**
+- O idioma do OpenTrace BIM acompanha `core.i18n.current_language()`: `pt-BR` → português de origem, `es` → espanhol, demais → inglês.
+- Catálogos exatos `OpenTrace_BIM/i18n/en.json` e `es.json`; chaves continuam sendo as frases portuguesas usadas por `t()`. Os dicionários Python e a tradução posterior permanecem SOMENTE como compatibilidade temporária do inglês.
+- Gerador auditável `scripts/build_i18n_catalogs.py` (fora do pacote); exclui fragmentos dependentes de contexto e todas as substituições de `_PHRASE_EN`.
+- `ui_locale()` prepara as três localidades, mas entradas numéricas e campos da interface só serão migrados na T2.
+- Testes `tests/test_i18n_catalogs.py` (catálogos + cobertura literal) e `tests_host/test_i18n_coverage_host.py` (janelas reais, três idiomas, sem `translate_widget`), com contagem de faltas e relatório `i18n_report.md` como artefato separado do CI. Falhas de cobertura são `expectedFailure` apenas nesta etapa.
+
+**T2 — não implementar antes da junção:**
+1. Aguardar entrada das branches `gpt/painel-flutuante` e etapa 8 na oficial. Conciliar as ~34 entradas extras do painel flutuante nos JSONs sem copiar sua implementação para esta branch.
+2. Passar todo texto visível por `i18n.t()` na criação, arquivo por arquivo, eliminando textos diretos e zerando a auditoria de cobertura.
+3. Completar `en.json` e `es.json`, conferindo semântica e parâmetros formatados.
+4. Remover integralmente `english()`, `englishize_widget()`, `translate_widget()`, `_PHRASE_EN` e dicionários Python legados, além dos chamadores.
+5. Tornar os testes de cobertura estritos (sem `expectedFailure`) e manter relatório com zero faltas.
+6. Aplicar `ui_locale()` nos campos numéricos para vírgula decimal em português/espanhol.
