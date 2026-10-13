@@ -32,10 +32,11 @@ class _CompactStack(QStackedWidget):
 class ContextualBar(QWidget):
     """Compact, collapsible view onto the SAME actions and fields as the dock."""
 
-    def __init__(self, suite):
-        super().__init__(suite.app.viewport)
+    def __init__(self, suite, overlay_dock):
+        super().__init__(overlay_dock.options_frame)
         self.setObjectName("opentrace_contextual_bar")
         self.suite = suite
+        self.overlay_dock = overlay_dock
         self.app = suite.app
         self.controllers = suite.controllers
         self.wall = self.controllers["wall"]
@@ -43,6 +44,7 @@ class ContextualBar(QWidget):
         self._mode_controls = []
         self._collapsed = False
         self._key = None
+        self._last_positioned_key = None
         self._opening_kind = "opening"
 
         row = QHBoxLayout(self)
@@ -452,9 +454,7 @@ class ContextualBar(QWidget):
             "Expandir a barra contextual" if self._collapsed
             else "Recolher a barra contextual")
         self.updateGeometry()
-        overlay = getattr(self.app.window, "_arquitetura_parametrica_overlay_dock", None)
-        if overlay is not None:
-            overlay.reposition()
+        self.overlay_dock.reposition()
 
     def refresh(self):
         key = self._context_key()
@@ -481,7 +481,6 @@ class ContextualBar(QWidget):
             button.setChecked(checked)
             button.blockSignals(old)
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
-        overlay = getattr(self.app.window, "_arquitetura_parametrica_overlay_dock", None)
-        if overlay is not None and key != getattr(self, "_last_positioned_key", None):
+        if key != self._last_positioned_key:
             self._last_positioned_key = key
-            overlay.reposition()
+            self.overlay_dock.reposition()

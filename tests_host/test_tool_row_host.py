@@ -54,8 +54,8 @@ class ToolRowTests(unittest.TestCase):
     def entries(self):
         """The row's actions in order, None for a separator, without the fold button."""
         out = []
-        for action in self.row.actions():
-            widget = self.row.widgetForAction(action)
+        for action in self.row.toolbar.actions():
+            widget = self.row.toolbar.widgetForAction(action)
             if action.isSeparator():
                 out.append(None)
             elif widget is self.row.compact_button:
@@ -87,7 +87,7 @@ class ToolRowTests(unittest.TestCase):
              t("Viga paramétrica"), "", t("Abertura"), t("Porta"), t("Janela"), "",
              t("Perfil Complexo…")])
         self.assertEqual(self.row.objectName(), "opentrace_tools_row")
-        self.assertIs(self.row.widgetForAction(self.row.actions()[0]), self.wall.wall_menu_button)
+        self.assertIs(self.row.toolbar.widgetForAction(self.row.toolbar.actions()[0]), self.wall.wall_menu_button)
 
     def test_panels_are_not_host_toolbars(self):
         w = self.window
@@ -95,6 +95,8 @@ class ToolRowTests(unittest.TestCase):
         overlay = w._arquitetura_parametrica_overlay_dock
         self.assertIs(overlay.parentWidget(), w.viewport)
         self.assertIs(strip.parentWidget(), self.row)
+        self.assertIs(overlay.bar.overlay_dock, overlay)
+        self.assertIs(overlay.bar, w._arquitetura_parametrica_suite_panel.context_bar)
         self.assertEqual(w.toolBarArea(strip), Qt.NoToolBarArea)
         plugin_strips = [tb for tb in w.findChildren(QToolBar)
                          if tb.objectName().startswith("opentrace_")]
@@ -204,7 +206,7 @@ class ToolRowTests(unittest.TestCase):
                                    openings=SimpleNamespace(tool_actions=()))
         fresh = ToolRow(self.window, stand_in, None, None, None, None)
         self.assertTrue(fresh.compact)
-        self.assertEqual(fresh.iconSize(), QSize(16, 16))
+        self.assertEqual(fresh.toolbar.iconSize(), QSize(16, 16))
         fresh.setParent(None)
         fresh.deleteLater()
 

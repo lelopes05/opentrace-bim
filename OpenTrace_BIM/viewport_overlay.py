@@ -42,7 +42,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
 
     MARGIN = 8
 
-    def __init__(self, viewport, tool_row, contextual_bar):
+    def __init__(self, viewport, tool_row, suite):
         super().__init__(viewport)
         self.setObjectName("opentrace_overlay_dock")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -50,7 +50,6 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.setStyleSheet("QWidget#opentrace_overlay_dock { background: transparent; }")
         self.setMinimumWidth(0)
         self.row = tool_row
-        self.bar = contextual_bar
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -60,8 +59,12 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.options_frame.setObjectName("opentrace_options_frame")
         options_layout = QHBoxLayout(self.options_frame)
         options_layout.setContentsMargins(3, 3, 3, 3)
-        options_layout.addWidget(contextual_bar)
         layout.addWidget(self.options_frame)
+
+        from .contextual_bar import ContextualBar
+        self.bar = ContextualBar(suite, self)
+        suite.context_bar = self.bar
+        options_layout.addWidget(self.bar)
 
         viewport.installEventFilter(self)
         self.reposition()
@@ -75,8 +78,6 @@ class OverlayDock(_BlockViewportInput, QWidget):
 
     def reposition(self):
         viewport = self.parentWidget()
-        if viewport is None:
-            return
         available = max(1, viewport.width() - 2 * self.MARGIN)
         self.setMaximumWidth(available)
         self.row.setMaximumWidth(available)

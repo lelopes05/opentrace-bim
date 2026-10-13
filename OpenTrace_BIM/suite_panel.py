@@ -132,10 +132,9 @@ class ArchitectureSuitePanel:
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
         from .workspace_menu import install_workspace_menu
         self.workspace_menus = install_workspace_menu(self)
-        # The context-sensitive Info Box is parented into the viewport overlay
-        # after the unified sidebar has been constructed.
-        from .contextual_bar import ContextualBar
-        self.context_bar = ContextualBar(self)
+        # The viewport overlay creates the contextual bar with an explicit
+        # overlay reference after the sidebar is ready.
+        self.context_bar = None
         self._auto_check_timer.start(1800)
 
     def _add_page(self,key,widget):

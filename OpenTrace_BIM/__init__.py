@@ -213,7 +213,7 @@ def setup(app):
     if tool_row is not None and getattr(app.window, "_arquitetura_parametrica_suite_panel", None) is not None:
         try:
             from .viewport_overlay import OverlayDock
-            overlay = OverlayDock(app.viewport, tool_row, suite_panel.context_bar)
+            overlay = OverlayDock(app.viewport, tool_row, suite_panel)
             app.window._arquitetura_parametrica_overlay_dock = overlay
         except Exception as exc:
             log.exception("parametric viewport overlay setup failed")
