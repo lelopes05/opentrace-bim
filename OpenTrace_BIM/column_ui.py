@@ -85,12 +85,10 @@ class ColumnController(QWidget):
         self.refresh_level_options();self.refresh_material_options();self.refresh_complex_profile_options();self._load_fields(self.defaults)
 
     def _make_action(self):
-        self.action=QAction(column_icon(),t("Pilar paramétrico"),self.app.window);self.action.setCheckable(True);self.action.setToolTip(t("Pilar paramétrico vertical\nSeção simples retangular/circular; estrutura preparada para perfil complexo; níveis e offsets."))
+        self.action=QAction(column_icon(),t("Pilar"),self.app.window);self.action.setCheckable(True);self.action.setToolTip(t("Pilar paramétrico vertical\nSeção simples retangular/circular; estrutura preparada para perfil complexo; níveis e offsets."))
         register_tool(self.app,self.tool,self.action,key=COLUMN_TOOL_KEY);register_tool(self.app,self.height_tool,key=COLUMN_HEIGHT_TOOL_KEY)
         register_tool(self.app,self.move_tool,key=COLUMN_MOVE_TOOL_KEY);register_tool(self.app,self.curve_tool,key=COLUMN_CURVE_TOOL_KEY);register_tool(self.app,self.incline_tool,key=COLUMN_INCLINE_TOOL_KEY);register_tool(self.app,self.station_z_tool,key=COLUMN_STATION_Z_TOOL_KEY);self.action.triggered.connect(self.start_drawing)
         if self.wall_controller is not None and hasattr(self.wall_controller,"toolbar"):
-            self.wall_controller.toolbar.addAction(self.action)
-            if hasattr(self.wall_controller,"fit_toolbar"): self.wall_controller.fit_toolbar()
             m=getattr(self.wall_controller,"arch_menu",None)
             if m is not None:m.addAction(self.action)
         else:
