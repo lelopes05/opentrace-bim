@@ -44,7 +44,6 @@ class ContextualBar(QWidget):
         self._mode_controls = []
         self._collapsed = False
         self._key = None
-        self._last_positioned_key = None
         self._opening_kind = "opening"
 
         row = QHBoxLayout(self)
@@ -454,7 +453,6 @@ class ContextualBar(QWidget):
             "Expandir a barra contextual" if self._collapsed
             else "Recolher a barra contextual")
         self.updateGeometry()
-        self.overlay_dock.reposition()
 
     def refresh(self):
         key = self._context_key()
@@ -486,9 +484,6 @@ class ContextualBar(QWidget):
         creating = key in {"wall", "slab", "column", "beam",
                            "opening", "door", "window"}
         frame = self.overlay_dock.options_frame
-        visibility_changed = frame.isHidden() == creating
-        if visibility_changed:
+        if frame.isHidden() == creating:
             frame.setVisible(creating)
-        if visibility_changed or key != self._last_positioned_key:
-            self._last_positioned_key = key
-            self.overlay_dock.reposition()
+        self.updateGeometry()

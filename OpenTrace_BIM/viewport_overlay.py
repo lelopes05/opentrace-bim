@@ -49,6 +49,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.setAcceptDrops(True)
         self.setStyleSheet("QWidget#opentrace_overlay_dock { background: transparent; }")
         self.setMinimumWidth(0)
+        self._repositioning = False
         self.row = tool_row
 
         layout = QVBoxLayout(self)
@@ -71,21 +72,37 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.show()
         self.raise_()
 
+    def event(self, event):
+        # Qt posts LayoutRequest when child size hints or visibility change.
+        # Recalculate even if the contextual page key has not changed.
+        result = super().event(event)
+        if event.type() == QEvent.LayoutRequest:
+            self.reposition()
+        return result
+
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() in (QEvent.Resize, QEvent.Show):
             self.reposition()
         return False
 
     def reposition(self):
-        viewport = self.parentWidget()
-        available = max(1, viewport.width() - 2 * self.MARGIN)
-        self.setMaximumWidth(available)
-        self.row.setMaximumWidth(available)
-        self.options_frame.setMaximumWidth(available)
-        self.adjustSize()
-        preferred = max(
-            self.row.sizeHint().width(),
-            self.options_frame.sizeHint().width() if not self.options_frame.isHidden() else 0,
-        )
-        self.resize(min(preferred, available), self.sizeHint().height())
-        self.move(self.MARGIN, self.MARGIN)
+        if self._repositioning:
+            return
+        self._repositioning = True
+        try:
+            viewport = self.parentWidget()
+            available = max(1, viewport.width() - 2 * self.MARGIN)
+            self.setMaximumWidth(available)
+            self.row.setMaximumWidth(available)
+            self.options_frame.setMaximumWidth(available)
+            self.layout().activate()
+            self.adjustSize()
+            preferred = max(
+                self.row.sizeHint().width(),
+                self.options_frame.sizeHint().width()
+                if not self.options_frame.isHidden() else 0,
+            )
+            self.resize(min(preferred, available), self.sizeHint().height())
+            self.move(self.MARGIN, self.MARGIN)
+        finally:
+            self._repositioning = False

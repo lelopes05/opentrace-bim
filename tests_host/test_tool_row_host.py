@@ -163,6 +163,67 @@ class ToolRowTests(unittest.TestCase):
             bar.refresh()
             self.assertTrue(overlay.options_frame.isHidden(), action.text())
 
+    def assert_overlay_heights(self):
+        """All visible panels must match their fresh Qt layout size hints."""
+        overlay = self.window._arquitetura_parametrica_overlay_dock
+        APP.processEvents()
+        self.assertEqual(overlay.height(), overlay.sizeHint().height())
+        self.assertEqual(self.row.height(), self.row.sizeHint().height())
+        if not overlay.options_frame.isHidden():
+            self.assertEqual(
+                overlay.options_frame.height(),
+                overlay.options_frame.sizeHint().height())
+            self.assertEqual(
+                overlay.bar.height(), overlay.bar.sizeHint().height())
+
+    def test_hidden_content_changed_then_shown_recomputes_height(self):
+        from OpenTrace_BIM.host import activate_select
+        self.show_window()
+        bar = self.window._arquitetura_parametrica_overlay_dock.bar
+        self.wall.openings.tool_actions[0].trigger()
+        bar.refresh()
+        self.assert_overlay_heights()
+        activate_select(self.app)
+        bar.refresh()
+        self.assertTrue(bar.overlay_dock.options_frame.isHidden())
+        self.assert_overlay_heights()
+        # Switch its internal content while hidden, then return to same tool.
+        self.wall.openings.opening_tool.set_shape("circle")
+        self.wall.openings.tool_actions[0].trigger()
+        bar.refresh()
+        self.assertFalse(bar.overlay_dock.options_frame.isHidden())
+        self.assert_overlay_heights()
+        self.wall.openings.opening_tool.set_shape("rect")
+        bar.refresh()
+        self.assert_overlay_heights()
+        activate_select(self.app)
+
+    def test_collapse_expand_recomputes_height(self):
+        self.show_window()
+        self.wall.action.trigger()
+        bar = self.window._arquitetura_parametrica_overlay_dock.bar
+        bar.refresh()
+        self.assert_overlay_heights()
+        bar.toggle_collapsed()
+        self.assertTrue(bar._collapsed)
+        self.assert_overlay_heights()
+        bar.toggle_collapsed()
+        self.assertFalse(bar._collapsed)
+        self.assert_overlay_heights()
+
+    def test_compact_tool_row_recomputes_height(self):
+        self.show_window()
+        self.wall.action.trigger()
+        self.window._arquitetura_parametrica_overlay_dock.bar.refresh()
+        original = self.row.compact
+        try:
+            self.row.set_compact(not original)
+            self.assert_overlay_heights()
+            self.row.set_compact(original)
+            self.assert_overlay_heights()
+        finally:
+            self.row.set_compact(original)
+
     def test_panels_follow_viewport_resize(self):
         self.show_window()
         w = self.window

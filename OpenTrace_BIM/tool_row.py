@@ -10,7 +10,7 @@ from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
 
 from .i18n import t
-from .viewport_overlay import OverlayDock, OverlayFrame
+from .viewport_overlay import OverlayFrame
 
 COMPACT_KEY = "OpenTrace_BIM/tool_row_compact"
 NORMAL_ICON = 24
@@ -88,9 +88,6 @@ class ToolRow(OverlayFrame):
             t("Expandir a fileira de ferramentas") if self.compact
             else t("Recolher a fileira de ferramentas"))
         self.updateGeometry()
-        container = self.parentWidget()
-        if isinstance(container, OverlayDock):
-            container.reposition()
 
     def toggle_compact(self):
         self.set_compact(not self.compact)
