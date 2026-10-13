@@ -166,7 +166,14 @@ class ToolRowTests(unittest.TestCase):
     def assert_overlay_heights(self):
         """All visible panels must match their fresh Qt layout size hints."""
         overlay = self.window._arquitetura_parametrica_overlay_dock
-        APP.processEvents()
+        # A child may enqueue the parent's LayoutRequest while a previous
+        # event batch is being processed; drain the bounded Qt event cascade.
+        for _ in range(10):
+            APP.processEvents()
+            if not overlay._layout_request_queued:
+                break
+        self.assertFalse(overlay._layout_request_queued,
+                         "A child keeps requesting layout without converging")
         actual_height = overlay.height()
         expected_height = overlay.sizeHint().height()
         if actual_height != expected_height:
@@ -181,9 +188,7 @@ class ToolRowTests(unittest.TestCase):
                 queued=overlay._layout_request_queued,
                 busy=overlay._repositioning,
             )
-            overlay.reposition()
-            diagnostic["after_direct_reposition"] = overlay.height()
-            self.fail(f"Overlay failed to track size hints: {diagnostic}")
+            self.fail(f"Overlay failed to track size hints after LayoutRequest: {diagnostic}")
         self.assertEqual(self.row.height(), self.row.sizeHint().height())
         if not overlay.options_frame.isHidden():
             self.assertEqual(
