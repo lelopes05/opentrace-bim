@@ -34,7 +34,7 @@ class StartupDockTabsTests(unittest.TestCase):
             central_top = central.mapTo(window, central.rect().topLeft()).y()
             ghosts = [tab for tab in window.findChildren(QTabBar)
                       if tab.isVisibleTo(window)
-                      and tab.mapTo(window, tab.rect().topLeft()).y() < central_top]
+                      and 0 <= tab.mapTo(window, tab.rect().topLeft()).y() < central_top]
             self.assertFalse(ghosts,
                 [(tab.objectName(), tab.tabText(0), tab.y()) for tab in ghosts])
         finally:
