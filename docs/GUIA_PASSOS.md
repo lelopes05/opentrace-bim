@@ -1,6 +1,6 @@
 # OpenTrace BIM — guia de mensagens por passo
 
-> **Revisão documental, sem implementação.** Base oficial: `claude/b1-curved-wall-perf` em `4b94aec5cf47def7ecc11a4d004ff1c4fd1da91d` (13/10/2026). Referências de código revistas nesta base.
+> **Revisão documental, sem implementação.** Base oficial: `claude/b1-curved-wall-perf` em `9ee98f4a7d0f1ff9479f0d0abe9154f8113396b3` (13/10/2026). Referências de código revistas nesta base.
 
 ## Regras de conteúdo
 
@@ -12,19 +12,20 @@
 
 ## Contagem por problema
 
-- ok: **103**
-- falta: **68**
-- não bate com o fluxo: **26**
+- ok: **99**
+- falta: **72**
+- não bate com o fluxo: **30**
 - duplicada: **0**
 - dúvida: **7**
-- **Total: 204 passos.**
+- **Total: 208 passos.**
 
 ## Defeitos de fluxo achados
 
 1. **Radial de construção obsoleto na parede:** `wall_tool.py:123-126` e `wall_tool.py:458-459` ainda apresentam escolha de método na paleta e chamam a geometria de reta/arco padrão mesmo quando a barra já escolheu outra. O estado correto é `WallDrawTool.geometry` (`wall_tool.py:632-639`).
 2. **Mensagem inicial do arco pelo centro:** `ui.py:1146` diz para clicar no início da parede, mas o primeiro clique no arco pelo centro define o centro (`wall_tool.py:329-335`).
 3. **Laje perde o método escolhido:** `slab_tool.py:32` define sempre `MODE_DIAGONAL` em `reset`, inclusive após `_commit` (`slab_tool.py:142-150`). Isso contraria a persistência na sessão.
-4. **Função contínua sem orientação do próximo passo:** `wall_opening_ui.py:209-214` e `slab_ui.py:371-375` marcam a função como aguardando outro alvo, sem emitir instrução correspondente no status.
+4. **Texto de escolha geométrica antes do primeiro ponto:** `WallTool.set_mode` (`wall_tool.py:51-63`) já pede canto oposto/fim da base, e `CurvedWallTool.set_mode` (`wall_tool.py:325-338`) já pede ponto intermediário/início, mesmo quando a escolha ocorreu antes de qualquer clique na barra.
+5. **Função contínua sem orientação do próximo passo:** `wall_opening_ui.py:209-214` e `slab_ui.py:371-375` marcam a função como aguardando outro alvo, sem emitir instrução correspondente no status.
 
 **Conferência do defeito antigo:** `wall.rect_diag.created` **não reinicia mais o método**. O `WallTool.reset` atual não redefine `mode` (`wall_tool.py:36-42`), e a `WallDrawTool` mantém `geometry` (`wall_tool.py:632-639`). A mensagem deve orientar a próxima construção com a mesma geometria.
 
@@ -32,13 +33,14 @@
 
 1. `wall.segment.end`: após o primeiro clique, ainda anuncia o radial, não o ponto final (`wall_tool.py:126`).
 2. `wall.arc_normal.second`: o texto fala em arco padrão mesmo com outro método escolhido na barra (`wall_tool.py:459`).
-3. `slab.diagonal.second`: menciona mudança pela paleta, mas a seleção oficial é na barra de opções (`slab_tool.py:102`, `contextual_bar.py:234-247`).
+3. `slab.diagonal.second`: menciona mudança pela paleta, mas a seleção oficial é na barra de opções (`slab_tool.py:102`, `contextual_bar.py:267-275`).
 4. `wall.rect_base.width_value`: contém `digite/click` no lugar de uma instrução de Enter (`wall_tool.py:216`).
 5. `wall_opening.edit.delete_vertex` e `wall_opening.edit.delete`: são passos **após** excluir; a mensagem precisa confirmar o resultado e dizer o próximo passo (`wall_opening_ui.py:493`, `wall_opening_ui.py:235`).
 
 ## Dúvidas explicitamente não resolvidas
 
-- `column.profile_complex` e `beam.profile_complex`: a seção complexa não equivale a estrutura composta por camadas; confirmar a mensagem emitida durante a escolha no painel.
+- `column.profile_complex`: a seção Perfil Complexo não equivale a estrutura composta por camadas; confirmar a mensagem durante a escolha do pilar.
+- `beam.profile_complex`: conferir separadamente a mensagem de escolha de Perfil Complexo na viga.
 - `select.wall.on`, `select.slab.on`, `profile.library`: as dicas aparecem nos widgets, mas a emissão correspondente no status não está comprovada.
 - `column.edit.curve`: numeração interpolada do segmento requer conferência da mensagem concreta.
 - `wall_opening.outside`: o modelo recorta somente a parte interna do vão, mas não emite mensagem específica; confirmar o momento adequado para informar.
@@ -47,12 +49,11 @@
 
 - Atualização da base `c7d38c0` para `4b94aec`, com revisão de linhas e da nova `WallDrawTool`.
 - Removidas orientações de escolha geométrica pelo radial e de escolher novamente uma geometria já preservada.
-- Adicionados estados contínuos de edição de vão na parede e de abertura na laje: conclusão, repetição, troca pelo radial e clique vazio.
+- Adicionados estados da geometria da parede antes e depois do primeiro clique, além de edição contínua de vão/laje: confirmação, repetição, troca pelo radial e clique vazio.
 - Mensagens de exclusão reescritas como resultado de uma ação já concluída.
 - Estados de dúvida marcados e contabilizados no CSV.
 - Membrana preservada no fim do guia, fora da fileira principal por enquanto.
 
-## Tabelas por ferramenta
 
 ### Parede — segmento
 
@@ -68,16 +69,16 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `wall.rect_diag.choose` — Geometria escolhida na barra; após primeiro canto | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por diagonal: indique o canto oposto. (wall_tool.py:60) | ok | Clique no canto oposto do retângulo; Esc cancela, espaço sai. |
+| `wall.rect_diag.choose` — Geometria retangular escolhida na barra, antes do primeiro ponto | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por diagonal: indique o canto oposto. (wall_tool.py:61) | não bate com o fluxo | Clique no primeiro canto do retângulo; depois marque o canto oposto. |
 | `wall.rect_diag.end` — Clique no canto oposto confirma quatro paredes | `OpenTrace_BIM/wall_tool.py:130` | nenhuma | falta | Clique no canto oposto para criar quatro paredes independentes. |
-| `wall.rect_diag.value` — Tentar digitar medida neste modo | `OpenTrace_BIM/wall_tool.py:233` | No modo por diagonal, indique o canto oposto com o mouse. (wall_tool.py:233) | ok | Indique o canto oposto com o mouse; a medida digitada não vale neste modo. |
+| `wall.rect_diag.value` — Tentar digitar medida neste modo | `OpenTrace_BIM/wall_tool.py:234` | No modo por diagonal, indique o canto oposto com o mouse. (wall_tool.py:234) | ok | Indique o canto oposto com o mouse; a medida digitada não vale neste modo. |
 | `wall.rect_diag.created` — Após concluir, manter a geometria retangular | `OpenTrace_BIM/wall_tool.py:183` | Bloco de quatro paredes criado. Cada lado permanece uma parede paramétrica independente. (wall_tool.py:183) | não bate com o fluxo | Bloco criado. Clique no primeiro canto do próximo retângulo; espaço sai. |
 
 ### Parede — retângulo base e largura
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `wall.rect_base.choose` — Base e largura escolhidos na barra | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por base + profundidade: indique o fim da base. (wall_tool.py:60) | ok | Clique no fim da base ou digite o comprimento e confirme com Enter. |
+| `wall.rect_base.choose` — Base e largura escolhidos na barra, antes do primeiro ponto | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por base + profundidade: indique o fim da base. (wall_tool.py:62) | não bate com o fluxo | Clique no primeiro ponto da base; depois no ponto final. |
 | `wall.rect_base.width` — Base definida, aguardar terceiro ponto | `OpenTrace_BIM/wall_tool.py:137` | Indique a profundidade para qualquer lado da base. (wall_tool.py:140) | ok | Clique do lado desejado para fixar a profundidade, ou digite e confirme. |
 | `wall.rect_base.width_value` — Comprimento da base digitado, aguardar profundidade | `OpenTrace_BIM/wall_tool.py:207` | Base definida. Aponte o lado e digite/click a profundidade. (wall_tool.py:216) | não bate com o fluxo | Aponte o lado da base; clique ou digite a profundidade e pressione Enter. |
 | `wall.rect_base.created` — Bloco criado; manter modo base e largura | `OpenTrace_BIM/wall_tool.py:174` | Bloco de quatro paredes criado. Cada lado permanece uma parede paramétrica independente. (wall_tool.py:183) | não bate com o fluxo | Bloco criado. Clique para começar outro com a mesma geometria. |
@@ -96,7 +97,7 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `wall.arc_center.choose` — Método pelo centro escolhido na barra | `OpenTrace_BIM/wall_tool.py:325` | Arco pelo centro: o primeiro ponto é o centro. Indique agora o início da parede. (wall_tool.py:338) | ok | Clique no início do arco, após marcar o centro. |
+| `wall.arc_center.choose` — Método pelo centro escolhido na barra, antes do primeiro clique | `OpenTrace_BIM/wall_tool.py:325` | Arco pelo centro: o primeiro ponto é o centro. Indique agora o início da parede. (wall_tool.py:335) | não bate com o fluxo | Clique no centro do arco; depois marque o início. |
 | `wall.arc_center.end` — Centro e início definidos, escolher fim do giro | `OpenTrace_BIM/wall_tool.py:469` | Indique o fim do arco; a distância ao centro define o raio. (wall_tool.py:470) | não bate com o fluxo | Clique na direção final do arco; o raio vem do centro ao ponto inicial. |
 | `wall.arc_center.value` — Digitar medida após escolher método pelo centro | `OpenTrace_BIM/wall_tool.py:516` | A medida digitada está disponível após os dois extremos no arco padrão. (wall_tool.py:516) | ok | Neste método, indique o fim do arco com o mouse. |
 
@@ -104,7 +105,7 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `wall.arc_three.choose` — Método por três pontos escolhido na barra | `OpenTrace_BIM/wall_tool.py:325` | Arco por 3 pontos: indique um ponto intermediário por onde o arco deve passar. (wall_tool.py:339) | ok | Clique no ponto intermediário por onde o arco passará. |
+| `wall.arc_three.choose` — Método de três pontos escolhido na barra, antes do primeiro clique | `OpenTrace_BIM/wall_tool.py:325` | Arco por 3 pontos: indique um ponto intermediário por onde o arco deve passar. (wall_tool.py:336) | não bate com o fluxo | Clique no início do arco; depois escolha o ponto intermediário. |
 | `wall.arc_three.end` — Ponto intermediário definido, aguardar fim | `OpenTrace_BIM/wall_tool.py:471` | Indique o terceiro ponto/fim da parede curva. (wall_tool.py:472) | ok | Clique no terceiro ponto, que será o fim da parede curva. |
 | `wall.arc_three.value` — Digitar flecha nesse método | `OpenTrace_BIM/wall_tool.py:516` | A medida digitada está disponível após os dois extremos no arco padrão. (wall_tool.py:516) | ok | Defina o ponto final com o mouse; a flecha numérica é só do arco padrão. |
 
@@ -204,21 +205,21 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `opening.rect.hover` — Ferramenta ativa, procurar parede | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para colocar a abertura. |
+| `opening.rect.hover` — Ferramenta ativa, procurar parede | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:171) | ok | Passe o mouse sobre uma parede e clique para colocar a abertura. |
 | `opening.rect.placed` — Abertura colocada num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura colocada. (wall_opening_place.py:218) | não bate com o fluxo | Abertura colocada. Clique noutro ponto para inserir outra; espaço sai. |
 
 ### Abertura — quadrada
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `opening.square.hover` — Ferramenta ativa, contorno quadrado | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura quadrada: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre a parede e clique para criar o vão quadrado. |
+| `opening.square.hover` — Ferramenta ativa, contorno quadrado | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura quadrada: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:171) | ok | Passe o mouse sobre a parede e clique para criar o vão quadrado. |
 | `opening.square.placed` — Quadrado colocado num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura quadrada colocada. (wall_opening_place.py:218) | não bate com o fluxo | Vão quadrado criado. Clique para inserir outro; espaço sai. |
 
 ### Abertura — circular
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `opening.circle.hover` — Ferramenta ativa, forma circular | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura circular: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre a parede e clique para colocar a abertura circular. |
+| `opening.circle.hover` — Ferramenta ativa, forma circular | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura circular: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:171) | ok | Passe o mouse sobre a parede e clique para colocar a abertura circular. |
 | `opening.circle.placed` — Círculo colocado num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura circular colocada. (wall_opening_place.py:218) | não bate com o fluxo | Abertura circular criada. Clique para inserir outra; espaço sai. |
 
 ### Abertura — livre
@@ -235,14 +236,14 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `door.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Porta: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para inserir a porta. |
+| `door.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Porta: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:171) | ok | Passe o mouse sobre uma parede e clique para inserir a porta. |
 | `door.placed` — Um clique cria registro e preenchimento associado | `OpenTrace_BIM/wall_opening_place.py:218` | Porta colocada. (wall_opening_place.py:218) | não bate com o fluxo | Porta colocada. Clique para inserir outra; espaço sai. |
 
 ### Janela
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `window.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Janela: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para inserir a janela. |
+| `window.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Janela: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:171) | ok | Passe o mouse sobre uma parede e clique para inserir a janela. |
 | `window.placed` — Um clique cria registro e preenchimento associado | `OpenTrace_BIM/wall_opening_place.py:218` | Janela colocada. (wall_opening_place.py:218) | não bate com o fluxo | Janela colocada. Clique para inserir outra; espaço sai. |
 
 ### Abertura/porta/janela
@@ -405,7 +406,7 @@
 | `wall.error.short_base` — Base menor que 1 mm | `OpenTrace_BIM/wall_tool.py:102` | A base do bloco precisa ter ao menos 1 mm. (wall_tool.py:102) | ok | Defina uma base com pelo menos 1 mm. |
 | `wall.error.depth` — Profundidade quase zero | `OpenTrace_BIM/wall_tool.py:107` | A profundidade do bloco precisa ter ao menos 1 mm. (wall_tool.py:107) | ok | Indique uma profundidade maior que 1 mm. |
 | `wall.error.distance` — Valor não positivo | `OpenTrace_BIM/wall_tool.py:189` | Digite uma medida positiva, por exemplo 2,50m. (wall_tool.py:189) | ok | Digite uma medida positiva; por exemplo, 2,50 m. |
-| `wall.error.direction` — Digite sem apontar direção | `OpenTrace_BIM/wall_tool.py:202` | Aponte a direção da parede com o mouse. (wall_tool.py:202) | ok | Aponte uma direção com o mouse antes de digitar a medida. |
+| `wall.error.direction` — Digite sem apontar direção | `OpenTrace_BIM/wall_tool.py:199` | Aponte a direção da parede com o mouse. (wall_tool.py:199) | ok | Aponte uma direção com o mouse antes de digitar a medida. |
 
 ### Parede curva — erros
 
@@ -478,7 +479,7 @@
 | `wall.geometry.bar.switch` — Alternar entre seis geometrias sem trocar ferramenta | `OpenTrace_BIM/wall_tool.py:632` | nenhuma | falta | Escolha a geometria na barra; a ferramenta Parede continua ativa. |
 | `wall.geometry.persist` — Geometria escolhida persiste entre paredes | `OpenTrace_BIM/wall_tool.py:36` | nenhuma | falta | Clique para iniciar outra parede com a geometria escolhida. |
 | `wall.arc.geometry.persist` — Arco mantém método após confirmação | `OpenTrace_BIM/wall_tool.py:317` | nenhuma | falta | Clique para iniciar outro arco com o mesmo método. |
-| `wall.arc.geometry.bar` — Método de arco escolhido na barra | `OpenTrace_BIM/contextual_bar.py:225` | nenhuma | falta | Escolha arco, centro ou três pontos na barra; depois clique no primeiro ponto. |
+| `wall.arc.geometry.bar` — Método de arco escolhido na barra | `OpenTrace_BIM/contextual_bar.py:252` | nenhuma | falta | Escolha arco, centro ou três pontos na barra; depois clique no primeiro ponto. |
 | `wall.geometry.old_radial` — Primeiro clique ainda mostra instrução antiga do radial | `OpenTrace_BIM/wall_tool.py:126` | Parede reta ativa. Escolha na radial se quiser criar um bloco de quatro paredes. (wall_tool.py:126) | não bate com o fluxo | Continue a geometria escolhida na barra. |
 | `wall.arc.old_radial` — Primeiro clique ainda anuncia arco padrão | `OpenTrace_BIM/wall_tool.py:459` | Arco padrão ativo. Indique o segundo extremo ou escolha outro método na paleta flutuante. (wall_tool.py:459) | não bate com o fluxo | Continue a construção pelo método selecionado na barra. |
 
@@ -486,7 +487,7 @@
 
 | Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
 |---|---|---|---|---|
-| `slab.geometry.bar` — Escolher método de laje na barra | `OpenTrace_BIM/contextual_bar.py:234` | nenhuma | falta | Escolha a geometria na barra sem sair da ferramenta Laje. |
+| `slab.geometry.bar` — Escolher método de laje na barra | `OpenTrace_BIM/contextual_bar.py:275` | nenhuma | falta | Escolha a geometria na barra sem sair da ferramenta Laje. |
 | `slab.geometry.reset_defect` — Código volta para diagonal após concluir | `OpenTrace_BIM/slab_tool.py:32` | nenhuma | não bate com o fluxo | Clique para iniciar outra laje com a geometria escolhida. |
 
 ### Edição de vão na parede
@@ -504,6 +505,30 @@
 | `slab_opening.edit.switch` — Trocar função contínua pelo radial | `OpenTrace_BIM/slab_ui.py:514` | nenhuma | falta | Escolha outra função no radial para substituir a atual. |
 | `slab_opening.edit.empty` — Clique no vazio com função ativa | `OpenTrace_BIM/slab_ui.py:508` | nenhuma | falta | Clique em outra aresta ou vértice; o vazio não encerra. |
 | `slab_opening.edit.after` — Depois de confirmar, aguardar outro alvo | `OpenTrace_BIM/slab_ui.py:371` | nenhuma | falta | Clique em outra aresta ou vértice para repetir; Esc ou espaço sai. |
+
+### Parede — retângulo diagonal
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.rect_diag.after_first` — Depois do primeiro canto, aguardar o oposto | `OpenTrace_BIM/wall_tool.py:125` | nenhuma | falta | Clique no canto oposto para concluir o retângulo. |
+
+### Parede — retângulo base e largura
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.rect_base.after_first` — Depois do primeiro ponto, definir fim da base | `OpenTrace_BIM/wall_tool.py:125` | nenhuma | falta | Clique no fim da base ou digite o comprimento e confirme com Enter. |
+
+### Parede — arco pelo centro
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc_center.after_first` — Centro escolhido, aguardar o início do arco | `OpenTrace_BIM/wall_tool.py:455` | nenhuma | falta | Clique no ponto inicial do arco, mantendo o centro marcado. |
+
+### Parede — arco por três pontos
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc_three.after_first` — Início escolhido, aguardar ponto intermediário | `OpenTrace_BIM/wall_tool.py:455` | nenhuma | falta | Clique no ponto intermediário por onde o arco passará. |
 
 ## Fora da fileira por enquanto — Membrana
 
