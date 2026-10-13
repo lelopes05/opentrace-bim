@@ -572,6 +572,8 @@ class StickyWallOpeningTests(unittest.TestCase):
         self.assertIsNone(self.editor.sticky.tool)
 
     def _click_viewport(self, pos):
+        self.window.show()
+        APP.processEvents()
         vp = self.window.viewport
         self.assertGreaterEqual(pos.x(), 0)
         self.assertGreaterEqual(pos.y(), 0)
@@ -579,6 +581,14 @@ class StickyWallOpeningTests(unittest.TestCase):
         self.assertLess(pos.y(), vp.height())
         QTest.mouseClick(vp, Qt.LeftButton, Qt.NoModifier, pos)
         APP.processEvents()
+
+    def _commit_via_viewport(self):
+        self._choose("push_edge")
+        world = self.face.world(QVector3D(3.15, 1.5, 0))
+        xy = self.window.viewport._world_to_pixel(world)
+        self.assertIsNotNone(xy)
+        self._click_viewport(QPoint(round(xy[0]), round(xy[1])))
+        self.assertTrue(self.editor.sticky.waiting)
 
     def _blank_pixel(self):
         vp = self.window.viewport
@@ -591,7 +601,7 @@ class StickyWallOpeningTests(unittest.TestCase):
 
     def test_real_click_on_wall_face_outside_opening_returns_to_select(self):
         from OpenTrace_BIM.host import host_tool
-        self._commit_first_edge()
+        self._commit_via_viewport()
         world = self.face.world(QVector3D(0.75, 1.2, 0))
         xy = self.window.viewport._world_to_pixel(world)
         self.assertIsNotNone(xy)
@@ -603,7 +613,7 @@ class StickyWallOpeningTests(unittest.TestCase):
 
     def test_real_click_on_empty_view_returns_to_select(self):
         from OpenTrace_BIM.host import host_tool
-        self._commit_first_edge()
+        self._commit_via_viewport()
         self._click_viewport(self._blank_pixel())
         self.assertIs(self.window.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.editor.sticky.tool)

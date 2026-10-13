@@ -123,6 +123,8 @@ class StickySlabOpeningTests(unittest.TestCase):
         self.assertIsNone(self.controller.sticky.tool)
 
     def _click_viewport(self, pos):
+        self.window.show()
+        APP.processEvents()
         vp = self.viewport
         self.assertGreaterEqual(pos.x(), 0)
         self.assertGreaterEqual(pos.y(), 0)
@@ -130,6 +132,13 @@ class StickySlabOpeningTests(unittest.TestCase):
         self.assertLess(pos.y(), vp.height())
         QTest.mouseClick(vp, Qt.LeftButton, Qt.NoModifier, pos)
         APP.processEvents()
+
+    def _commit_via_viewport(self):
+        self._choose_offset()
+        xy = self.viewport._world_to_pixel(QVector3D(3.15, 2.5, 0))
+        self.assertIsNotNone(xy)
+        self._click_viewport(QPoint(round(xy[0]), round(xy[1])))
+        self.assertTrue(self.controller.sticky.waiting)
 
     def _blank_pixel(self):
         vp = self.viewport
@@ -142,7 +151,7 @@ class StickySlabOpeningTests(unittest.TestCase):
 
     def test_real_click_on_slab_face_outside_opening_returns_to_select(self):
         from OpenTrace_BIM.host import host_tool
-        self._first_commit()
+        self._commit_via_viewport()
         xy = self.viewport._world_to_pixel(QVector3D(1, 1, 0))
         self.assertIsNotNone(xy)
         pos = QPoint(round(xy[0]), round(xy[1]))
@@ -153,7 +162,7 @@ class StickySlabOpeningTests(unittest.TestCase):
 
     def test_real_click_on_empty_view_returns_to_select(self):
         from OpenTrace_BIM.host import host_tool
-        self._first_commit()
+        self._commit_via_viewport()
         self._click_viewport(self._blank_pixel())
         self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.controller.sticky.tool)
