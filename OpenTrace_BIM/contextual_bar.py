@@ -62,6 +62,8 @@ class ContextualBar(QWidget):
         self._segment_controls = []
         self._derived_controls = []
         self._button_icons = {}
+        self._icon_cache = {}
+        self._icon_assignments = {}
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
@@ -624,11 +626,19 @@ class ContextualBar(QWidget):
         self._update_icons(palette)
 
     def _update_icons(self, palette):
+        palette_key = palette.cacheKey()
         for button, name in self._button_icons.items():
             state = ("disabled" if not button.isEnabled() else
                      "marked" if button.isCheckable() and button.isChecked()
                      else "normal")
-            button.setIcon(icon(name, SIZES["icon-20"], state=state, palette=palette))
+            key = (palette_key, name, state)
+            if self._icon_assignments.get(button) == key:
+                continue
+            if key not in self._icon_cache:
+                self._icon_cache[key] = icon(
+                    name, SIZES["icon-20"], state=state, palette=palette)
+            button.setIcon(self._icon_cache[key])
+            self._icon_assignments[button] = key
 
     def toggle_collapsed(self):
         self._collapsed = not self._collapsed
