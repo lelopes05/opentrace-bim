@@ -40,7 +40,8 @@ class OverlayFrame(_BlockViewportInput, QFrame):
         self._shadow.setOffset(0, SIZES["panel-shadow-y"])
         self._shadow.setBlurRadius(SIZES["panel-shadow-blur"])
         self.setGraphicsEffect(self._shadow)
-        self.apply_theme()
+        # Do not dispatch to ToolRow.apply_theme before ToolRow is initialized.
+        OverlayFrame.apply_theme(self)
 
     def apply_theme(self):
         palette = QApplication.palette()
