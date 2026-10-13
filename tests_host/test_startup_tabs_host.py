@@ -26,7 +26,8 @@ class StartupDockTabsTests(unittest.TestCase):
             qt.processEvents()
             plugin = SimpleNamespace(stem="OpenTrace_BIM", setup=setup,
                                      tools=[], path=Path("OpenTrace_BIM"))
-            with patch("core.extensions.discover_plugins", return_value=([plugin], [])):
+            with patch("core.extensions.discover_plugins", return_value=([plugin], [])), \
+                     patch("OpenTrace_BIM._setup_bundled_layer_combinations"):
                 window.load_extensions()
             qt.processEvents()
             central = window.centralWidget()
