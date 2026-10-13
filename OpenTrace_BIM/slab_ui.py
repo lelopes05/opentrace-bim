@@ -7,8 +7,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QVector3D
-from PySide6.QtWidgets import (QApplication, QComboBox, QFormLayout, QLabel, QMenu,
-                               QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget)
 from core.snap import SnapResult, COLOR_ENDPOINT, COLOR_ON_EDGE
 
 from . import __version__
@@ -110,8 +109,6 @@ class SlabController(QObject):
             app.add_overlay(self.draw_reference_overlay)
             app.add_snap_provider(self._snap_provider)
             app.viewport.installEventFilter(self)
-            # Catch mouse presses delivered through native viewport child surfaces.
-            QApplication.instance().installEventFilter(self)
             app.viewport.sceneVersionChanged.connect(self.schedule_refresh)
             self._ui_ready = True; self.schedule_refresh()
         except Exception as exc:
@@ -506,27 +503,22 @@ class SlabController(QObject):
 
     def eventFilter(self,obj,event):
         vp = self.app.viewport
-        on_viewport = obj is vp
-        child_press = (event.type() == QEvent.MouseButtonPress
-                       and isinstance(obj, QWidget) and vp.isAncestorOf(obj))
-        if not on_viewport and not child_press:
+        if obj is not vp:
             return False
-        if (on_viewport and event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
+        if (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
                 and self.sticky.tool is not None and vp.active_tool is self.sticky.tool):
             self.return_to_select()
             return True
         if (event.type() == QEvent.MouseButtonPress and
                 event.button() in (Qt.LeftButton, Qt.RightButton) and
                 self.sticky.waiting and vp.active_tool is self.sticky.tool):
-            pixel = (event.position().toPoint() if on_viewport
-                     else vp.mapFrom(obj, event.position().toPoint()))
             slabs = selected_slabs(self.app.scene)
-            hit = (self._reference_context(pixel.x(), pixel.y(), slabs[0])
+            hit = (self._reference_context(event.position().x(), event.position().y(), slabs[0])
                    if len(slabs) == 1 else None)
             if hit is None or hit[0] not in ("opening_edge", "opening_vertex"):
-                if event.button() == Qt.LeftButton:
-                    self.return_to_select()
-                return False
+                # Ignore clicks without a matching opening handle; the
+                # selected function remains active until Esc or another tool.
+                return True
             kind, index, anchor = hit
             if event.button() == Qt.RightButton or not self.sticky.ready(vp.active_tool, kind):
                 self.show_edit_palette(event.globalPosition().toPoint(), slabs[0], kind, index, anchor)
@@ -539,8 +531,6 @@ class SlabController(QObject):
             self.sticky.armed()
             vp.update()
             return True
-        if not on_viewport:
-            return False
         if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
             if self.edit_palette.isVisible():
                 self.edit_palette.hide();self._edit_slab=None;self._edit_kind=None;self._edit_index=None;self._edit_anchor=None

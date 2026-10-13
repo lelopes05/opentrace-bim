@@ -308,7 +308,7 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 **O que muda:**
 - Hoje, depois de confirmar uma edição (deslocar, mover vértice, curvar, chanfrar, arredondar, inserir vértice, esticar), a ferramenta volta para Selecionar: `edit_finished` chama `return_to_select`.
 - Passa a ser assim: a função escolhida no radial continua ativa depois de confirmar. O próximo clique em qualquer vértice ou aresta do mesmo tipo (de qualquer vão da mesma parede, ou da mesma laje) aplica a mesma função, sem reabrir o radial.
-- **Para sair:** Esc, escolher outra função no radial ou na paleta, ou escolher outra ferramenta. Clicar fora de qualquer vão também volta para Selecionar.
+- **Para sair (decisão de 13/10):** Esc ou barra de espaço (atalho do Selecionar do IngeTrazo); escolher outra função no radial ou na paleta substitui a função ativa, e escolher outra ferramenta também a encerra. Clicar fora do vão ou no vazio **não** sai da função ativa.
 - O vão editado continua selecionado depois de cada confirmação.
 - Vale para os vãos da parede e para os da laje, com o mesmo código de "função ativa" nos dois.
 
@@ -316,9 +316,10 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - `test_offset_stays_active_after_commit`:
   - Deslocar uma aresta e depois clicar em outra aresta do mesmo vão desloca a segunda sem passar pelo radial.
   - São dois comandos no histórico.
-- `test_sticky_function_ends_on_escape_and_on_empty_click`.
+- `test_sticky_function_ends_on_escape_and_space`: Esc e espaço encerram a função; espaço ativa Selecionar do host.
+- `test_empty_click_keeps_sticky_function`: clicar no vazio não cancela a função.
 - `test_choosing_another_function_replaces_the_sticky_one`.
-- O mesmo trio para a abertura da laje.
+- Os mesmos testes para a abertura da laje.
 
 ### Fora deste bloco
 - O segundo clique de porta e janela (lado e giro) e o desenho da folha ficam no bloco seguinte, "Portas e janelas".

@@ -15,7 +15,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QPen
-from PySide6.QtWidgets import QApplication, QMenu, QToolButton, QWidget
+from PySide6.QtWidgets import QMenu, QToolButton
 
 from . import wall_cache
 from .commands import EditWall
@@ -148,8 +148,6 @@ class WallOpeningEditor(QObject):
         app.add_pickable(self._pick, self._on_pick, self._delete_pick)
         app.add_overlay(self._draw)
         app.viewport.installEventFilter(self)
-        # Native viewport surfaces can receive the mouse event on a child widget.
-        QApplication.instance().installEventFilter(self)
 
     # -- what the rest of the plugin calls -----------------------------------
     def _make_tool_action(self, key, tool, title, tip):
@@ -277,8 +275,7 @@ class WallOpeningEditor(QObject):
 
     def _on_pick(self, identity):
         if identity is None:
-            # Esc or a click elsewhere. A pick dropped because the document
-            # changed never reaches here, so edits keep the opening selected.
+            # A selection release must not cancel the chosen editing function.
             QTimer.singleShot(0, self._release_if_unpicked)
             return
         wall = self._wall_by_uid(identity[0])
@@ -290,8 +287,6 @@ class WallOpeningEditor(QObject):
 
     def _release_if_unpicked(self):
         if getattr(self.app.viewport, "extension_pick", None) is None:
-            if self.sticky.waiting:
-                self.return_to_select()
             self.active = None
             self.walls._active_opening_id = None
             self.walls._state_key = None
@@ -371,26 +366,21 @@ class WallOpeningEditor(QObject):
 
     def eventFilter(self, obj, event):
         viewport = self.app.viewport
-        on_viewport = obj is viewport
-        child_press = (event.type() == QEvent.MouseButtonPress
-                       and isinstance(obj, QWidget) and viewport.isAncestorOf(obj))
-        if not on_viewport and not child_press:
+        if obj is not viewport:
             return False
         active_tool = viewport.active_tool
-        if (on_viewport and event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
+        if (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
                 and active_tool is self.sticky.tool and self.sticky.tool is not None):
             self.return_to_select()
             return True
         if (event.type() == QEvent.MouseButtonPress
                 and event.button() in (Qt.LeftButton, Qt.RightButton)
                 and self.sticky.waiting and active_tool is self.sticky.tool):
-            pixel = (event.position().toPoint() if on_viewport
-                     else viewport.mapFrom(obj, event.position().toPoint()))
-            hit = self._hit_sticky_wall(pixel.x(), pixel.y())
+            hit = self._hit_sticky_wall(event.position().x(), event.position().y())
             if hit is None:
-                if event.button() == Qt.LeftButton:
-                    self.return_to_select()
-                return False
+                # Nothing to edit here; keep the tool and avoid dispatching
+                # an unarmed on_click to the host.
+                return True
             wall, shape, part, index, anchor = hit
             if event.button() == Qt.RightButton or not self.sticky.ready(active_tool, part):
                 self._show_radial(event.globalPosition().toPoint(),
@@ -405,8 +395,6 @@ class WallOpeningEditor(QObject):
             self.sticky.armed()
             self.app.viewport.update()
             return True
-        if not on_viewport:
-            return False
         if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
             if (self.active is not None and event.modifiers() == Qt.NoModifier
                     and self.app.viewport.active_tool is host_tool(self.app, "select")):
