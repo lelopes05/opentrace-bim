@@ -44,7 +44,6 @@ def tearDownModule():
     window = _SHARED.pop("window", None)
     _SHARED.clear()
     if window is not None:
-        window.close()
         window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
