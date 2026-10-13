@@ -186,6 +186,9 @@ class StickySlabOpeningTests(unittest.TestCase):
 
         self.assertIn(self.slab, self.scene.selection)
         self._first_commit()
+        self.assertIsNone(vp.extension_pick,
+                          "Slab openings use the host's native slab selection.")
+        self.assertEqual(selected_slabs(self.scene), [self.slab])
         QTest.keyClick(vp, Qt.Key_Space)
         APP.processEvents()
         self.assertIs(vp.active_tool, host_tool(self.app, "select"))
