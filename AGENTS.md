@@ -10,6 +10,7 @@ Leia este arquivo primeiro. Ele substitui a leitura do projeto inteiro.
 - Nunca mexer em `main`, release ou catálogo. Trabalho em branch `claude/*` ou `gpt/*`.
 - `ui.py` e `suite_panel.py` são compartilhados: um agente por vez.
 - Pronto = testes do GitHub verdes + teste do Leandro no Windows.
+- Toda entrega para teste vem com link direto de download do zip. O CI publica o link como anotação "Download do pacote de teste" do check; se não houver, anexe o zip na conversa.
 
 ## Mapa do código (OpenTrace_BIM/)
 | Área | Arquivos |

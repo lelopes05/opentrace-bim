@@ -76,9 +76,12 @@ jobs:
           rsync -a --exclude '__pycache__' --exclude '*.pyc' OpenTrace_BIM installable/
           echo "Revision: $GITHUB_SHA ($GITHUB_REF_NAME) — test build, not a release" \
             > installable/OpenTrace_BIM/TEST_BUILD.txt
-      - uses: actions/upload-artifact@v4
+      - id: upload
+        uses: actions/upload-artifact@v4
         with:
           name: OpenTrace_BIM-TEST-${{ github.run_number }}
           path: installable/
           if-no-files-found: error
           retention-days: 30
+      - name: Download link
+        run: echo "::notice title=Download do pacote de teste::${{ steps.upload.outputs.artifact-url }}"
