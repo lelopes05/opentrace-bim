@@ -629,7 +629,7 @@
   "Mova o vértice e clique; aproxime do vizinho para unir.": "Move the vertex and click; bring it close to a neighbour to merge.",
   "Mova o vértice e clique; aproxime-o do vizinho para unir.": "Move the vertex and click; bring it close to a neighbour to merge.",
   "Mova para definir a flecha e clique; digite 0 para voltar à reta.": "Move to set the bulge and click; type 0 to straighten.",
-  "Mova para definir o arredondamento e clique.": "Move to set the fillet and click.",
+  "Mova para definir o arredondamento e clique.": "Move to set the roundover and click.",
   "Mova para definir o chanfro e clique.": "Move to set the chamfer and click.",
   "Mova para definir o raio do arredondamento e clique.": "Move to set the corner radius and click.",
   "Mova para dentro/fora e clique ou digite a distância e Enter.": "Move inward/outward and click or enter the distance and press Enter.",
