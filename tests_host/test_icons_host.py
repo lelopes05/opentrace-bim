@@ -56,6 +56,8 @@ def opaque_mean(pm):
 
 class IconHostTests(unittest.TestCase):
     def tearDown(self):
+        # Release temporary Qt wrappers while the application is still alive.
+        gc.collect()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
 
@@ -66,6 +68,15 @@ class IconHostTests(unittest.TestCase):
         # PySide6/Shiboken on the offscreen Qt runner.
         cls.dark = dark_palette()
         cls.light = light_palette()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.dark = None
+        cls.light = None
+        QPixmapCache.clear()
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        APP.processEvents()
 
     def test_every_named_icon_works_at_three_sizes(self):
         self.assertEqual(len(_NAMES), len(set(_NAMES)))
@@ -136,7 +147,7 @@ class IconHostTests(unittest.TestCase):
                     x = label_width + (ti * len(states) + si) * cell_width
                     p.fillRect(x, y, cell_width, row_height,
                                tokens(pal)["panel"])
-                    p.drawPixmap(x + 11, y + 7, pixmap(name, 24, state, pal))
+                    p.drawImage(x + 11, y + 7, pixmap(name, 24, state, pal).toImage())
         p.end()
         sheet_path = Path(__file__).resolve().parents[1] / "docs" / "icons_sheet.png"
         self.assertTrue(sheet.save(str(sheet_path), "PNG"))
