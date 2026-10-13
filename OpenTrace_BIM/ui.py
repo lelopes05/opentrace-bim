@@ -530,22 +530,13 @@ class WallController(QObject):
             "Curvar/editar arco: mantém os extremos e puxa a flecha no plano horizontal.",
             self.begin_curve_arc)
         self.opening_btn = button(
-            "▣",
-            "Vão retangular livre. Use a seta para escolher vão de porta/janela.",
-            self.begin_wall_opening)
-        void_menu=QMenu(self.path_palette)
-        void_menu.addAction("Vão de porta (sem folha)",
-                            lambda:self.begin_wall_opening("door"))
-        void_menu.addAction("Vão de janela (sem esquadria)",
-                            lambda:self.begin_wall_opening("window"))
-        self.opening_btn.setMenu(void_menu)
-        self.opening_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.door_btn = button("D", "Porta paramétrica com vão automático.", lambda:self.begin_hosted_fill("door"))
-        self.window_btn = button("J", "Janela paramétrica com vão automático.", lambda:self.begin_hosted_fill("window"))
+            "▣", "Colocar abertura nesta ou em outra parede.",
+            lambda: self.begin_hosted_fill("opening"))
+        self.door_btn = button("D", "Colocar porta.", lambda: self.begin_hosted_fill("door"))
+        self.window_btn = button("J", "Colocar janela.", lambda: self.begin_hosted_fill("window"))
         self.polygon_btn = button(
-            "⬡",
-            "Desenhar abertura livre por vértices na face da parede.",
-            self.begin_wall_polygon)
+            "⬡", "Desenhar abertura livre pelos cantos, na face da parede.",
+            self.begin_wall_polygon_from_toolbar)
 
         # Vertex-context operations.  The first is always free XY movement;
         # the second extends/trims along the current straight direction or
