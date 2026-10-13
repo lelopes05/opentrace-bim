@@ -11,6 +11,7 @@ from views.main_window import MainWindow
 from OpenTrace_BIM import setup
 from OpenTrace_BIM.host import activate_select, activate_tool
 from OpenTrace_BIM.suite_panel import HOME_SECTIONS
+from OpenTrace_BIM.i18n import t
 
 
 class SuiteContextSyncTests(unittest.TestCase):
@@ -100,7 +101,7 @@ class SuiteContextSyncTests(unittest.TestCase):
         self.assertFalse(project[1].isChecked())
         self.assertEqual(settings[0].objectName(),"opentrace_section_open")
         self.assertEqual(project[0].objectName(),"opentrace_home_section")
-        self.assertEqual(self.suite.home.findChildren(QToolButton, "opentrace_home_wall")[0].text(),"Parede")
+        self.assertEqual(self.suite.home.findChildren(QToolButton, "opentrace_home_wall")[0].text(),t("Parede"))
         from PySide6.QtWidgets import QLabel
         labels=[x.text() for x in self.suite.home.findChildren(QLabel)]
         self.assertNotIn("Criar elementos", labels)
@@ -155,7 +156,7 @@ class SuiteContextSyncTests(unittest.TestCase):
         try:
             self.suite.sync_mode_buttons()
             self.assertFalse(mode.isEnabled())
-            self.assertIn("fileira",mode.toolTip())
+            self.assertEqual(mode.toolTip(),t("Ative a ferramenta na fileira do topo."))
             self.suite._trigger_mode("wall",action,0)
             self.assertEqual(triggered,[])
         finally:
