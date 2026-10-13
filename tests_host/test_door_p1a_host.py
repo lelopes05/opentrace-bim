@@ -201,7 +201,7 @@ class DoorP1aHostTests(unittest.TestCase):
         for ref in refs:
             raw = rows[ref]
             match = re.fullmatch(
-                r"IFCPROPERTYSINGLEVALUE\('([^']+)',$,"
+                r"IFCPROPERTYSINGLEVALUE\('([^']+)',\$,"
                 r"IFC(?:REAL|INTEGER|LABEL)\(([^()]*)\),\$\)", raw)
             self.assertIsNotNone(match, raw)
             props[match[1]] = match[2].strip("'")

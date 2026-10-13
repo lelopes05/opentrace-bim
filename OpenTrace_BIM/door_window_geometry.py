@@ -69,7 +69,7 @@ def build_fill_parts(raw, *, wall_thickness=0.10):
         w, h = spec["width"], spec["height"]
     x1, z1 = x0 + w, z0 + h
     if f >= min(w, h) / 2:
-        raise FillError("Marco muito grande para o conjunto.")
+        raise FillError("Marco muito grande para o vão.")
     depth = max(thickness, f)
     y0, y1 = -depth / 2, depth / 2
     parts = [
