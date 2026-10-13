@@ -44,7 +44,7 @@ class InstallationSmokeTests(unittest.TestCase):
             setup(ExtensionApp(window,"OpenTrace_BIM"))
             ctl=getattr(window,"_arquitetura_parametrica_controller",None)
             self.assertIsNotNone(ctl,"setup did not create wall controller")
-            self.assertIsNotNone(getattr(ctl,"toolbar",None))
+            self.assertIsNotNone(getattr(window,"_arquitetura_parametrica_overlay",None))
             self.assertEqual(len(ctl.openings.tool_actions),3)  # opening, door, window
             # Openings are not created from the wall's radial palette.
             self.assertIsNone(getattr(ctl,"opening_btn",None))

@@ -148,12 +148,12 @@ class ToolRowTests(unittest.TestCase):
         viewport.installEventFilter(spy)
         self.wall.action.trigger()
         tool = self.wall.draw_tool
-        with mock.patch.object(tool, "on_mouse_press") as pressed:
+        with mock.patch.object(tool, "on_click") as clicked:
             for panel in (self.row, bar):
                 QTest.mouseClick(panel, Qt.LeftButton, pos=QPoint(1, 1))
         viewport.removeEventFilter(spy)
         activate_select(self.app)
-        pressed.assert_not_called()
+        clicked.assert_not_called()
         self.assertEqual(reached, [])
 
     def test_tool_row_actions_activate_tools(self):

@@ -28,20 +28,24 @@ APP = QApplication.instance() or QApplication([])
 
 
 def stray_tab_bars(window):
-    """Visible tab bars above the central widget or not touching any visible dock."""
+    """Dock tab bars on screen that are above the central widget or touch no visible dock."""
     central_top = window.centralWidget().mapTo(window, QPoint(0, 0)).y()
     docks = [d for d in window.findChildren(QDockWidget)
              if d.isVisible() and not d.isFloating()]
+    titles = {d.windowTitle() for d in window.findChildren(QDockWidget)}
     stray = []
     for bar in window.findChildren(QTabBar):
-        if not bar.isVisible():
+        texts = {bar.tabText(i) for i in range(bar.count())}
+        if not bar.isVisible() or not texts or not texts <= titles:
             continue
         rect = QRect(bar.mapTo(window, QPoint(0, 0)), bar.size())
+        if not window.rect().intersects(rect):
+            continue
         beside_a_dock = any(
             rect.intersects(d.geometry().adjusted(0, -rect.height() - 2, 0, rect.height() + 2))
             for d in docks)
         if rect.top() < central_top or not beside_a_dock:
-            stray.append((bar.objectName(), rect.getRect()))
+            stray.append((bar.objectName(), sorted(texts), rect.getRect()))
     return stray
 
 
