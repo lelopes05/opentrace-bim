@@ -4,8 +4,8 @@ import unittest
 from types import SimpleNamespace
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QVector3D
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtGui import QKeyEvent, QKeySequence, QMouseEvent, QVector3D
+from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 
 from OpenTrace_BIM.slab_model import DEFAULTS, make_slab, slab_openings_world
@@ -112,14 +112,21 @@ class StickySlabOpeningTests(unittest.TestCase):
         self.assertEqual(len(self.viewport.history.undo_stack) - initial, 2)
         self.assertIn(self.slab, self.scene.selection)
 
-    def test_sticky_function_ends_on_escape_and_on_empty_click(self):
+    def test_sticky_function_ends_on_escape_and_space(self):
+        from OpenTrace_BIM.host import host_tool
         self._first_commit()
         esc = QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier)
         self.assertTrue(self.controller.eventFilter(self.viewport, esc))
+        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.controller.sticky.tool)
+
         self._first_commit()
-        self.assertFalse(self.controller.eventFilter(
-            self.viewport, self._event(pixel=(-10000, -10000))))
+        select_action = self.window._tool_actions["select"]
+        self.assertIn(QKeySequence(Qt.Key_Space), select_action.shortcuts())
+        self.viewport.setFocus()
+        QTest.keyClick(self.viewport, Qt.Key_Space)
+        APP.processEvents()
+        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.controller.sticky.tool)
 
     def _click_viewport(self, pos):
@@ -140,55 +147,27 @@ class StickySlabOpeningTests(unittest.TestCase):
                 return QPoint(x, y)
         self.fail("No empty viewport pixel available")
 
-    def test_real_click_on_slab_face_outside_opening_returns_to_select(self):
-        from OpenTrace_BIM.host import host_tool
+    def test_empty_click_keeps_sticky_function(self):
         self._first_commit()
+        tool = self.controller.opening_offset_tool
+        history_length = len(self.viewport.history.undo_stack)
+        self._click_viewport(self._blank_pixel())
+        self.assertIs(self.viewport.active_tool, tool)
+        self.assertIs(self.controller.sticky.tool, tool)
+        self.assertTrue(self.controller.sticky.waiting)
+        self.assertEqual(len(self.viewport.history.undo_stack), history_length)
+
+    def test_click_on_slab_face_outside_opening_keeps_sticky_function(self):
+        self._first_commit()
+        tool = self.controller.opening_offset_tool
         xy = self.viewport._world_to_pixel(QVector3D(1, 1, 0))
         self.assertIsNotNone(xy)
         pos = QPoint(round(xy[0]), round(xy[1]))
         self.assertIs(self.viewport.pick_group(pos.x(), pos.y()), self.slab)
         self._click_viewport(pos)
-        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
-        self.assertIsNone(self.controller.sticky.tool)
-
-    def test_real_click_on_empty_view_returns_to_select(self):
-        from OpenTrace_BIM.host import host_tool
-        self._first_commit()
-        self._click_viewport(self._blank_pixel())
-        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
-        self.assertIsNone(self.controller.sticky.tool)
-
-    def _click_native_surface(self, pos):
-        """Deliver a real Qt click to a child surface, as on native viewports."""
-        vp = self.viewport
-        self.assertTrue(0 <= pos.x() < vp.width())
-        self.assertTrue(0 <= pos.y() < vp.height())
-        surface = QWidget(vp)
-        surface.setAttribute(Qt.WA_NoMousePropagation)
-        surface.setGeometry(0, 0, vp.width(), vp.height())
-        surface.show()
-        try:
-            QTest.mouseClick(surface, Qt.LeftButton, Qt.NoModifier, pos)
-            APP.processEvents()
-        finally:
-            surface.hide()
-            surface.deleteLater()
-
-    def test_native_surface_click_on_slab_face_exits_sticky(self):
-        from OpenTrace_BIM.host import host_tool
-        self._first_commit()
-        xy = self.viewport._world_to_pixel(QVector3D(1, 1, 0))
-        self.assertIsNotNone(xy)
-        self._click_native_surface(QPoint(round(xy[0]), round(xy[1])))
-        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
-        self.assertIsNone(self.controller.sticky.tool)
-
-    def test_native_surface_click_on_empty_view_exits_sticky(self):
-        from OpenTrace_BIM.host import host_tool
-        self._first_commit()
-        self._click_native_surface(self._blank_pixel())
-        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
-        self.assertIsNone(self.controller.sticky.tool)
+        self.assertIs(self.viewport.active_tool, tool)
+        self.assertIs(self.controller.sticky.tool, tool)
+        self.assertTrue(self.controller.sticky.waiting)
 
     def test_choosing_another_function_replaces_the_sticky_one(self):
         self._first_commit()
