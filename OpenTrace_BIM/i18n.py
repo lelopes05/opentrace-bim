@@ -14,6 +14,10 @@ from PySide6.QtCore import QLocale
 _EN = {
     "Arquitetura": "Architecture",
     "Ferramentas arquitetônicas": "Architecture tools",
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Tools",
+    "Expandir a fileira de ferramentas": "Expand the tool row",
+    "Recolher a fileira de ferramentas": "Collapse the tool row",
+    "Perfil Complexo…": "Complex Profile…",
     "Abertura": "Opening",
     "Porta": "Door",
     "Janela": "Window",
@@ -183,6 +187,10 @@ _EN = {
 _ES = {
     "Arquitetura": "Arquitectura",
     "Ferramentas arquitetônicas": "Herramientas de arquitectura",
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Herramientas",
+    "Expandir a fileira de ferramentas": "Expandir la fila de herramientas",
+    "Recolher a fileira de ferramentas": "Contraer la fila de herramientas",
+    "Perfil Complexo…": "Perfil complejo…",
     "Abertura": "Abertura",
     "Porta": "Puerta",
     "Janela": "Ventana",

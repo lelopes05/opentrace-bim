@@ -67,14 +67,6 @@ def install_workspace_menu(suite):
         action.triggered.connect(lambda _=False,cb=callback:cb())
         organize.addAction(action)
 
-    # Keep toolbar visibility after a separator and do not change native
-    # registration, focus or selection state when constructing the menu.
-    toggle=getattr(getattr(wall,"toolbar",None),"toggleViewAction",lambda:None)()
-    marker=toggle if toggle in root.actions() else None
-    if marker is not None:
-        root.insertMenu(marker,create)
-        root.insertMenu(marker,organize)
-    else:
-        root.addMenu(create)
-        root.addMenu(organize)
+    root.addMenu(create)
+    root.addMenu(organize)
     return {"create":create,"organize":organize}

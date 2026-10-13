@@ -282,14 +282,10 @@ class ComplexProfileController(QObject):
             self.dock=self.app.add_panel(t("Perfis"),self.panel,name="profiles");self.dock.hide()
 
     def _make_action(self):
-        self.action=QAction(profile_icon(),t("Perfil Complexo"),self.app.window);self.action.setToolTip(t("Criar e editar perfis 2D reutilizáveis."));self.action.triggered.connect(self.show_library)
-        if self.wall_controller is not None and hasattr(self.wall_controller,"toolbar"):
-            self.wall_controller.toolbar.addAction(self.action);self.wall_controller.fit_toolbar()
-            menu=getattr(self.wall_controller,"arch_menu",None)
-            if menu is not None:
-                menu.addSeparator();menu.addAction(self.action)
-        else:
-            self.app.add_menu_action(t("Perfil Complexo…"),self.show_library,tip=t("Criar e editar perfis 2D reutilizáveis."))
+        self.action=QAction(profile_icon(),t("Perfil Complexo…"),self.app.window);self.action.setToolTip(t("Criar e editar perfis 2D reutilizáveis."));self.action.triggered.connect(self.show_library)
+        menu=self.wall_controller.arch_menu if self.wall_controller is not None else self.app.add_menu(t("Ferramentas arquitetônicas"))
+        if menu is not None:
+            menu.addSeparator();menu.addAction(self.action)
 
     def show_library(self,*_):
         if self.is_profile_workspace():self.sync_workspace_ui()

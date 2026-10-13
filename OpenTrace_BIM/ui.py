@@ -391,7 +391,7 @@ class WallController(QObject):
         self.action.triggered.connect(self.start_drawing)
         self.curve_action.triggered.connect(self.start_curve_drawing)
         self.toolbar = QToolBar(t("Arquitetura"), self.app.window)
-        self.toolbar.setObjectName("arquitetura_parametrica_toolbar")
+        self.toolbar.setObjectName("opentrace_options_toolbar")
         self._toolbar_grip = None
         self.toolbar.setIconSize(QSize(24, 24))
         self.toolbar.setMovable(True)
@@ -403,7 +403,6 @@ class WallController(QObject):
         self.composite_wall_action=QAction(composite_wall_icon(),t("Parede composta"),self.app.window);self.composite_wall_action.triggered.connect(lambda:self.start_structure("composite"))
         self.wall_type_menu=QMenu(self.app.window);self.wall_type_menu.addAction(self.simple_wall_action);self.wall_type_menu.addAction(self.composite_wall_action);self.wall_type_menu.addSeparator();self.wall_type_menu.addAction(self.curve_action)
         self.wall_menu_button=QToolButton(self.app.window);self.wall_menu_button.setDefaultAction(self.action);self.wall_menu_button.setMenu(self.wall_type_menu);self.wall_menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.wall_menu_button.setToolTip(t("Parede — use a seta para escolher simples, composta ou curva."))
-        self.toolbar.addWidget(self.wall_menu_button)
         self.app.window.addToolBar(Qt.TopToolBarArea, self.toolbar)
         self.fit_toolbar()
         menu = self.app.add_menu(t("Ferramentas arquitetônicas"))
@@ -412,7 +411,6 @@ class WallController(QObject):
         if menu is not None:
             sub=menu.addMenu(t("Parede"));sub.addAction(self.simple_wall_action);sub.addAction(self.composite_wall_action);sub.addSeparator();sub.addAction(self.curve_action)
             self.arch_menu_end = menu.addSeparator()
-            menu.addAction(self.toolbar.toggleViewAction())
         self.app.add_context_menu(self.context_menu)
 
     def _position_toolbar_grip(self):

@@ -174,6 +174,17 @@ def setup(app):
         startup_errors.append(f"Contexto: {type(exc).__name__}: {exc}")
     app.window._arquitetura_parametrica_context_guard = context_guard
 
+    app.window._arquitetura_parametrica_tool_row = None
+    try:
+        from .tool_row import ToolRow
+        tool_row = ToolRow(app.window, controller, slab_controller, column_controller,
+                           beam_controller, profile_controller)
+        tool_row.place_above(app.window, controller.toolbar)
+        app.window._arquitetura_parametrica_tool_row = tool_row
+    except Exception as exc:
+        log.exception("parametric tool row setup failed")
+        startup_errors.append(f"Fileira: {type(exc).__name__}: {exc}")
+
     # The master dock already exists and is known to the host before
     # restoreState().  Populate it now; no post-show QTimer, addDockWidget,
     # removeDockWidget or focus-changing raise is needed.

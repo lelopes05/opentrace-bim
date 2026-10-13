@@ -78,12 +78,6 @@ class ContextualBar(QWidget):
         # simply added a widget to the native row, compressing it out of view.
         # Qt keeps native menus / native toolbars and their actions unchanged.
         toolbar = self.wall.toolbar
-        self.hidden_legacy_actions = tuple(toolbar.actions())
-        for action in self.hidden_legacy_actions:
-            if isinstance(action, QWidgetAction):
-                action.setVisible(False)
-            else:
-                toolbar.removeAction(action)  # QAction stays alive in menus.
         window = self.app.window
         # QMainWindow manages full-width rows and persistence for toolbars.
         # Insert one break BEFORE our toolbar; do not create Ribbon bars.
