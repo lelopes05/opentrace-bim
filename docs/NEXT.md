@@ -100,9 +100,11 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - A fileira entra com `window.insertToolBar(wall.toolbar, fileira)`.
 - `setMovable(False)` e `setFloatable(False)`, como a barra.
 
-*Recolher:*
-- Pelo `toggleViewAction()` da fileira, posto no menu "Ferramentas arquitetônicas". Também aparece no F3, em "Toolbars".
-- O estado é salvo pelo `saveState` do host, via `objectName`. Não salvar à parte.
+*Recolher (resposta de 13/10: não some, fica compacta):*
+- Um botão ▴/▾ no fim da fileira alterna entre normal e compacta.
+- Compacta: só ícones, a 16 px, sem texto, com o nome na dica. Normal: estilo da resposta de P1, ícones a 24 px.
+- O estado compacto fica em `QSettings`, chave `OpenTrace_BIM/tool_row_compact`, e é lido na partida.
+- A fileira nunca é escondida pelo plugin. Se o usuário fechar pelo menu Toolbars do host, o host lembra.
 
 *Limpeza:*
 - `__init__.setup` cria a `ToolRow` depois dos controladores e antes do `ArchitectureSuitePanel`.
@@ -115,13 +117,14 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - `window.toolBarBreak(fileira)` e `window.toolBarBreak(wall.toolbar)` são verdadeiros.
   - O `y` da fileira é menor que o da barra, e o de qualquer toolbar do host é menor que o da fileira (offscreen, depois de `show` e `processEvents`).
 - `test_tool_row_actions_activate_tools`: `trigger()` em cada ação deixa ativa a ferramenta da chave dela.
-- `test_tool_row_collapses`:
-  - O `toggleViewAction` esconde e mostra a fileira.
-  - A ação está no menu "Ferramentas arquitetônicas".
+- `test_tool_row_compact`:
+  - O botão ▴ deixa a fileira compacta: os botões ficam com `Qt.ToolButtonIconOnly` e ícone de 16 px, e a altura da fileira diminui.
+  - Um novo clique volta ao normal.
+  - Uma nova `ToolRow` lê o estado salvo.
 - `test_tool_row_survives_restore_state`: `saveState`, depois `restoreState`, mantém a fileira na mesma linha e na mesma ordem.
 
 ### Etapa 3 — Barra de opções da ferramenta ativa
-**Arquivos:** `contextual_bar.py`, `wall_opening_place.py`, `suite_panel.py`, `i18n.py`, `tests_host/test_contextual_bar_host.py` (novo).
+**Arquivos:** `contextual_bar.py`, `wall_opening_place.py`, `wall_tool.py`, `ui.py`, `host.py` (sai `activate_curved_wall` e a chave `CURVED_WALL_TOOL_KEY`), `workspace_menu.py`, `suite_panel.py`, `i18n.py`, `tests_host/test_contextual_bar_host.py` (novo).
 
 **O que muda:**
 
@@ -145,7 +148,16 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 
 *Remover chamadas que escolhem ferramenta:*
 - Na página `idle`: "Criar parede", "Criar laje" e "Criar abertura".
-- Na página `wall`: "Parede curva: arco". Na página `wall_curve`: "Voltar à parede reta". Isso fica pendente de P7; enquanto P7 não for respondida, esses dois ficam.
+- Na página `wall`: "Parede curva: arco". Na página `wall_curve`: "Voltar à parede reta". Eles saem junto com a mudança abaixo.
+
+*Parede reta e curva numa ferramenta só (resposta de 13/10, como o Archicad):*
+- **Ferramenta única:** classe nova `WallDrawTool(Tool)` em `wall_tool.py`, no mesmo padrão da `WallOpeningTool` da etapa 1.
+  - Contém a ferramenta reta atual (`wall.tool`) e a curva (`wall.curve_create_tool`).
+  - Tem o atributo `geometry`, com os valores `single`, `rect_diagonal`, `rect_base_width`, `arc_normal`, `arc_center` e `arc_three`, e repassa os ganchos à ferramenta interna da geometria atual.
+- **Registro:** a ação Parede (`wall.action`) passa a ativar a `WallDrawTool`. As ferramentas internas deixam de ser registradas no host.
+- **Uma página na barra:** a página `wall` mostra os seis métodos num grupo só, "Geometria". O clique chama `set_geometry`, que troca a interna sem trocar a ferramenta do host. A página `wall_curve` deixa de existir, e `_context_key` devolve `wall`.
+- **Menus:** `wall.curve_action` sai da setinha do botão Parede, do menu e da paleta. A setinha fica só com Simples e Composta.
+- **Memória:** a última geometria usada na sessão vale ao reabrir a Parede (etapa 1).
 
 **Testes que provam:**
 - `test_bar_page_follows_active_tool`: ativar cada ferramenta pela ação mostra a página `opening`, `door` ou `window`.
@@ -157,6 +169,10 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Em square e circle, Altura está desabilitada e igual à Largura.
   - O vão colocado tem largura igual à altura.
 - `test_free_shape_disables_fields`.
+- `test_wall_geometry_changes_without_changing_tool`:
+  - Com a Parede ativa, passar pelas seis geometrias mantém a mesma `viewport.active_tool`.
+  - Uma parede desenhada em `arc_three` sai curva, e uma em `single` sai reta.
+- `test_no_curve_wall_action_left`: `curve_action` não está em nenhum menu, botão ou página.
 - `test_door_anchor_from_bar`: âncora "esquerda" na barra produz o grupo com âncora esquerda ao colocar.
 
 ### Etapa 4 — Paleta lateral sem escolha de ferramenta
@@ -285,12 +301,12 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
   - Perfil complexo entra e abre o editor de perfis.
   - Membrana entra quando estiver pronta.
 - **Home:** Plantas e Vistas previstas, escondidas até existirem.
+- **Recolher a fileira:** ela fica compacta, só com ícones; não some.
+- **Parede curva:** é geometria da Parede, escolhida na barra (etapa 3).
 - **Medidas iniciais:** as atuais servem para começar.
 
 ### Perguntas abertas (na Caixa de Revisão)
 - **P1 (etapa 2):** botões da fileira de ferramentas do topo (a faixa retrátil com Parede, Laje, Pilar…): só ícone, ícone com nome ao lado, ou ícone com nome embaixo?
-- **P2 (etapa 2):** recolher a fileira: some inteira, ou fica uma faixa fina só com ícones pequenos?
-- **P7 (etapa 3):** parede curva como forma dentro da Parede, escolhida na barra de opções (como no Archicad), ou entrada separada na setinha do botão Parede, como hoje? Enquanto não responder, os dois botões que trocam reta e curva na barra continuam.
 - **P9 (etapa 6):** cor de destaque. Até a resposta, a etapa 6 usa o `Highlight` da paleta do IngeTrazo.
 
 ---

@@ -23,6 +23,8 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 13/10: medidas são do objeto. A ferramenta lembra as últimas da sessão; editar um objeto não muda a ferramenta nem os outros objetos (sem família ou biblioteca para cada variação).
 - 13/10: fileira com Parede, Laje, Pilar, Viga, Abertura, Porta, Janela e Perfil complexo; Membrana entra quando estiver pronta.
 - 13/10: Home da paleta já prevê Plantas e Vistas, escondidas até existirem.
+- 13/10: parede reta e curva são geometrias da ferramenta Parede, escolhidas na barra (como o Archicad), não ferramentas separadas.
+- 13/10: a fileira de ferramentas recolhe para uma versão compacta só com ícones; não some.
 
 ### Vãos
 - 12/10: o vão é um contorno na face da parede, editado com o motor da abertura da laje, e fica preso à parede onde nasceu.
