@@ -72,7 +72,7 @@ def build_fill_parts(raw, *, wall_thickness=0.10):
             raise FillError("A folha deve ser menos espessa que a parede.")
         hinge = f if spec["hinge"] == "left" else w-f
         sign = 1 if spec["hinge"] == "left" else -1
-        rotation = sign * spec["swing"] * spec["open_angle"]
+        rotation = sign * spec["swing"] * spec["model_angle"]
         parts.append(_part(
             "Folha de abrir", f, w-f, -leaf/2, leaf/2, 0, h-f,
             pivot=(hinge, 0.0), angle=rotation,
