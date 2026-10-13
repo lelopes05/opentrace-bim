@@ -72,6 +72,7 @@ class SuiteContextSyncTests(unittest.TestCase):
             self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
         finally:
             window.deleteLater()
+            qt.processEvents()
 
 
 if __name__ == "__main__":
