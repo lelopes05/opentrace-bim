@@ -13,12 +13,14 @@ class ToolRowHostTests(unittest.TestCase):
         from views.main_window import MainWindow
         from views.extension_api import ExtensionApp
         from OpenTrace_BIM import setup
+        from unittest.mock import patch
 
         cls.qt = QApplication.instance() or QApplication([])
         cls.window = MainWindow(defer_extensions=True)
         cls.window.show()
         cls.qt.processEvents()
-        setup(ExtensionApp(cls.window, "OpenTrace_BIM"))
+        with patch("OpenTrace_BIM._setup_bundled_layer_combinations"):
+            setup(ExtensionApp(cls.window, "OpenTrace_BIM"))
         cls.qt.processEvents()
         cls.wall = cls.window._arquitetura_parametrica_controller
         cls.row = cls.window._arquitetura_parametrica_tool_row
