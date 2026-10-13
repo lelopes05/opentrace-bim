@@ -173,6 +173,76 @@ class GuideHostTests(unittest.TestCase):
         self.assertFalse(self.wall.draw_tool.on_value(self.viewport, -3.0))
         self.assert_step("wall.segment.end")
 
+    def test_opening_placement_and_next_target(self):
+        from OpenTrace_BIM.host import activate_tool
+        from OpenTrace_BIM.wall_face import WallFace
+        from OpenTrace_BIM.wall_opening_ui import OPENING_TOOL_KEY
+        wall = model.make_wall_segment(
+            QVector3D(0, 0, 0), QVector3D(5, 0, 0),
+            dict(model.DEFAULTS, length=5.0, openings=[]))
+        self.scene.groups.append(wall)
+        face = WallFace(wall)
+        activate_tool(self.app, OPENING_TOOL_KEY)
+        self.assert_step("opening.rect.hover")
+        world = face.world(QVector3D(2, 1.4, 0), "near")
+        ctx = SimpleNamespace(
+            viewport=self.viewport, world=world, snap=None,
+            screen=QPointF(0, 0), modifiers=Qt.NoModifier)
+        self.viewport.active_tool.on_hover(ctx)
+        self.viewport.active_tool.on_click(ctx)
+        APP.processEvents()
+        self.assert_step("opening.rect.placed")
+        self.assertEqual(len(model.read_wall(wall)["openings"]), 1)
+
+    def test_continuous_wall_opening_edit_announces_next_target(self):
+        from OpenTrace_BIM.wall_face import WallFace
+        opening = {
+            "id": "guide-a", "kind": "rect", "position": 2.5,
+            "width": 1.0, "height": 1.2, "sill": 0.9,
+        }
+        wall = model.make_wall_segment(
+            QVector3D(0, 0, 0), QVector3D(5, 0, 0),
+            dict(model.DEFAULTS, length=5.0, openings=[opening]))
+        self.scene.groups.append(wall)
+        face = WallFace(wall)
+        editor = self.wall.openings
+        editor._radial_target = (
+            wall, "guide-a", "edge", 1,
+            face.world(QVector3D(3, 1.5, 0)))
+        editor._run("offset")
+        self.assert_step("wall_opening.edit.offset")
+        point = face.world(QVector3D(3.2, 1.5, 0))
+        self.click((point.x(), point.y(), point.z()))
+        APP.processEvents()
+        self.assertTrue(editor.sticky.waiting)
+        self.assert_step("wall_opening.edit.after")
+
+    def test_continuous_slab_opening_edit_announces_next_target(self):
+        from OpenTrace_BIM.slab_model import DEFAULTS, make_slab
+        slab = make_slab(
+            [QVector3D(0, 0, 0), QVector3D(8, 0, 0),
+             QVector3D(8, 6, 0), QVector3D(0, 6, 0)],
+            dict(DEFAULTS),
+            openings=[{
+                "id": "guide-a",
+                "polygon": [[2, 2, 0], [3, 2, 0],
+                            [3, 3, 0], [2, 3, 0]],
+                "edges": [{"type": "line"} for _ in range(4)],
+            }])
+        self.scene.groups.append(slab)
+        self.scene.selection.add(slab)
+        ctl = self.slab
+        ctl._edit_slab = slab
+        ctl._edit_kind = "opening_edge"
+        ctl._edit_index = (0, 1)
+        ctl._edit_anchor = QVector3D(3, 2.5, 0)
+        ctl.begin_offset()
+        self.assert_step("slab_opening.edit.offset")
+        self.click((3.15, 2.5, 0))
+        APP.processEvents()
+        self.assertTrue(ctl.sticky.waiting)
+        self.assert_step("slab_opening.edit.after")
+
     def test_hint_outlives_fifteen_seconds_and_closes_cleanly(self):
         self.assertEqual(STEP_HOLD_MS, 600000)
         activate_beam(self.app)
