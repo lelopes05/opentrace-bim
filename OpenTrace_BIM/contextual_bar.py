@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""A single dynamic Info Box in its OWN toolbar row below the host tools.
+"""A dynamic Info Box embedded in the floating viewport overlay.
 
 Never registers a second modelling tool, modifies the host menu bar, or stores
 a second copy of a BIM property. Quick edits proxy the controller's live Qt
@@ -33,7 +33,7 @@ class ContextualBar(QWidget):
     """Compact, collapsible view onto the SAME actions and fields as the dock."""
 
     def __init__(self, suite):
-        super().__init__(suite.app.window)
+        super().__init__(suite.app.viewport)
         self.setObjectName("opentrace_contextual_bar")
         self.suite = suite
         self.app = suite.app
@@ -76,20 +76,6 @@ class ContextualBar(QWidget):
 
         self.pages = {}
         self._build_pages()
-        # Important: this MUST be a separate Qt toolbar ROW. The old design
-        # simply added a widget to the native row, compressing it out of view.
-        # Qt keeps native menus / native toolbars and their actions unchanged.
-        toolbar = self.wall.toolbar
-        window = self.app.window
-        # QMainWindow manages full-width rows and persistence for toolbars.
-        # Insert one break BEFORE our toolbar; do not create Ribbon bars.
-        if not window.toolBarBreak(toolbar):
-            window.insertToolBarBreak(toolbar)
-        toolbar.addWidget(self)
-        toolbar.setWindowTitle("OpenTrace BIM · Barra contextual")
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
-        toolbar.setIconSize(QSize(24,24))
         self.refresh()
 
     def _page(self, key, title):
@@ -460,12 +446,15 @@ class ContextualBar(QWidget):
         self.stack.setVisible(not self._collapsed)
         self.collapsed_label.setVisible(self._collapsed)
         # Collapsing is a true layout shrink, not simply painting over the UI.
-        self.wall.toolbar.updateGeometry()
+        self.updateGeometry()
         self.collapse_button.setText("▾" if self._collapsed else "▴")
         self.collapse_button.setToolTip(
             "Expandir a barra contextual" if self._collapsed
             else "Recolher a barra contextual")
         self.updateGeometry()
+        overlay = getattr(self.app.window, "_arquitetura_parametrica_overlay_dock", None)
+        if overlay is not None:
+            overlay.reposition()
 
     def refresh(self):
         key = self._context_key()
@@ -492,3 +481,7 @@ class ContextualBar(QWidget):
             button.setChecked(checked)
             button.blockSignals(old)
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
+        overlay = getattr(self.app.window, "_arquitetura_parametrica_overlay_dock", None)
+        if overlay is not None and key != getattr(self, "_last_positioned_key", None):
+            self._last_positioned_key = key
+            overlay.reposition()
