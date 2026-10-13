@@ -350,3 +350,15 @@ Nenhuma.
 
 ## Depois
 - Portas e janelas: segundo clique para lado e giro, folha e marco, tamanhos editáveis na barra (já preparados na etapa 3).
+
+
+## Portas — P0 (13/10/2026; branch `gpt/portas-p0`)
+
+- Contrato de dados de porta schema 2, com migração explícita e não destrutiva de schema 1; janelas permanecem no schema 1.
+- Oito famílias declaradas; apenas F01 (`swing_single`) está habilitada. Sem interface nova.
+- Identidade e GUID preservados; porta hospedada com IDs de parede/vão e porta livre validável sem ambos.
+- `width` e `height` permanecem chaves existentes e representam dimensões nominais da folha; conjunto e folgas calculam separadamente o vão de corte. F01 inicia com 4 cm nos lados e em cima, zero embaixo. Porta migrada mantém folgas zero.
+- `plan_angle` (padrão 90°) e `model_angle` (padrão 0°) independentes. Porta legada preserva seu `open_angle` em ambos, sem salto visual.
+- Testes puros em `tests/test_door_schema2.py`; teste real de persistência e histórico em `tests_host/test_door_schema2_igz_host.py`.
+- Especificação integral com erratas de 13/10 em `docs/PORTAS.md`.
+- **Limite do P0:** a ferramenta do host ainda cria registros sem `schema`, que são corretamente tratados como legados; emitir schema 2 na criação e reconciliar encaixe da geometria com o vão bruto pertencem ao bloco P1 e exigem avaliação específica das restrições dos arquivos compartilhados. Não anunciar o comportamento visual novo da ferramenta antes desse ajuste.
