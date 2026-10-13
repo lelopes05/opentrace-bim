@@ -47,7 +47,7 @@ A arquitetura existente é preservada: **a parede é autoridade do recorte**; o 
 
 **Compatibilização das decisões 16 e 27 — decisão técnica:** guarnições partem de uma geometria simétrica e perfil comum; cada face admite material diferente. Uma face pode ser desativada sem apagar a outra. Perfis assimétricos são uma eventual expansão, não o padrão inicial.
 
-**Compatibilização das decisões 05 e 12 — decisão técnica:** a dimensão nominal principal é uma referência arquitetônica para o conjunto instalado, **não** a medida automática da passagem livre. `wallhole`/vão bruto é calculado com as folgas da família, conforme seção 6. O usuário pode consultar e editar as medidas correlatas sem alterar o significado do campo principal. Na interface P1, a **Largura do vão de corte** é campo derivado e somente de leitura (`wallhole_size`).
+**Compatibilização das decisões 05 e 12 — correção de 13/10:** a dimensão nominal principal é a largura/altura da **folha**, **não** a medida automática da passagem livre. `wallhole`/vão bruto é calculado com as folgas da família, conforme seção 6. O usuário pode consultar e editar as medidas correlatas sem alterar o significado do campo principal. Na interface P1, a **Largura do vão de corte** é campo derivado e somente de leitura (`wallhole_size`).
 
 ## 3. Modelo de entidades e regras invariantes
 
@@ -71,7 +71,7 @@ Projeto / Pavimento / Piso acabado
 Invariantes obrigatórias:
 
 1. Uma porta hospedada vincula-se a **um vão lógico principal** na parede. Uma abertura não deve ter dois objetos de preenchimento distintos concorrendo pelo mesmo vínculo IFC.
-2. Cada instância possui `door_uid` estável, `ifc_global_id` estável e referência ao tipo; a abertura vinculada tem ID/GUID próprios.
+2. Cada instância possui `id` estável (correspondente ao `door_uid` lógico), `ifc_global_id` estável e referência ao tipo; a abertura vinculada tem ID/GUID próprios.
 3. A geometria e as representações 2D são projeções do mesmo modelo paramétrico, **não** cópias armazenadas como modelos concorrentes.
 4. A prévia por movimento de mouse não edita a malha definitiva nem cria entradas no histórico.
 5. Criar, editar, vincular, converter e excluir são transações atômicas com `Undo/Redo`.
@@ -114,23 +114,23 @@ Não inserir automaticamente “porta livre” ao clicar no vazio; não criar po
 
 Preservar menus nativos do IngeTrazo, **painéis flutuantes sobre a vista** para a fileira de ferramentas e as opções contextuais (conforme `docs/DECISIONS.md` e a decisão de 13/10), paleta lateral ancorável com cabeçalho horizontal e paleta radial/hotspots na viewport. A marca OpenTrace BIM e o botão de ajuda **?** ficam na fileira de ferramentas. Nada de Ribbon fixo, barra empilhada ou formulários complexos na faixa superior. A barra varia automaticamente pelo estado `Ferramenta Porta`, `Porta selecionada`, `Hotspot ativo`, `Outra ferramenta` e `Sem seleção`. Alterar valor no topo atualiza imediatamente a paleta e vice-versa, mediante **um único estado paramétrico**.
 
-### 5.1 Faixa contextual — porta em criação
+### 5.1 Painel flutuante de opções — porta em criação
 
 ```text
-[OpenTrace BIM · PORTA] | MÉTODO [Na parede] [Livre]
+[PORTA] | MÉTODO [Na parede] [Livre]
   FAMÍLIA [Abrir · 1 folha ▾]   LARGURA NOMINAL [0,90 m]
   ALTURA NOMINAL [2,10 m]   ÂNCORA [● centro ▾]
-  [Biblioteca/Definições…]  [Ajuda ?]  [Recolher ↑]
+  [Biblioteca/Definições…]  [Recolher ↑]
 ```
 
 O painel de opções flutuante deve distribuir os elementos conforme a largura disponível ou ocultar os menos prioritários em menu compacto **sem recortar valores**. A seleção da família cabe em seletor compacto, não em galeria enorme permanente. Valores ilustrativos, não imposição normativa. Prévia de dobradiça e giro surge no segundo clique, dispensando quatro botões fixos.
 
-### 5.2 Faixa contextual — porta selecionada
+### 5.2 Painel flutuante de opções — porta selecionada
 
 ```text
-[OpenTrace BIM · PORTA P03] | [Abrir · 1 folha]
+[PORTA P03] | [Abrir · 1 folha]
 [Larg. nom. 0,90] [Alt. nom. 2,10] [Âncora ● centro]
-[Inverter giro] [Definições…] [?] [Recolher]
+[Inverter giro] [Definições…] [Recolher]
 ```
 
 Selecionar **nunca inicia inserção**. O topo edita valores existentes pelo comando de edição com histórico. “Espelhar dobradiça”, substituição de tipo e geometria especializada ficam na paleta lateral/radial; o comando rápido único `Inverter giro` é permitido.
@@ -287,18 +287,18 @@ Ao trocar modelo/família, manter `door_uid`, GUID, posição, cota, dimensões 
 
 ## 15. Persistência, compatibilidade e migrações
 
-Contrato proposto (`schema_version=2` para o registro novo; nome e versão finais pertencem ao implementador):
+Contrato implementado no P0 (`schema=2` somente para porta; janela permanece em `schema=1`). Nomes históricos de chaves são preservados, sem sinônimos:
 
 ```text
 DoorInstance {
-  door_uid; ifc_global_id; type_id; family_key; host_mode;
-  host_uid?; opening_uid?; level_uid?; finished_floor_ref?;
-  nominal_width; nominal_height; installation_clearances;
-  unit_dimensions; leaf_parameters; frame_parameters; trim_parameters;
-  hinge_or_slide; orientation; plan_angle; model_angle;
-  wall_station_or_world_transform; face_reference; anchor;
-  component_materials; hardware; graphic_overrides;
-  BIM_attributes; original_extension_data;
+  schema=2; id; kind="door"; ifc_global_id?;
+  family_key; host_mode="hosted"|"free";
+  host_id?; opening_id?; anchor; position; sill;
+  width; height; unit_width; unit_height;
+  clearance_left; clearance_right; clearance_top; clearance_bottom;
+  frame_thickness; leaf_thickness; hinge; swing;
+  plan_angle; model_angle; name; type_name?; material_name?;
+  original_extension_data (demais chaves desconhecidas, sem perda);
 }
 ```
 
