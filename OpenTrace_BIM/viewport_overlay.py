@@ -83,6 +83,9 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.row.setMaximumWidth(available)
         self.options_frame.setMaximumWidth(available)
         self.adjustSize()
-        preferred = max(self.row.sizeHint().width(), self.options_frame.sizeHint().width())
+        preferred = max(
+            self.row.sizeHint().width(),
+            self.options_frame.sizeHint().width() if not self.options_frame.isHidden() else 0,
+        )
         self.resize(min(preferred, available), self.sizeHint().height())
         self.move(self.MARGIN, self.MARGIN)

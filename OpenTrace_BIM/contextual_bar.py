@@ -467,6 +467,14 @@ class ContextualBar(QWidget):
             button.setChecked(checked)
             button.blockSignals(old)
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
-        if key != self._last_positioned_key:
+        # Options are methods of the active construction tool. Selection and
+        # native editing keep their properties in the sidebar / radial palette.
+        creating = key in {"wall", "slab", "column", "beam",
+                           "opening", "door", "window"}
+        frame = self.overlay_dock.options_frame
+        visibility_changed = frame.isHidden() == creating
+        if visibility_changed:
+            frame.setVisible(creating)
+        if visibility_changed or key != self._last_positioned_key:
             self._last_positioned_key = key
             self.overlay_dock.reposition()

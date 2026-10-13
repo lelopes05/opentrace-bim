@@ -80,6 +80,10 @@ class DeferredOverlayTests(unittest.TestCase):
         self.assertIsNotNone(overlay)
         self.assertIs(overlay.parentWidget(), w.viewport)
         self.assertEqual(overlay.pos(), QPoint(8, 8))
+        # The contextual options panel opens only for an active modelling tool.
+        w._arquitetura_parametrica_controller.action.trigger()
+        overlay.bar.refresh()
+        self.assertFalse(overlay.options_frame.isHidden())
         self.assertLess(
             overlay.row.mapTo(w.viewport, QPoint(0, 0)).y(),
             overlay.options_frame.mapTo(w.viewport, QPoint(0, 0)).y())

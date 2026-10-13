@@ -127,7 +127,10 @@ class ToolRowTests(unittest.TestCase):
 
     def test_panels_stacked_top_left_inside_viewport(self):
         self.show_window()
+        self.wall.action.trigger()
         overlay = self.window._arquitetura_parametrica_overlay_dock
+        overlay.bar.refresh()
+        self.assertFalse(overlay.options_frame.isHidden())
         row = self.row
         frame = overlay.options_frame
         viewport = self.window.viewport
@@ -143,6 +146,22 @@ class ToolRowTests(unittest.TestCase):
             self.assertGreaterEqual(top.y(), 0)
             self.assertLessEqual(top.x() + panel.width(), viewport.width())
             self.assertLessEqual(top.y() + panel.height(), viewport.height())
+
+    def test_context_options_only_with_active_creation_tool(self):
+        from OpenTrace_BIM.host import activate_select
+        self.show_window()
+        overlay = self.window._arquitetura_parametrica_overlay_dock
+        bar = overlay.bar
+        activate_select(self.app)
+        bar.refresh()
+        self.assertTrue(overlay.options_frame.isHidden())
+        for action in (self.wall.action, *self.wall.openings.tool_actions):
+            action.trigger()
+            bar.refresh()
+            self.assertFalse(overlay.options_frame.isHidden(), action.text())
+            activate_select(self.app)
+            bar.refresh()
+            self.assertTrue(overlay.options_frame.isHidden(), action.text())
 
     def test_panels_follow_viewport_resize(self):
         self.show_window()
