@@ -18,7 +18,7 @@ from OpenTrace_BIM import model
 from OpenTrace_BIM.door_window_commands import CreateHostedFill, _fill_record
 from OpenTrace_BIM.wall_face import WallFace
 from OpenTrace_BIM.wall_opening_edit import (
-    CurveWallOpeningEdgeTool, MoveWallOpeningTool, MoveWallOpeningVertexTool,
+    InsertWallOpeningVertexTool, CurveWallOpeningEdgeTool, MoveWallOpeningTool, MoveWallOpeningVertexTool,
     PushWallOpeningEdgeTool,
 )
 from OpenTrace_BIM.wall_opening_place import (PRESETS, DrawWallOpeningTool,
@@ -162,6 +162,36 @@ class EditToolTests(unittest.TestCase):
         item = opening(wall)
         self.assertEqual(item["kind"], "polygon", ctl.messages)
         self.assertEqual([e["type"] for e in item["edges"]].count("arc"), 1)
+
+    def test_insert_vertex_on_a_vertical_edge(self):
+        D = {"id": "a", "kind": "polygon",
+             "polygon": [[1.0, 0.9], [2.0, 0.9], [2.0, 2.1], [1.0, 2.1]],
+             "edges": [{"type": "line"}, {"type": "arc", "sagitta": -0.5},
+                       {"type": "line"}, {"type": "line"}]}
+        for item in (RECT, D):
+            scene, wall = straight([item])
+            pts = [QVector3D(s, z, 0) for s, z in
+                   ([[2.0, 0.9], [3.0, 0.9], [3.0, 2.1], [2.0, 2.1]] if item is RECT
+                    else item["polygon"])]
+            left_mid = (pts[3] + pts[0]) * 0.5
+            vp, ctl, tool, face = self.arm(InsertWallOpeningVertexTool, scene, wall,
+                                           ("a", 3), left_mid)
+            click = (pts[3] * 0.65 + pts[0] * 0.35)
+            tool.on_hover(ctx(vp, face.world(click)))
+            tool.on_click(ctx(vp, face.world(click)))
+            self.assertEqual(len(opening(wall)["polygon"]), 5, ctl.messages)
+
+    def test_curved_wall_round_opening_mesh_is_closed(self):
+        D = {"id": "a", "kind": "polygon",
+             "polygon": [[3.0, 0.9], [4.0, 0.9], [4.0, 2.1], [3.0, 2.1]],
+             "edges": [{"type": "line"}, {"type": "arc", "sagitta": -0.5},
+                       {"type": "line"}, {"type": "line"}]}
+        for alignment in ("left", "center"):
+            wall = model.make_arc_wall(QVector3D(0, 0, 0), QVector3D(8, 0, 0), 2.0,
+                                       dict(model.DEFAULTS, alignment=alignment, openings=[D]))
+            for body in wall.children:
+                open_edges = [e for e in body.mesh.edges if len(e.faces) != 2]
+                self.assertEqual(open_edges, [], (alignment, len(open_edges)))
 
     def test_door_keeps_its_rectangle(self):
         scene, wall = straight()
