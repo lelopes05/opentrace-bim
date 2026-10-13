@@ -126,16 +126,12 @@ class ArchitectureSuitePanel:
         # Membrane stays visible in the roadmap without loading any membrane
         # controller/tool code.  This page is informational only.
         self._add_page("membrane", self._make_membrane_notice())
-        self.master_dock = master_dock or getattr(
-            self.app.window, "_arquitetura_parametrica_master_dock", None)
-        if self.master_dock is None:
-            self.master_dock=self.app.add_panel(
-                "OpenTrace BIM",self.panel,name="parametric_architecture")
-        else:
-            # The host already registered this dock before restoreState.  Only
-            # swap its contents; do not remove/re-add/re-tabify docks after the
-            # main window is shown.
-            self.master_dock.setWidget(self.panel)
+        # The only dock is allocated through ExtensionApp.add_panel in setup.
+        # The host owns its placement, saved tab group and left/right side.
+        if master_dock is None:
+            raise ValueError("OpenTrace BIM requires the host-registered master dock")
+        self.master_dock=master_dock
+        self.master_dock.setWidget(self.panel)
         self.master_dock.setWindowTitle("OpenTrace BIM")
         self.master_dock.hide()
         for key in ("wall","slab","column","beam","profiles","bim"):
