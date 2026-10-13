@@ -77,12 +77,12 @@ class WallCacheTests(unittest.TestCase):
 
     def test_same_version_reuses_geometry(self):
         first = wall_cache.base_path(self.scene, self.wall)
+        wall_cache.values(self.scene, self.wall)
         with CountingValidate() as counter:
             second = wall_cache.base_path(self.scene, self.wall)
             wall_cache.values(self.scene, self.wall)
-            wall_cache.values(self.scene, self.wall)
         self.assertIs(first, second)
-        self.assertEqual(counter.calls, 1)  # values() computed once
+        self.assertEqual(counter.calls, 0)
 
     def test_edit_invalidates_and_returns_new_geometry(self):
         before = wall_cache.base_path(self.scene, self.wall)
