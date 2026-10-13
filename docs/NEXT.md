@@ -2,6 +2,18 @@
 
 Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 
+## Barra de opções — grupos e campos (13/10)
+
+Implementação em `gpt/barra-campos` (etapa 3b: revisão das maquetes, sem ícones nem cores finais).
+
+- Parede: Geometria, Referência (esquerdo/centro/direito), Tipo (simples/composta), Medidas (Espessura, Altura, Base e Topo derivado = Base + Altura). Topo não edita se altura está vinculada ao nível.
+- Laje: Tipo e Medidas (Espessura e Base). Base espelha o controle existente: cota absoluta no modo livre, deslocamento relativo quando vinculada a nível.
+- Pilar: Medidas (Largura, Profundidade, Altura e Base). Largura/Profundidade representam o início e o fim do afunilamento permanece na paleta.
+- Viga: Referência horizontal (preservando a âncora vertical entre nove posições) e Medidas (Largura, Altura e Topo). Topo vem da geometria da seção no início do eixo; viga inclinada/curva é somente leitura. Alterar Topo de viga reta horizontal grava o campo existente de cota/offset.
+- Removidos da barra: combos de alinhamento e níveis da parede; níveis da laje; tipo e forma do pilar. Essas configurações continuam nos controladores e na paleta completa. Formas geométricas da laje continuam na paleta.
+- Grupos exclusivos usam QButtonGroup, `objectName` estável por opção; nenhum botão de grupo ativa ferramenta. Testes do host: `test_bar_groups_follow_mockups`, `test_bar_fields_are_controller_fields`, `test_wall_top_edits_height`, `test_segmented_groups_mirror_controller`, `test_beam_top_tracks_anchor_and_slope`, `test_slab_base_hint_follows_level`, `test_column_taper_uses_start_and_hints`, além da regressão existente `test_bar_never_changes_tool`.
+- Aceite visual ainda depende de teste no Windows. Verificar conclusão e pacote no CI antes de promover a etapa.
+
 ## Feito em 13/10
 - Direção de interface atualizada: fileira e barra contextual deixam o layout de toolbars do host e passam a flutuar sobre a vista; a toolbar de layers é uma exceção expressa. A implementação segue na branch `gpt/painel-flutuante` a partir de `cc40f18` (validação por CI ainda necessária).
 - Vãos na parede (TEST-7): parede achada pelo cursor (`wall_under_cursor`), inserir vértice na aresta clicada, malha do vão curvo em parede curva (float32), vértices como pontos sem bolinha no meio, Home e Perfis da paleta voltando a abrir, teste de fumaça do 0.5.8, cadernos enxutos (`DECISIONS.md`, `ARCHITECTURE.md`).
@@ -185,6 +197,20 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Plantas e Vistas estão em `HOME_SECTIONS` e não aparecem na Home.
   - Trocar `page` de uma delas para uma página existente faz a seção aparecer na próxima montagem.
 - Os testes atuais de `sync_context` continuam verdes.
+
+### Etapa 4b — Formulário da Parede em três seções (após a junção da barra)
+
+**Pendente. Não implementar na branch `gpt/paleta-4-5`.** O formulário
+original fica em `ui.py`, que está reservado a outro agente.
+Depois da integração da barra, reorganizar os widgets existentes sem copiar
+estado, perder campos ou mudar handlers:
+
+- **Geometria e medidas** (aberta): Espessura e Altura.
+- **Base e topo** (aberta): Nível base, Base, Nível topo e Offset do topo.
+- **Propriedades completas** (fechada): todos os outros campos, preservados.
+
+Identificação da seção aberta por `objectName="opentrace_section_open"`.
+A faixa laranja permanece responsabilidade da etapa 6b.
 
 ### Etapa 5 — Partida e abas no IngeTrazo 0.5.8
 **Arquivos:** `__init__.py`, `suite_panel.py`, `tests_host/test_install_smoke_host.py`.
