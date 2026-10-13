@@ -590,6 +590,13 @@ def _offset_path(points, distance):
     for i in range(1, len(pts) - 1):
         a = pts[i] + normals[i - 1] * distance
         b = pts[i] + normals[i] * distance
+        u, v = segs[i - 1], segs[i]
+        # Stations inserted on one straight piece leave consecutive segments
+        # collinear up to rounding; intersecting those offset lines is
+        # ill-conditioned and scattered the points (folded, duplicated faces).
+        if abs(u.x() * v.y() - u.y() * v.x()) < 1e-7:
+            out.append(a if QVector3D.dotProduct(u, v) > 0 else pts[i] + normals[i] * distance)
+            continue
         hit = _line_intersection(a, segs[i - 1], b, segs[i])
         if hit is None:
             n = normals[i - 1] + normals[i]
