@@ -123,7 +123,11 @@ class StickySlabOpeningTests(unittest.TestCase):
         self._first_commit()
         select_action = self.window._tool_actions["select"]
         self.assertIn(QKeySequence(Qt.Key_Space), select_action.shortcuts())
+        self.window.show()
+        APP.processEvents()
+        self.window.activateWindow()
         self.viewport.setFocus()
+        APP.processEvents()
         QTest.keyClick(self.viewport, Qt.Key_Space)
         APP.processEvents()
         self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))

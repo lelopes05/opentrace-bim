@@ -572,7 +572,11 @@ class StickyWallOpeningTests(unittest.TestCase):
         self._commit_first_edge()
         select_action = self.window._tool_actions["select"]
         self.assertIn(QKeySequence(Qt.Key_Space), select_action.shortcuts())
+        self.window.show()
+        APP.processEvents()
+        self.window.activateWindow()
         self.window.viewport.setFocus()
+        APP.processEvents()
         QTest.keyClick(self.window.viewport, Qt.Key_Space)
         APP.processEvents()
         self.assertIs(self.window.viewport.active_tool, host_tool(self.app, "select"))
