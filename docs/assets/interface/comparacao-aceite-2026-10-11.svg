@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="730" viewBox="0 0 1480 730">
+<title>OpenTrace BIM: comparação entre interface entregue e estrutura aprovada</title>
+<desc>Diagrama de auditoria, NÃO reprodução literal das capturas. Comparação de hierarquia e áreas da interface.</desc>
+<rect width="1480" height="730" fill="#eff2f6"/>
+<text x="32" y="38" font-family="Arial" font-size="24" font-weight="bold" fill="#182739">OpenTrace BIM — aceite visual da interface (11/10/2026)</text>
+<text x="32" y="64" font-family="Arial" font-size="14" fill="#667182">Comparação esquemática: esquerda = entrega reprovada; direita = arquitetura aprovada, ainda não entregue</text>
+<rect x="24" y="89" width="698" height="587" rx="10" fill="#1f232a"/>
+<rect x="758" y="89" width="698" height="587" rx="10" fill="#1f232a"/>
+<text x="42" y="116" font-family="Arial" font-size="17" font-weight="bold" fill="#ffb7ad">ENTREGA — REPROVADA</text>
+<text x="776" y="116" font-family="Arial" font-size="17" font-weight="bold" fill="#a9edb8">DIRETRIZ — APROVADA</text>
+<!-- Current -->
+<rect x="41" y="134" width="664" height="31" rx="4" fill="#10151c"/>
+<text x="52" y="154" font-family="Arial" font-size="13" fill="#f0f0f0">File   Edit   Camera   Draw   Tools   Window   Extensions</text>
+<rect x="41" y="169" width="664" height="41" rx="4" fill="#343944"/>
+<text x="48" y="194" font-family="Arial" font-size="14" fill="#c5cedc">⌂  ◇  ◯  ⌘  ↔  ↻  ◉  ✥  ▱  ↧  ◆  ⌒  ▰  ◻  ▣</text>
+<rect x="424" y="171" width="276" height="37" rx="3" fill="#242831" stroke="#d38e7f" stroke-width="2"/>
+<text x="434" y="193" font-family="Arial" font-size="12" fill="#e5bdac">OpenTrace BIM  Selecione ... ▴</text>
+<rect x="41" y="215" width="453" height="389" fill="#c9ccce"/>
+<path d="M41 410 L494 310 M41 310 L494 500" fill="none" stroke="#82a6b6" stroke-width="1.2"/>
+<text x="66" y="250" font-family="Arial" font-size="17" fill="#46515e">Viewport nativa</text>
+<rect x="499" y="215" width="206" height="389" fill="#2a2d34"/>
+<text x="506" y="239" font-family="Arial" font-size="14" fill="#f0f2f6">Parametric Architecture</text>
+<g fill="#41464e" stroke="#7b8088" stroke-width="1">
+<rect x="514" y="264" width="82" height="51" rx="4"/><rect x="604" y="264" width="82" height="51" rx="4"/>
+<rect x="514" y="323" width="82" height="51" rx="4"/><rect x="604" y="323" width="82" height="51" rx="4"/>
+<rect x="514" y="382" width="82" height="51" rx="4"/><rect x="604" y="382" width="82" height="51" rx="4"/>
+</g>
+<g fill="#e1e7ed" font-family="Arial" font-size="12" text-anchor="middle">
+<text x="555" y="292">Wall</text><text x="645" y="292">Slab</text><text x="555" y="351">Column</text><text x="645" y="351">Beam</text>
+<text x="555" y="410">Membrane</text><text x="645" y="410">IFC</text>
+</g>
+<g font-family="Arial" font-size="15" fill="#ffc2b4">
+<text x="48" y="631">✗ Faixa espremida na toolbar, sem linha própria</text>
+<text x="48" y="653">✗ Home antiga + botões/títulos inconsistentes</text>
+</g>
+<!-- Approved -->
+<rect x="775" y="134" width="664" height="31" rx="4" fill="#10151c"/>
+<text x="787" y="154" font-family="Arial" font-size="13" fill="#f0f0f0">File   Edit   Camera   Draw   Tools   Window   Extensions</text>
+<rect x="775" y="169" width="664" height="68" rx="5" fill="#303841" stroke="#87d7ad" stroke-width="2"/>
+<rect x="789" y="178" width="101" height="25" rx="4" fill="#52697d"/>
+<text x="839" y="195" font-family="Arial" font-weight="bold" text-anchor="middle" font-size="12" fill="#fff">Parede</text>
+<text x="903" y="188" font-family="Arial" font-size="11" fill="#afbfce">Mét. construtivos</text>
+<g fill="#dfeaf4" font-family="Arial" font-size="20">
+<text x="916" y="214">╱</text><text x="953" y="214">▱</text><text x="992" y="214">⊥</text><text x="1031" y="214">⌒</text>
+</g>
+<path d="M1070 179 V226" stroke="#667480"/>
+<text x="1083" y="188" font-family="Arial" font-size="11" fill="#afbfce">Alinhamento</text>
+<text x="1095" y="213" font-family="Arial" font-size="15" fill="#f0f4fb">◀   ▣   ▶</text>
+<path d="M1201 179 V226" stroke="#667480"/>
+<text x="1210" y="187" font-family="Arial" font-size="11" fill="#afbfce">Atributos rápidos</text>
+<text x="1210" y="208" font-family="Arial" font-size="13" fill="#f0f4fb">0,15 m   ·   3,00 m</text>
+<text x="1210" y="226" font-family="Arial" font-size="11" fill="#bdcbd8">Nível base / topo ▾</text>
+<text x="1414" y="190" font-family="Arial" font-size="17" fill="#e9eef1">⌃</text>
+<rect x="775" y="245" width="433" height="359" fill="#c9ccce"/>
+<path d="M775 436 L1208 327 M775 328 L1208 531" fill="none" stroke="#82a6b6" stroke-width="1.2"/>
+<text x="797" y="279" font-family="Arial" font-size="17" fill="#46515e">Viewport nativa</text>
+<rect x="1214" y="245" width="225" height="359" rx="3" fill="#292e35"/>
+<rect x="1222" y="254" width="207" height="32" rx="3" fill="#37424d"/>
+<text x="1230" y="275" font-family="Arial" font-size="14" font-weight="bold" fill="#e5eef7">OpenTrace BIM  ⓘ  ?</text>
+<text x="1224" y="311" font-family="Arial" font-size="12" fill="#c5d5e3">Elementos    BIM    Projeto</text>
+<rect x="1224" y="322" width="202" height="35" rx="3" fill="#424e5a"/>
+<text x="1233" y="344" font-family="Arial" font-size="13" fill="#eaf2f8">▾ Propriedades</text>
+<rect x="1224" y="365" width="202" height="35" rx="3" fill="#424e5a"/>
+<text x="1233" y="386" font-family="Arial" font-size="13" fill="#eaf2f8">▸ Configurações avançadas</text>
+<rect x="1224" y="408" width="202" height="35" rx="3" fill="#424e5a"/>
+<text x="1233" y="429" font-family="Arial" font-size="13" fill="#eaf2f8">▸ Materiais e camadas</text>
+<rect x="1224" y="451" width="202" height="35" rx="3" fill="#424e5a"/>
+<text x="1233" y="472" font-family="Arial" font-size="13" fill="#eaf2f8">▸ IFC / parâmetros BIM</text>
+<text x="782" y="631" font-family="Arial" font-size="15" fill="#b5f0c6">✓ UMA faixa dinâmica, em linha própria, sob menus nativos</text>
+<text x="782" y="653" font-family="Arial" font-size="15" fill="#b5f0c6">✓ Criação em cima; propriedades profundas na lateral</text>
+<rect x="24" y="685" width="1432" height="31" rx="5" fill="#fff" stroke="#d8dee6"/>
+<text x="41" y="705" font-family="Arial" font-size="13" fill="#526172">Diagrama arquitetural para checagem (não é screenshot, nem substitui as nove capturas originais). A referência de Ribbon estático com cinco blocos não foi aprovada.</text>
+</svg>

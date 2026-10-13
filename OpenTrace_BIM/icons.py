@@ -8,7 +8,7 @@ of bitmap assets.
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
 
 BLUE = QColor("#42658d")
 BLUE_LIGHT = QColor("#a9bfd7")
@@ -41,6 +41,22 @@ def _pen(color=BLUE, width=2.0):
 
 def icon(name: str, size: int = 32) -> QIcon:
     name = str(name or "").lower()
+    # Runtime palette makes vector symbols legible on the DARK IngeTrazo
+    # theme used by the maintainer; previous blue strokes almost disappeared.
+    palette = QGuiApplication.palette()
+    dark = palette.color(QPalette.Window).lightness() < 128
+    if dark:
+        BLUE = QColor("#c7e0f4")
+        BLUE_LIGHT = QColor("#648fb0")
+        BLUE_MID = QColor("#406d91")
+        ORANGE = QColor("#ffac68")
+        SAND = QColor("#c2a47d")
+        INK = QColor("#d3e1ed")
+    else:
+        BLUE, BLUE_LIGHT, BLUE_MID, ORANGE, SAND, INK = (
+            globals()["BLUE"], globals()["BLUE_LIGHT"],
+            globals()["BLUE_MID"], globals()["ORANGE"],
+            globals()["SAND"], globals()["INK"])
     pm = _pm(size)
     p = _painter(pm)
     s = float(size) / 32.0
@@ -141,6 +157,26 @@ def icon(name: str, size: int = 32) -> QIcon:
     elif name == "three_points":
         path=QPainterPath(QPointF(q(5),q(22))); path.quadTo(QPointF(q(16),q(5)),QPointF(q(27),q(22))); p.drawPath(path); p.setBrush(ORANGE);p.setPen(Qt.NoPen)
         for x,y in ((5,22),(16,10),(27,22)):p.drawEllipse(QRectF(q(x-2),q(y-2),q(4),q(4)))
+    elif name == "wall_base":
+        # Four-wall rectangle specified by a baseline and perpendicular depth.
+        p.drawRect(QRectF(q(6),q(8),q(20),q(16)))
+        p.setPen(_pen(ORANGE,q(2.2)))
+        p.drawLine(QPointF(q(6),q(27)),QPointF(q(26),q(27)))
+        p.drawLine(QPointF(q(6),q(24)),QPointF(q(6),q(30)))
+        p.drawLine(QPointF(q(26),q(24)),QPointF(q(26),q(30)))
+    elif name in ("anchor_left","anchor_center","anchor_right"):
+        p.drawLine(QPointF(q(5),q(23)),QPointF(q(27),q(23)))
+        p.drawRect(QRectF(q(7),q(8),q(18),q(13)))
+        x={"anchor_left":7,"anchor_center":16,"anchor_right":25}[name]
+        p.setPen(_pen(ORANGE,q(2.2)))
+        p.drawLine(QPointF(q(x),q(5)),QPointF(q(x),q(27)))
+    elif name == "swing":
+        p.drawLine(QPointF(q(6),q(24)),QPointF(q(6),q(7)))
+        p.drawLine(QPointF(q(6),q(24)),QPointF(q(23),q(24)))
+        p.setPen(_pen(ORANGE,q(2.2)))
+        p.drawArc(QRectF(q(6),q(7),q(18),q(18)),0,90*16)
+        p.drawLine(QPointF(q(24),q(16)),QPointF(q(22),q(10)))
+        p.drawLine(QPointF(q(24),q(16)),QPointF(q(17),q(14)))
     elif name == "join":
         p.drawLine(QPointF(q(6),q(8)),QPointF(q(16),q(16))); p.drawLine(QPointF(q(6),q(24)),QPointF(q(16),q(16))); p.drawLine(QPointF(q(16),q(16)),QPointF(q(27),q(16))); p.setBrush(ORANGE);p.setPen(Qt.NoPen);p.drawEllipse(QRectF(q(13.5),q(13.5),q(5),q(5)))
     else:

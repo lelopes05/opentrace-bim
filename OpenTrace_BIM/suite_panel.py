@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Single sidebar home for all Parametric Architecture tools."""
+"""Integrated OpenTrace BIM sidebar: compact task navigation and live editors."""
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
@@ -17,22 +17,88 @@ from .profile_library import load_profiles
 
 class ArchitectureSuitePanel:
     PAGE_INFO=(
-        ("home","Home","home"),("wall","Wall","wall"),("slab","Slab","slab"),
-        ("column","Column","column"),("beam","Beam","beam"),("membrane","Membrane","slab"),("profiles","Profiles","profile"),
-        ("bim","BIM","bim"),
+        ("home","Início","home"),("wall","Parede","wall"),
+        ("slab","Laje","slab"),("column","Pilar","column"),
+        ("beam","Viga","beam"),("membrane","Membrana","slab"),
+        ("profiles","Perfis","profile"),("bim","BIM","bim"),
     )
     def __init__(self,app,wall=None,slab=None,column=None,beam=None,profiles=None,bim=None,membrane=None,master_dock=None):
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
         self._mode_buttons={}
+        self._property_sections={}
+        self._editor_sections=[]
+        self._help_dialog=None
+        self._arrange_panel = None
+        self._arrange_dock = None
         self.panel=QWidget();self.panel.setMinimumSize(0,0)
+        # Lifecycle-owned timers: unlike unparented QTimer.singleShot, they
+        # cannot invoke Python methods after a document/window is destroyed.
+        self._context_timer=QTimer(self.panel)
+        self._context_timer.setSingleShot(True)
+        self._context_timer.timeout.connect(self._run_sync_context)
+        self._auto_check_timer=QTimer(self.panel)
+        self._auto_check_timer.setSingleShot(True)
+        self._auto_check_timer.timeout.connect(self._auto_check_updates_on_startup)
         root=QVBoxLayout(self.panel);root.setContentsMargins(4,4,4,4);root.setSpacing(4)
-        self.nav=QFrame();navlay=QHBoxLayout(self.nav);navlay.setContentsMargins(0,0,0,0);navlay.setSpacing(2)
-        self.group=QButtonGroup(self.panel);self.group.setExclusive(True);self.buttons={}
+        # Two-level HEADER: brand/actions above, legible horizontal page
+        # tabs below. The host still owns the real QDockWidget and title.
+        header=QFrame(self.panel)
+        header.setObjectName("opentrace_sidebar_header")
+        h=QHBoxLayout(header)
+        h.setContentsMargins(9,6,8,6);h.setSpacing(6)
+        brand=QLabel("OpenTrace BIM",header)
+        brand.setObjectName("opentrace_sidebar_brand")
+        brand.setStyleSheet("font-size:13pt; font-weight:700;")
+        h.addWidget(brand);h.addStretch(1)
+        self.arrange_button=QToolButton(header)
+        self.arrange_button.setText("↔")
+        self.arrange_button.setToolTip("Alinhar e distribuir objetos em X, Y e Z")
+        self.arrange_button.setAccessibleName("Alinhar e distribuir objetos")
+        self.arrange_button.setFixedSize(QSize(32,32))
+        self.arrange_button.clicked.connect(self.open_arrange)
+        h.addWidget(self.arrange_button)
+        self.project_info_button=QToolButton(header)
+        self.project_info_button.setText("ⓘ")
+        self.project_info_button.setToolTip("Informações do Projeto")
+        self.project_info_button.setAccessibleName("Informações do Projeto")
+        self.project_info_button.setFixedSize(QSize(32,32))
+        self.project_info_button.clicked.connect(lambda: self.show_page("project"))
+        h.addWidget(self.project_info_button)
+        self.help_button=QToolButton(header)
+        self.help_button.setText("?")
+        self.help_button.setFixedSize(QSize(32,32))
+        self.help_button.setToolTip("Manual contextual e Sobre")
+        self.help_button.setAccessibleName("Ajuda OpenTrace BIM")
+        self.help_button.clicked.connect(self.open_help)
+        h.addWidget(self.help_button)
+        root.addWidget(header)
+        self.nav=QFrame(self.panel)
+        self.nav.setObjectName("opentrace_sidebar_navigation")
+        navlay=QHBoxLayout(self.nav)
+        navlay.setContentsMargins(0,2,0,2);navlay.setSpacing(1)
+        self.group=QButtonGroup(self.panel)
+        self.group.setExclusive(True)
+        self.buttons={}
         for key,label,ico in self.PAGE_INFO:
-            b=QToolButton();b.setCheckable(True);b.setAutoRaise(True);b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon);b.setIcon(icon(ico));b.setIconSize(QSize(26,26));b.setText(label);b.setToolTip(label)
+            b=QToolButton(self.nav)
+            b.setObjectName("opentrace_nav_"+key)
+            b.setCheckable(True)
+            b.setAutoRaise(True)
+            b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            b.setIcon(icon(ico))
+            b.setIconSize(QSize(22,22))
+            b.setMinimumSize(QSize(43,48))
+            b.setText(label)
+            b.setToolTip(label)
+            b.setAccessibleName(label)
+            b.setStyleSheet(
+                "QToolButton{font-size:9px;border:0;border-bottom:2px solid transparent;}"
+                "QToolButton:hover{background:palette(midlight);}"
+                "QToolButton:checked{border-bottom:2px solid palette(highlight);"
+                "background:palette(midlight);}")
             b.clicked.connect(lambda _=False,k=key:self.user_show_page(k))
-            navlay.addWidget(b);self.group.addButton(b);self.buttons[key]=b
+            navlay.addWidget(b,1);self.group.addButton(b);self.buttons[key]=b
         root.addWidget(self.nav)
         self.stack=QStackedWidget();self.stack.setMinimumSize(0,0);root.addWidget(self.stack,1);self.pages={}
         self.home=self._make_home();self._add_page("home",self.home)
@@ -43,12 +109,13 @@ class ArchitectureSuitePanel:
             self.app.window, "_arquitetura_parametrica_master_dock", None)
         if self.master_dock is None:
             self.master_dock=self.app.add_panel(
-                "Parametric Architecture",self.panel,name="parametric_architecture")
+                "OpenTrace BIM",self.panel,name="parametric_architecture")
         else:
             # The host already registered this dock before restoreState.  Only
             # swap its contents; do not remove/re-add/re-tabify docks after the
             # main window is shown.
             self.master_dock.setWidget(self.panel)
+        self.master_dock.setWindowTitle("OpenTrace BIM")
         self.master_dock.hide()
         for key in ("wall","slab","column","beam","profiles","bim"):
             ctrl=self.controllers.get(key)
@@ -57,46 +124,114 @@ class ArchitectureSuitePanel:
             wrapped=self._wrap_controller_page(key,ctrl,page)
             self._add_page(key,wrapped)
             ctrl.dock=self.master_dock
+        bim_ctrl=self.controllers.get("bim")
+        if bim_ctrl is not None and getattr(bim_ctrl, "project_panel", None) is not None:
+            self._add_page("project", bim_ctrl.project_panel)
+        else:
+            self.project_info_button.setEnabled(False)
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
-        QTimer.singleShot(1800,self._auto_check_updates_on_startup)
+        from .workspace_menu import install_workspace_menu
+        self.workspace_menus = install_workspace_menu(self)
+        # Stage B3b: the EXISTING architecture toolbar now contains one
+        # context-sensitive Info Box instead of an always-visible tool pile.
+        from .contextual_bar import ContextualBar
+        self.context_bar = ContextualBar(self)
+        self._auto_check_timer.start(1800)
 
     def _add_page(self,key,widget):
         self.pages[key]=widget;self.stack.addWidget(widget)
 
     def _make_membrane_notice(self):
         w=QWidget();lay=QVBoxLayout(w);lay.setContentsMargins(12,12,12,12);lay.setSpacing(8)
-        title=QLabel("<b style='font-size:14pt'>Membrane — Under evaluation</b>")
+        title=QLabel("<b style='font-size:14pt'>Membrana — Em avaliação</b>")
         title.setWordWrap(True);lay.addWidget(title)
-        body=QLabel("Temporarily disabled while its modeling workflow is being reviewed.")
+        body=QLabel("Ferramenta temporariamente desativada enquanto o fluxo de modelagem é revisado.")
         body.setWordWrap(True);body.setStyleSheet("color:#666;");lay.addWidget(body)
-        note=QLabel("The experimental membrane tools are not loaded in OpenTrace BIM 0.12.9.")
+        note=QLabel("A ferramenta experimental não está carregada nesta versão.")
         note.setWordWrap(True);lay.addWidget(note);lay.addStretch(1)
         return w
 
     def _make_home(self):
-        w=QWidget();lay=QVBoxLayout(w);lay.setContentsMargins(10,10,10,10);lay.setSpacing(10)
-        title=QLabel("<b style='font-size:15pt'>Parametric Architecture</b><br><span style='color:#777'>Parametric architectural modeling and reusable libraries.</span>");title.setWordWrap(True);lay.addWidget(title)
-        grid=QGridLayout();grid.setSpacing(8)
-        cards=(("wall","Wall","wall"),("slab","Slab","slab"),("column","Column","column"),("beam","Beam","beam"),("membrane","Membrane","slab"),("profiles","Complex Profiles","profile"),("bim","BIM / IFC","bim"))
-        for i,(key,label,ico) in enumerate(cards):
-            b=QToolButton();b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon);b.setIcon(icon(ico));b.setIconSize(QSize(42,42));b.setText(label);b.setMinimumHeight(78)
-            b.clicked.connect(lambda _=False,k=key:self.user_show_page(k));grid.addWidget(b,i//2,i%2)
-        lay.addLayout(grid)
-        self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setStyleSheet("color:#666;");lay.addWidget(self.summary)
-        self.intersections=QLabel();self.intersections.setWordWrap(True);lay.addWidget(self.intersections)
+        """Compact launchpad grouped by actual modeling tasks, not dead cards."""
+        w=QWidget()
+        lay=QVBoxLayout(w)
+        lay.setContentsMargins(10,8,10,8)
+        lay.setSpacing(7)
+        subtitle=QLabel("Modelagem arquitetônica paramétrica")
+        subtitle.setStyleSheet("color:palette(mid);font-size:10pt;")
+        lay.addWidget(subtitle)
+
+        def header(title,detail):
+            line=QHBoxLayout()
+            heading=QLabel(title)
+            heading.setStyleSheet("font-weight:700;font-size:10pt;")
+            line.addWidget(heading)
+            line.addStretch()
+            note=QLabel(detail)
+            note.setStyleSheet("color:palette(mid);font-size:9pt;")
+            line.addWidget(note)
+            lay.addLayout(line)
+
+        def options(entries):
+            grid=QGridLayout()
+            grid.setSpacing(5)
+            for i,(label,ico,callback) in enumerate(entries):
+                button=QToolButton(w)
+                button.setObjectName("opentrace_home_"+str(i)+"_"+label.lower().replace(" ","_"))
+                button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+                button.setIcon(icon(ico))
+                button.setIconSize(QSize(25,25))
+                button.setText(label)
+                button.setToolTip(label)
+                button.setMinimumHeight(40)
+                button.setStyleSheet(
+                    "QToolButton{border:1px solid palette(mid);"
+                    "border-radius:5px;padding:5px;text-align:left;}"
+                    "QToolButton:hover{background:palette(midlight);}")
+                button.clicked.connect(lambda _=False,cb=callback:cb())
+                grid.addWidget(button,i//2,i%2)
+            lay.addLayout(grid)
+
+        header("Criar elementos","Modelagem")
+        options((("Parede","wall",lambda:self.user_show_page("wall")),
+                 ("Laje","slab",lambda:self.user_show_page("slab")),
+                 ("Pilar","column",lambda:self.user_show_page("column")),
+                 ("Viga","beam",lambda:self.user_show_page("beam"))))
+        header("Vãos e esquadrias","Parede hospedeira")
+        wall=self.controllers.get("wall")
+        options((("Abertura","opening",
+                  lambda:wall.begin_hosted_fill("opening") if wall else None),
+                 ("Porta","opening",
+                  lambda:wall.begin_hosted_fill("door") if wall else None),
+                 ("Janela","opening",
+                  lambda:wall.begin_hosted_fill("window") if wall else None),
+                 ("Vão poligonal","polygon",
+                  lambda:wall.begin_wall_polygon_from_toolbar() if wall else None)))
+        header("Projeto e organização","Gerenciamento")
+        options((("Informações","bim",lambda:self.show_page("project")),
+                 ("Alinhar / distribuir","move",self.open_arrange),
+                 ("Perfis complexos","profile",lambda:self.user_show_page("profiles")),
+                 ("BIM / IFC","bim",lambda:self.user_show_page("bim"))))
+        self.summary=QLabel()
+        self.summary.setWordWrap(True)
+        self.summary.setStyleSheet("color:palette(mid);font-size:9pt;")
+        lay.addWidget(self.summary)
+        self.intersections=QLabel()
+        self.intersections.setWordWrap(True)
+        self.intersections.setStyleSheet("color:palette(mid);font-size:9pt;")
+        lay.addWidget(self.intersections)
 
         update_box=QFrame();update_box.setFrameShape(QFrame.StyledPanel)
         update_lay=QVBoxLayout(update_box);update_lay.setContentsMargins(8,8,8,8);update_lay.setSpacing(6)
         update_lay.addWidget(QLabel(f"<b>OpenTrace BIM {__version__}</b>"))
         self.update_status=QLabel(
-            "Automatic update checks query only the official catalogue. "
-            "Nothing is downloaded without confirmation."
+            "Consulta apenas o catálogo oficial. Nenhum pacote é instalado sem confirmação."
         )
         self.update_status.setWordWrap(True);self.update_status.setStyleSheet("color:#666;")
         update_lay.addWidget(self.update_status)
 
-        self.auto_update_check=QCheckBox("Check for updates automatically")
-        self.update_button=QPushButton("Check for updates")
+        self.auto_update_check=QCheckBox("Verificar atualizações automaticamente")
+        self.update_button=QPushButton("Verificar atualizações")
         update_lay.addWidget(self.auto_update_check);update_lay.addWidget(self.update_button)
         lay.addWidget(update_box)
 
@@ -133,24 +268,73 @@ class ArchitectureSuitePanel:
             if action is not None and action not in out:out.append(action)
         return out
 
+    def _organize_editor_sections(self,key,ctrl,page):
+        # Organize ACTUAL editor widgets without cloning form values or
+        # rewriting handlers. Only wall widgets are explicitly segmented;
+        # other controllers retain their proven form/layout unchanged.
+        if key!="wall":
+            return
+        from .panel_sections import EditorSection
+        layout=page.layout()
+        if layout is None:
+            return
+        for attr, title in (
+            ("form_widget","Geometria e propriedades"),
+            ("layer_editor","Composição e camadas"),
+            ("opening_widget","Vãos e esquadrias"),
+        ):
+            widget=getattr(ctrl,attr,None)
+            if widget is None: continue
+            index=layout.indexOf(widget)
+            if index<0: continue
+            initial_hidden=widget.isHidden()
+            layout.removeWidget(widget)
+            section=EditorSection(title,widget,parent=page)
+            section.setObjectName("opentrace_wall_section_"+attr)
+            layout.insertWidget(index,section)
+            widget.setVisible(not initial_hidden)
+            self._editor_sections.append((section,widget))
+        self._sync_editor_sections()
+
+    def _sync_editor_sections(self):
+        for section,widget in self._editor_sections:
+            # Explicit form hiding is driven by selected tool/structure;
+            # collapsing the body does not mean the editor is inapplicable.
+            section.setVisible(not widget.isHidden())
+
     def _wrap_controller_page(self,key,ctrl,page):
         wrapper=QWidget();wrapper.setMinimumSize(0,0)
+        self._organize_editor_sections(key,ctrl,page)
         lay=QVBoxLayout(wrapper);lay.setContentsMargins(0,0,0,0);lay.setSpacing(4)
-        actions=self._actions_for(key,ctrl)
-        if actions:
-            bar=QFrame();row=QHBoxLayout(bar);row.setContentsMargins(4,4,4,2);row.setSpacing(4);buttons=[]
-            for idx,action in enumerate(actions):
-                b=QToolButton();b.setCheckable(key in ("wall","slab","column","beam"));b.setAutoExclusive(False)
-                b.setIcon(action.icon());b.setText(action.text());b.setToolTip(action.toolTip());b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon);b.setIconSize(QSize(22,22))
-                b.clicked.connect(lambda _=False,k=key,a=action,i=idx:self._trigger_mode(k,a,i))
-                row.addWidget(b);buttons.append(b)
-            self._mode_buttons[key]=buttons
-            row.addStretch(1);lay.addWidget(bar)
+        # The OLD text buttons (Simple wall / Composite wall / Curved wall)
+        # were a duplicate toolbar INSIDE the properties panel. Construction
+        # methods now live in the ONE contextual Info Box. QActions themselves
+        # remain registered, and their menu/keyboard bindings are untouched.
         # Controller forms can be tall. A scroll container prevents their size
         # hints from forcing the top-level window away from its restored size.
         page.setMinimumSize(0,0)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.NoFrame);scroll.setMinimumSize(0,0);scroll.setWidget(page)
-        lay.addWidget(scroll,1);return wrapper
+        # Do not detach/rebuild the existing editor: the section only
+        # collapses its VIEW, preserving widgets, values and Undo handlers.
+        toggle=QToolButton(wrapper)
+        toggle.setObjectName("opentrace_properties_"+key)
+        toggle.setCheckable(True)
+        toggle.setChecked(True)
+        toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        toggle.setText("▾ Propriedades detalhadas")
+        toggle.setToolTip("Recolher ou expandir a edição detalhada")
+        toggle.setAccessibleName("Propriedades detalhadas")
+        def switch_properties(expanded, sc=scroll, bt=toggle):
+            sc.setVisible(expanded)
+            bt.setText(("▾" if expanded else "▸")+" Propriedades detalhadas")
+        toggle.toggled.connect(switch_properties)
+        toggle.setStyleSheet("QToolButton{font-weight:700;text-align:left;"
+                             "border:0;border-bottom:1px solid palette(mid);"
+                             "padding:7px;}")
+        lay.addWidget(toggle)
+        lay.addWidget(scroll,1)
+        self._property_sections[key]=toggle
+        return wrapper
 
     def _trigger_mode(self,key,action,index):
         self._set_mode_button(key,index)
@@ -177,6 +361,36 @@ class ArchitectureSuitePanel:
         # obvious default instead of making the user click a second control.
         if key in ("wall","slab","column","beam"):
             self._activate_default(key)
+        self.schedule_sync_context()
+
+    def open_arrange(self):
+        """Open XYZ organization IN the same anchorable OpenTrace sidebar.
+
+        Previously this created a second, disconnected Qt dock. The
+        inspector navigation now returns naturally to the prior modelling
+        page without moving focus to another floating window.
+        """
+        try:
+            if self._arrange_panel is None:
+                from .arrange_ui import ArrangePanel
+                self._arrange_panel=ArrangePanel(self.app)
+                self._add_page("arrange",self._arrange_panel)
+            self._arrange_panel.refresh()
+            self.show_page("arrange")
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self.panel,"OpenTrace BIM",
+                f"Não foi possível abrir alinhamento: {type(exc).__name__}: {exc}")
+
+    def open_help(self,context=None):
+        """Show chaptered documentation, without modifying modelling tool."""
+        if self._help_dialog is None:
+            from .help_dialog import HelpDialog
+            self._help_dialog=HelpDialog(self.app.window)
+        # A regular header click starts at "O que há de novo".
+        self._help_dialog.show_for_context(
+            context if isinstance(context,str) else None)
 
     def _auto_update_toggled(self, enabled):
         if enabled and self.update_manager is not None:
@@ -200,10 +414,22 @@ class ArchitectureSuitePanel:
                 except Exception:pass
         self.app.viewport.sceneVersionChanged.connect(self.schedule_sync_context)
         self.app.viewport.measurementChanged.connect(self.schedule_tool_sync_context)
+        wall = self.controllers.get("wall")
+        if wall is not None:
+            # Toolbar, menu and keyboard all invoke the SAME host actions.
+            # Update the Info Box after their tool switch, without polling
+            # cursor moves or creating any parallel command registration.
+            for action in (getattr(wall,"action",None),
+                           getattr(wall,"curve_action",None),
+                           getattr(wall,"opening_toolbar_action",None)):
+                if action is not None:
+                    action.triggered.connect(self.schedule_sync_context)
+            for action in getattr(getattr(wall,"opening_toolbar_menu",None),"actions",lambda:[])():
+                action.triggered.connect(self.schedule_sync_context)
 
     def schedule_sync_context(self,*_):
         if self._sync_queued:return
-        self._sync_queued=True;QTimer.singleShot(0,self._run_sync_context)
+        self._sync_queued=True;self._context_timer.start(0)
 
     def schedule_tool_sync_context(self,*_):
         active_id=id(getattr(self.app.viewport,"active_tool",None))
@@ -212,15 +438,28 @@ class ArchitectureSuitePanel:
 
     def _run_sync_context(self):
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None));self.sync_context();self.sync_mode_buttons()
+        bar = getattr(self,"context_bar",None)
+        if bar is not None:
+            bar.refresh()
+        self._sync_editor_sections()
 
     def show_page(self,key,show_dock=True):
         if key not in self.pages:key="home"
         self.stack.setCurrentWidget(self.pages[key]);b=self.buttons.get(key)
-        if b is not None:b.setChecked(True)
+        if b is not None:
+            b.setChecked(True)
+        elif key in ("project","arrange"):
+            # A context page without a dedicated category tab must not
+            # leave the BIM or a modelling tab misleadingly selected.
+            self.group.setExclusive(False)
+            for button in self.buttons.values():
+                button.setChecked(False)
+            self.group.setExclusive(True)
         if show_dock:
             try:self.app.show_panel(self.master_dock)
             except Exception:self.master_dock.show()
         if key=="home":self.refresh_home()
+        self._sync_editor_sections()
         self.sync_mode_buttons()
 
     def sync_mode_buttons(self):
@@ -243,7 +482,9 @@ class ArchitectureSuitePanel:
         # BIM is an inspector/export workspace. Keep it open while selection or
         # metadata changes; otherwise selecting a wall would immediately throw
         # the user back to the modelling page.
-        if self.pages.get("bim") is not None and self.stack.currentWidget() is self.pages.get("bim"):
+        if any(self.pages.get(key) is not None and
+               self.stack.currentWidget() is self.pages[key]
+               for key in ("bim", "project", "arrange")):
             return
         active=getattr(self.app.viewport,"active_tool",None)
         for key in ("wall","slab","column","beam"):
