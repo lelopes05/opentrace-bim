@@ -574,14 +574,18 @@ def _line_intersection(p, r, q, s):
     return p + r * t
 
 
-def _offset_path(points, distance):
-    """Mitered open-polyline offset in XY; endpoints stay square."""
+def _offset_path(points, distance, min_segment=MIN_DIM):
+    """Mitered open-polyline offset in XY; endpoints stay square.
+
+    ``min_segment`` guards user-authored paths. Resampled paths (cut stations
+    of curved openings) may legitimately contain shorter collinear pieces.
+    """
     pts = [QVector3D(p.x(), p.y(), 0.0) for p in points]
     segs, normals = [], []
     for a, b in zip(pts, pts[1:]):
         d = b - a
         length = math.hypot(d.x(), d.y())
-        if length < MIN_DIM:
+        if length < min_segment:
             raise WallError("A trajetória contém um trecho menor que 1 mm.")
         u = QVector3D(d.x() / length, d.y() / length, 0)
         segs.append(u)
@@ -834,7 +838,7 @@ def nearest_path_distance_world(group, world):
 
 
 
-def _profiled_sides(values, path, offsets=None, caps=None):
+def _profiled_sides(values, path, offsets=None, caps=None, min_segment=MIN_DIM):
     """Create bottom/top low/high side samples for a possibly sloped/leaning wall."""
     p = validate(values)
     ref = [QVector3D(v.x(), v.y(), 0.0) for v in path]
@@ -854,10 +858,10 @@ def _profiled_sides(values, path, offsets=None, caps=None):
         base_z.append(bz); top_z.append(tz)
         top_ref.append(QVector3D(q.x() + off.x(), q.y() + off.y(), 0.0))
 
-    low_bottom = _offset_path(ref_pts, low_off)
-    high_bottom = _offset_path(ref_pts, high_off)
-    low_top = _offset_path(top_ref, low_off)
-    high_top = _offset_path(top_ref, high_off)
+    low_bottom = _offset_path(ref_pts, low_off, min_segment)
+    high_bottom = _offset_path(ref_pts, high_off, min_segment)
+    low_top = _offset_path(top_ref, low_off, min_segment)
+    high_top = _offset_path(top_ref, high_off, min_segment)
 
     if caps:
         start = caps.get("start")
@@ -1176,8 +1180,10 @@ def _build_body_with_polygon_openings(values, previous, path, caps, offsets, bod
         if not ss or s-ss[-1] > 1.0e-9:
             ss.append(s)
     points = [_point_on_path_distance(original, cumul, s) for s in ss]
+    # Cut stations of curved outlines can sit a fraction of a millimetre from
+    # a path sample; those collinear slivers are valid here.
     low_b, high_b, low_t, high_t, base_z, top_z, _ = _profiled_sides(
-        p, points, offsets=offsets, caps=caps)
+        p, points, offsets=offsets, caps=caps, min_segment=1.0e-7)
     mesh = Mesh()
     def add(points, key):
         compact = []

@@ -49,7 +49,7 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertEqual(button.objectName(),"opentrace_opening_toolbar_button")
             self.assertIs(button.parent(),ctl.toolbar)
             self.assertEqual(button.defaultAction().text(),"Abertura")
-            self.assertEqual(len(button.menu().actions()),2)
+            self.assertEqual(len(button.menu().actions()),4)  # rect, square, circle, free
             self.assertTrue(getattr(ctl,"opening_btn",None))
             self.assertTrue(getattr(ctl,"door_btn",None))
             self.assertTrue(getattr(ctl,"window_btn",None))
