@@ -297,5 +297,121 @@ class InstallationSmokeTests(unittest.TestCase):
             qt.processEvents()
 
 
+class DeferredExtensionStartupTests(unittest.TestCase):
+    """Real 0.5.8 extension discovery after the main window is shown.
+
+    Use a temporary user plugin installation, not a patched discovery module.
+    One Qt window is shared among all layout checks.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import os
+        from PySide6.QtWidgets import QApplication
+        from views.main_window import MainWindow
+        from views.extension_api import ExtensionApp
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        cls._previous_data_home=os.environ.get("XDG_DATA_HOME")
+        cls._installation=tempfile.TemporaryDirectory()
+        root=Path(cls._installation.name)/"ingetrazo"/"plugins"
+        root.mkdir(parents=True)
+        shutil.copytree(Path(__file__).resolve().parents[1]/"OpenTrace_BIM",
+                        root/"OpenTrace_BIM",
+                        ignore=shutil.ignore_patterns("__pycache__","*.pyc"))
+        os.environ["XDG_DATA_HOME"]=cls._installation.name
+        cls.qt=QApplication.instance() or QApplication([])
+        cls.window=MainWindow(defer_extensions=True)
+        cls.window.show()
+        cls.qt.processEvents()
+        cls.window.load_extensions()
+        cls.app=ExtensionApp(cls.window,"OpenTrace_BIM")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.window.deleteLater()
+        cls.qt.processEvents()
+        if cls._previous_data_home is None:
+            del os.environ["XDG_DATA_HOME"]
+        else:
+            os.environ["XDG_DATA_HOME"]=cls._previous_data_home
+        cls._installation.cleanup()
+
+    def _objects(self):
+        w=self.window
+        self.assertNotIn("OpenTrace_BIM",w._extension_load_errors)
+        suite=w._arquitetura_parametrica_suite_panel
+        dock=w.extension_panels()["extension_OpenTrace_BIM_parametric_architecture"]
+        overlay=w._arquitetura_parametrica_overlay_dock
+        row=w._arquitetura_parametrica_tool_row
+        self.assertIs(dock,suite.master_dock)
+        self.assertIs(dock.widget(),suite.panel)
+        self.assertIsNotNone(overlay)
+        return suite,dock,overlay,row
+
+    def test_deferred_setup_builds_tool_row_and_bar(self):
+        from PySide6.QtWidgets import QToolBar
+        suite,dock,overlay,row=self._objects()
+        w=self.window
+        self.assertIs(overlay.parentWidget(),w.viewport)
+        self.assertIs(row.parentWidget(),overlay)
+        self.assertIs(overlay.row,row)
+        self.assertIs(overlay.bar,suite.context_bar)
+        self.assertIs(overlay.bar.parentWidget(),overlay.options_frame)
+        self.assertNotIn(row,w.findChildren(QToolBar))
+        self.assertNotIn(overlay.bar,w.findChildren(QToolBar))
+        wall=w._arquitetura_parametrica_controller
+        actions=row.toolbar.actions()
+        self.assertIs(actions[0].defaultWidget(),wall.wall_menu_button)
+        self.assertEqual(actions[1:4],[
+            w._arquitetura_parametrica_slab_controller.action,
+            w._arquitetura_parametrica_column_controller.action,
+            w._arquitetura_parametrica_beam_controller.action])
+        self.assertTrue(actions[4].isSeparator())
+        self.assertEqual(actions[5:8],wall.openings.tool_actions)
+        self.assertTrue(actions[8].isSeparator())
+        self.assertIs(actions[9],w._arquitetura_parametrica_profile_controller.action)
+
+    def test_sidebar_is_a_tab_next_to_host_panels(self):
+        suite,dock,overlay,row=self._objects()
+        self.assertTrue(self.window.tabifiedDockWidgets(dock),
+                        "OpenTrace must be one of the host's side-tray tabs")
+
+    def test_restart_keeps_layout(self):
+        from PySide6.QtCore import Qt
+        suite,dock,overlay,row=self._objects()
+        w=self.window
+        original=w.saveState()
+        try:
+            w.addDockWidget(Qt.LeftDockWidgetArea,dock)
+            saved=w.saveState()
+            w.addDockWidget(Qt.RightDockWidgetArea,dock)
+            self.assertTrue(w.restoreState(saved))
+            self.assertEqual(w.dockWidgetArea(dock),Qt.LeftDockWidgetArea)
+            self.assertIs(overlay.parentWidget(),w.viewport)
+            self.assertIs(row.parentWidget(),overlay)
+            self.assertIs(overlay.bar.parentWidget(),overlay.options_frame)
+        finally:
+            self.assertTrue(w.restoreState(original))
+
+    def test_sidebar_works_in_left_tray(self):
+        from PySide6.QtCore import Qt
+        from OpenTrace_BIM.host import activate_tool
+        suite,dock,overlay,row=self._objects()
+        w=self.window
+        original=w.saveState()
+        try:
+            w.addDockWidget(Qt.LeftDockWidgetArea,dock)
+            self.assertEqual(w.dockWidgetArea(dock),Qt.LeftDockWidgetArea)
+            activate_tool(self.app,"opentrace_wall_opening_tool")
+            suite._run_sync_context()
+            self.assertIs(suite.stack.currentWidget(),suite.pages["wall"])
+            section,toggle=suite._opening_section
+            self.assertFalse(section.isHidden())
+            self.assertTrue(toggle.isChecked())
+        finally:
+            self.assertTrue(w.restoreState(original))
+
+
 if __name__ == "__main__":
     unittest.main()
