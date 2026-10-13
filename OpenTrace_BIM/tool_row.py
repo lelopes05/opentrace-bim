@@ -7,7 +7,7 @@ never registered with QMainWindow and retains Qt's native overflow chevron.
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QToolBar, QToolButton
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
 
 from .i18n import t
 from .viewport_overlay import OverlayDock, OverlayFrame
@@ -25,6 +25,10 @@ class ToolRow(OverlayFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 3, 5, 3)
         layout.setSpacing(3)
+        self.brand = QLabel("OpenTrace BIM", self)
+        self.brand.setObjectName("opentrace_tool_brand")
+        self.brand.setStyleSheet("font-weight: 700; padding: 0px 4px;")
+        layout.addWidget(self.brand)
         self.toolbar = QToolBar(t("OpenTrace BIM · Ferramentas"), self)
         self.toolbar.setObjectName("opentrace_tool_strip")
         self.toolbar.setMovable(False)
@@ -49,7 +53,14 @@ class ToolRow(OverlayFrame):
         if profile is not None:
             self._add(profile.action)
 
-        # Outside the strip, the collapse button cannot disappear into overflow.
+        # Header and controls stay visible when the internal toolbar overflows.
+        self.help_button = QToolButton(self)
+        self.help_button.setObjectName("opentrace_tool_help")
+        self.help_button.setText("?")
+        self.help_button.setToolTip(t("Ajuda da ferramenta ativa"))
+        self.help_button.setAccessibleName(t("Ajuda contextual"))
+        self.help_button.setFixedSize(28, 28)
+        layout.addWidget(self.help_button)
         self.compact_button = QToolButton(self)
         self.compact_button.clicked.connect(self.toggle_compact)
         layout.addWidget(self.compact_button)

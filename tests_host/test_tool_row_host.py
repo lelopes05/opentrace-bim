@@ -89,6 +89,20 @@ class ToolRowTests(unittest.TestCase):
         self.assertEqual(self.row.objectName(), "opentrace_tools_row")
         self.assertIs(self.row.toolbar.widgetForAction(self.row.toolbar.actions()[0]), self.wall.wall_menu_button)
 
+    def test_brand_and_help_live_in_tool_row(self):
+        from PySide6.QtWidgets import QLabel
+        suite = self.window._arquitetura_parametrica_suite_panel
+        self.assertIs(self.row.brand.parentWidget(), self.row)
+        self.assertEqual(self.row.brand.text(), "OpenTrace BIM")
+        self.assertIs(
+            self.row.findChild(QLabel, "opentrace_tool_brand"), self.row.brand)
+        self.assertIs(self.row.help_button.parentWidget(), self.row)
+        self.assertEqual(self.row.help_button.text(), "?")
+        self.assertIsNone(suite.context_bar.findChild(QToolButton, "opentrace_context_help"))
+        self.row.help_button.click()
+        self.assertIsNotNone(suite._help_dialog)
+        suite._help_dialog.close()
+
     def test_panels_are_not_host_toolbars(self):
         w = self.window
         strip = self.row.toolbar

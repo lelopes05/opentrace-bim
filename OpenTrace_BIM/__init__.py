@@ -215,6 +215,8 @@ def setup(app):
             from .viewport_overlay import OverlayDock
             overlay = OverlayDock(app.viewport, tool_row, suite_panel)
             app.window._arquitetura_parametrica_overlay_dock = overlay
+            tool_row.help_button.clicked.connect(
+                lambda: suite_panel.open_help(suite_panel.context_bar._context_key()))
         except Exception as exc:
             log.exception("parametric viewport overlay setup failed")
             startup_errors.append(f"Painéis: {type(exc).__name__}: {exc}")
