@@ -193,11 +193,16 @@ def normalize_fill(raw):
 
 
 def station_span(raw):
-    """Return the left and right opening stations for the selected anchor."""
+    """Nominal leaf stations, with door anchors measured on the rough opening."""
     spec = normalize_fill(raw)
-    shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
-    start = spec["position"]-shift*spec["width"]
-    return start, start+spec["width"]
+    if spec["kind"] == "door":
+        rough_left, _rough_right = wallhole_span(spec)
+        unit_width = spec.get("unit_width", spec["width"])
+        start = rough_left + spec["clearance_left"] + (unit_width - spec["width"]) / 2
+    else:
+        shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
+        start = spec["position"] - shift * spec["width"]
+    return start, start + spec["width"]
 
 
 def center_station(raw):
@@ -222,9 +227,9 @@ def wallhole_span(raw):
     if spec["kind"] != "door":
         raise FillError("Vão de obra calculado apenas para portas.")
     shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
-    unit_width = spec.get("unit_width", spec["width"])
-    left = spec["position"] - shift * unit_width
-    return left - spec["clearance_left"], left + unit_width + spec["clearance_right"]
+    cut_width, _cut_height = wallhole_size(spec)
+    left = spec["position"] - shift * cut_width
+    return left, left + cut_width
 
 
 def reverse_swing(raw):
@@ -334,9 +339,10 @@ def reanchor_fill(raw, anchor):
     target = str(anchor).lower()
     if target not in ANCHORS:
         raise FillError("Âncora inválida.")
-    left, right = station_span(spec)
+    left, right = (wallhole_span(spec) if spec["kind"] == "door"
+                   else station_span(spec))
     spec["anchor"] = target
-    spec["position"] = {"left": left, "center": (left+right)/2,
+    spec["position"] = {"left": left, "center": (left + right) / 2,
                         "right": right}[target]
     return normalize_fill(spec)
 

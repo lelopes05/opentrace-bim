@@ -58,24 +58,35 @@ def build_fill_parts(raw, *, wall_thickness=0.10):
     thickness = float(wall_thickness)
     if not math.isfinite(thickness) or thickness <= 0.002:
         raise FillError("Espessura da parede inválida.")
-    w, h, f = spec["width"], spec["height"], spec["frame_thickness"]
+    f = spec["frame_thickness"]
+    if spec["kind"] == "door":
+        x0 = spec["clearance_left"]
+        z0 = spec["clearance_bottom"]
+        w = spec.get("unit_width", spec["width"])
+        h = spec.get("unit_height", spec["height"])
+    else:
+        x0 = z0 = 0.0
+        w, h = spec["width"], spec["height"]
+    x1, z1 = x0 + w, z0 + h
+    if f >= min(w, h) / 2:
+        raise FillError("Marco muito grande para o conjunto.")
     depth = max(thickness, f)
-    y0, y1 = -depth/2, depth/2
+    y0, y1 = -depth / 2, depth / 2
     parts = [
-        _part("Marco esquerdo", 0, f, y0, y1, 0, h),
-        _part("Marco direito", w-f, w, y0, y1, 0, h),
-        _part("Verga do marco", f, w-f, y0, y1, h-f, h),
+        _part("Marco esquerdo", x0, x0 + f, y0, y1, z0, z1),
+        _part("Marco direito", x1 - f, x1, y0, y1, z0, z1),
+        _part("Verga do marco", x0 + f, x1 - f, y0, y1, z1 - f, z1),
     ]
     if spec["kind"] == "door":
         leaf = spec["leaf_thickness"]
         if leaf >= thickness:
             raise FillError("A folha deve ser menos espessa que a parede.")
-        hinge = f if spec["hinge"] == "left" else w-f
+        hinge = x0 + f if spec["hinge"] == "left" else x1 - f
         sign = 1 if spec["hinge"] == "left" else -1
         rotation = sign * spec["swing"] * spec["model_angle"]
         parts.append(_part(
-            "Folha de abrir", f, w-f, -leaf/2, leaf/2, 0, h-f,
-            pivot=(hinge, 0.0), angle=rotation,
+            "Folha de abrir", x0 + f, x1 - f, -leaf / 2, leaf / 2,
+            z0, z1 - f, pivot=(hinge, 0.0), angle=rotation,
         ))
     else:
         parts.append(_part("Marco inferior", f, w-f, y0, y1, 0, f))
@@ -108,7 +119,7 @@ def make_fill_group(raw, *, wall_thickness=0.10):
     group.component = False
     group.ext = {
         "arquitetura_parametrica": {
-            "schema": 1,
+            "schema": spec["schema"],
             "kind": spec["kind"],
             "host_id": spec["host_id"],
             "opening_id": spec["opening_id"],
@@ -120,6 +131,10 @@ def make_fill_group(raw, *, wall_thickness=0.10):
                  else "IfcWindow", "name": spec["name"],
                  "overall_width": spec["width"],
                  "overall_height": spec["height"]}
+    if spec["kind"] == "door":
+        from .door_window_core import wallhole_size
+        group.ifc["overall_width"], group.ifc["overall_height"] = wallhole_size(spec)
+        group.ifc["predefined_type"] = "DOOR"
     if spec.get("ifc_global_id"):
         group.ifc["global_id"] = spec["ifc_global_id"]
     return group
@@ -132,7 +147,7 @@ def place_fill_on_wall(raw, wall_group):
     to the wall through EditWall. This does not touch the wall or scene.
     Real hosted walls supply a world-space reference path and local elevation.
     """
-    from .door_window_core import station_span
+    from .door_window_core import station_span, wallhole_span, wallhole_size
     from .model import (
         WallError, _path_cumulative, _point_on_path_distance, path_world,
         profile_at_fraction, read_wall, wall_offsets,
@@ -153,15 +168,22 @@ def place_fill_on_wall(raw, wall_group):
     if opening.get("kind") != "rect":
         raise FillError("O objeto paramétrico básico exige vão retangular.")
     from .door_window_core import center_station
-    if (abs(opening["width"]-spec["width"]) > 1.0e-5
-            or abs(opening["height"]-spec["height"]) > 1.0e-5
-            or abs(opening["sill"]-spec["sill"]) > 1.0e-5
-            or abs(opening["position"]-center_station(spec)) > 1.0e-5):
+    if spec["kind"] == "door":
+        left, right = wallhole_span(spec)
+        expected_width, expected_height = wallhole_size(spec)
+        expected_center = (left + right) / 2
+    else:
+        left, right = station_span(spec)
+        expected_width, expected_height = spec["width"], spec["height"]
+        expected_center = center_station(spec)
+    if (abs(opening["width"] - expected_width) > 1.0e-5
+            or abs(opening["height"] - expected_height) > 1.0e-5
+            or abs(opening["sill"] - spec["sill"]) > 1.0e-5
+            or abs(opening["position"] - expected_center) > 1.0e-5):
         raise FillError("Posição, peitoril e dimensões da esquadria devem acompanhar o vão.")
 
     points, cumulative = _path_cumulative(path_world(wall_group))
     L = cumulative[-1]
-    left, right = station_span(spec)
     if left < .02 or right > L-.02:
         raise FillError("A esquadria está fora dos limites de ancoragem da parede.")
     # For curved walls, the origin is the left station and rotation follows
