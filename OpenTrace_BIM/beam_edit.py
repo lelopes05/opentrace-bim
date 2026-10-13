@@ -7,6 +7,7 @@ from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 
 from .beam_commands import ReshapeBeam
+from .step_guide import show_step, step_text
 from .beam_model import BeamError, MIN_DIM, endpoints_world, read_beam
 from .host import activate_select
 
@@ -19,6 +20,7 @@ class MoveBeamEndpointTool(AxisMagnet, Tool):
     def __init__(self, controller, mode):
         self.controller = controller
         self.mode = mode  # free | continue | vertical
+        self.step_id = {"free": "beam.edit.endpoint_free", "continue": "beam.edit.endpoint_continue", "vertical": "beam.edit.endpoint_z"}[mode]
         self.architecture_angle_snap = (mode == "free")
         if mode == "vertical":
             self.name = "Mover extremo da viga na vertical"
@@ -46,6 +48,10 @@ class MoveBeamEndpointTool(AxisMagnet, Tool):
         self.start_point = QVector3D(anchor) if self.mode == "continue" else None
         self.move_reference = None
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_endpoint_palette()
         if self.group is None or self.group not in viewport.scene.groups:
@@ -60,12 +66,12 @@ class MoveBeamEndpointTool(AxisMagnet, Tool):
             self._preview_hidden = hide_original_for_preview(self.group)
             if self.mode == "vertical":
                 self.start_point = QVector3D(self.refs[self.endpoint])
-                self.controller.message("Mova o mouse: o extremo da viga acompanha a cota indicada. Clique para confirmar; Shift trava a inferência ativa.")
+                show_step(self, viewport, "beam.edit.endpoint_z")
             elif self.mode == "free":
                 self.start_point = QVector3D(self.refs[self.endpoint])
-                self.controller.message("Mova o mouse: o extremo da viga acompanha o cursor. Clique para confirmar; Shift trava a inferência ativa.")
+                show_step(self, viewport, "beam.edit.endpoint_free")
             else:
-                self.controller.message("Prolongue/encurte a viga no mesmo eixo e clique.")
+                show_step(self, viewport, "beam.edit.endpoint_continue")
             from .preview_utils import pointer_world_on_plane
             q = pointer_world_on_plane(viewport, self.drag_plane(viewport))
             if q is not None:
@@ -81,6 +87,7 @@ class MoveBeamEndpointTool(AxisMagnet, Tool):
         self._preview_hidden=None
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self._show_original(); self.reset(); viewport.update()
 
     def drag_plane(self, viewport):

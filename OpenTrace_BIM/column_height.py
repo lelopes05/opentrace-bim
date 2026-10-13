@@ -6,6 +6,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import Tool
 from .column_commands import EditColumn
+from .step_guide import show_step, step_text
 from .column_model import ColumnError,MIN_DIM,MAX_DIM,read_column,insertion_world,top_world,make_column
 from .levels import level_by_name
 from .path_edit import _vertical_view_plane
@@ -13,7 +14,7 @@ from .preview_utils import group_faces_world
 
 class ChangeColumnHeightTool(Tool):
     name="Alterar altura do pilar"; description="Arrastar topo do pilar em Z."; uses_snap=True; wireframe_color=(0.9,0.45,0.1,1.0); vcb_label="Altura"
-    def __init__(self,controller): self.controller=controller; self.reset()
+    def __init__(self,controller): self.controller=controller; self.step_id="column.edit.height"; self.reset()
     def prepare(self,group,anchor): self.group=group; self.anchor=QVector3D(anchor); self.scene=self.controller.app.scene
     def reset(self): self.group=None; self.anchor=None; self.scene=None; self.values=None; self.origin_z=None; self.new_height=None; self._preview_hidden=None
     def drag_plane(self,viewport):
@@ -32,13 +33,17 @@ class ChangeColumnHeightTool(Tool):
             return base,normal.normalized()
         except Exception:
             return _vertical_view_plane(viewport,self.anchor) if self.anchor is not None else None
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self,viewport):
         if self.group is None: QTimer.singleShot(0,self.controller.return_to_select); return
         try:
             self.values=read_column(self.group); self.new_height=self.values["height"]
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: o topo do pilar acompanha a cota indicada e o pilar inteiro é projetado antes do clique. Snaps copiam apenas a cota.")
+            show_step(self, viewport, "column.edit.height")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:
@@ -51,7 +56,7 @@ class ChangeColumnHeightTool(Tool):
             from .preview_utils import restore_original_after_preview
             restore_original_after_preview(self.group,self._preview_hidden)
         self._preview_hidden=None
-    def on_deactivate(self,viewport): self._show_original();self.reset();viewport.update()
+    def on_deactivate(self,viewport): self.controller.app.window.statusBar().clearMessage();self._show_original();self.reset();viewport.update()
     def _height(self,ctx):
         if ctx.snap is not None and getattr(ctx.snap,"kind",None) in {"endpoint","midpoint","arc_midpoint","center","origin","intersection","close","reference"}:
             h=float(ctx.snap.point.z())-self.values["base_z"]

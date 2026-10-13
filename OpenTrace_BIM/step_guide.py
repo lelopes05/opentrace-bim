@@ -143,6 +143,10 @@ STEPS = {
     "beam.edit.curve": "Mova a flecha e clique ou digite 0 para endireitar.",
     "beam.edit.curve_z": "Mova a flecha vertical e clique ou digite 0 para endireitar.",
     "beam.edit.incline": "Mova a ponta da viga em Z e clique; Shift trava inferência.",
+    "beam.edit.endpoint_free": "Mova a ponta da viga e clique para confirmar.",
+    "beam.edit.endpoint_continue": "Prolongue ou encurte a viga pelo eixo e clique.",
+    "beam.edit.endpoint_z": "Mova a ponta em Z e clique na nova altura.",
+    "column.edit.height": "Mova o topo até a nova cota; clique ou digite e confirme.",
 }
 
 
