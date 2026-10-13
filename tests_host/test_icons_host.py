@@ -56,6 +56,13 @@ class IconHostTests(unittest.TestCase):
         cls.dark = dark_palette()
         cls.light = light_palette()
 
+    @classmethod
+    def tearDownClass(cls):
+        del cls.dark, cls.light
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        APP.processEvents()
+        gc.collect()
+
     def test_every_named_icon_works_at_three_sizes(self):
         self.assertEqual(len(_NAMES), len(set(_NAMES)))
         palette = self.dark
