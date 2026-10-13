@@ -8,8 +8,8 @@ import math
 import unittest
 from types import SimpleNamespace
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QVector3D
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QVector3D
 from PySide6.QtWidgets import QApplication
 from core.history import History
 from core.scene import Scene
@@ -491,6 +491,96 @@ class OpeningToolTests(unittest.TestCase):
         for root in (self.ctl.toolbar, suite.panel):
             for button in root.findChildren(QToolButton):
                 self.assertNotIn(button.defaultAction(), actions)
+
+
+
+class StickyWallOpeningTests(unittest.TestCase):
+    """Run real wall edit commands and route subsequent mouse events through the editor."""
+
+    def setUp(self):
+        from OpenTrace_BIM.host import activate_select
+        from OpenTrace_BIM.wall_opening_ui import _shapes
+        self.window, self.app = shared_window()
+        self.editor = self.window._arquitetura_parametrica_controller.openings
+        activate_select(self.app)
+        self.editor.clear_sticky()
+        self.scene = self.window.viewport.scene
+        self.wall = model.make_wall_segment(
+            QVector3D(0, 0, 0), QVector3D(5, 0, 0),
+            dict(model.DEFAULTS, length=5.0, openings=[
+                dict(RECT), dict(RECT, id="b", position=4.2, width=0.6),
+            ]))
+        self.scene.groups.append(self.wall)
+        self.scene.version += 1
+        self.addCleanup(self._cleanup)
+        self.face = WallFace(self.wall)
+        self.editor.select_opening(self.wall, "a")
+        self.shape = next(s for s in _shapes(self.scene, self.wall) if s["id"] == "a")
+
+    def _cleanup(self):
+        self.editor.return_to_select()
+        self.editor.active = None
+        if self.wall in self.scene.groups:
+            self.scene.groups.remove(self.wall)
+            self.scene.version += 1
+
+    def _choose(self, action, part="edge", index=1):
+        self.editor._radial_target = (
+            self.wall, "a", part, index, self.shape["mids"][index])
+        self.editor._run(action)
+        self.assertIs(self.window.viewport.active_tool, self.editor.tools[action])
+
+    def _commit_first_edge(self):
+        self._choose("push_edge")
+        world = self.face.world(QVector3D(3.15, 1.5, 0))
+        self.editor.tools["push_edge"].on_click(ctx(self.window.viewport, world))
+        APP.processEvents()
+        self.assertTrue(self.editor.sticky.waiting)
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+
+    def _event(self, world=None, button=Qt.LeftButton, pixel=None):
+        if pixel is None:
+            pixel = self.window.viewport._world_to_pixel(world)
+        self.assertIsNotNone(pixel)
+        local = QPointF(*pixel)
+        return QMouseEvent(QEvent.MouseButtonPress, local, local, button, button, Qt.NoModifier)
+
+    def test_offset_stays_active_after_commit(self):
+        initial = len(self.window.viewport.history.undo_stack)
+        self._commit_first_edge()
+        second = self.face.world(QVector3D(2.0, 1.5, 0))
+        self.assertTrue(self.editor.eventFilter(self.window.viewport, self._event(second)))
+        self.assertFalse(self.editor.radial.isVisible())
+        self.assertIs(self.window.viewport.active_tool, self.editor.tools["push_edge"])
+        self.assertFalse(self.editor.sticky.waiting)
+        self.editor.tools["push_edge"].on_click(
+            ctx(self.window.viewport, self.face.world(QVector3D(1.9, 1.5, 0))))
+        APP.processEvents()
+        self.assertEqual(len(self.window.viewport.history.undo_stack) - initial, 2)
+        self.assertTrue(self.editor.sticky.waiting)
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+
+    def test_sticky_function_ends_on_escape_and_on_empty_click(self):
+        self._commit_first_edge()
+        esc = QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier)
+        self.assertTrue(self.editor.eventFilter(self.window.viewport, esc))
+        self.assertIsNone(self.editor.sticky.tool)
+        self._commit_first_edge()
+        self.assertFalse(self.editor.eventFilter(
+            self.window.viewport, self._event(pixel=(-10000, -10000))))
+        self.assertIsNone(self.editor.sticky.tool)
+
+    def test_choosing_another_function_replaces_the_sticky_one(self):
+        self._commit_first_edge()
+        self._choose("offset")
+        self.assertIs(self.editor.sticky.tool, self.editor.tools["offset"])
+        self.assertFalse(self.editor.sticky.waiting)
+        self.editor.tools["offset"].on_click(
+            ctx(self.window.viewport, self.face.world(QVector3D(3.3, 1.5, 0))))
+        APP.processEvents()
+        self.assertTrue(self.editor.sticky.waiting)
+        self.assertIs(self.editor.sticky.tool, self.editor.tools["offset"])
+
 
 
 if __name__ == "__main__":
