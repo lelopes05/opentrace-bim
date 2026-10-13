@@ -83,7 +83,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         # Qt posts LayoutRequest when child size hints or visibility change.
         # Recalculate even if the contextual page key has not changed.
         result = super().event(event)
-        if event.type() == QEvent.LayoutRequest:
+        if event.type() in (QEvent.LayoutRequest, QEvent.Resize):
             self.reposition()
         return result
 
@@ -92,7 +92,8 @@ class OverlayDock(_BlockViewportInput, QWidget):
             if event.type() in (QEvent.Resize, QEvent.Show):
                 self.reposition()
         elif watched in self._layout_sources:
-            if event.type() in (QEvent.LayoutRequest, QEvent.Show, QEvent.Hide):
+            if event.type() in (QEvent.LayoutRequest, QEvent.Resize,
+                                QEvent.Show, QEvent.Hide):
                 self.reposition()
         return False
 
