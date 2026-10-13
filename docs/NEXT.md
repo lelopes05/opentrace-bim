@@ -121,6 +121,15 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - **Correção:** a toolbar da barra ganha `objectName` novo, `opentrace_options_toolbar`, e a fileira já nasce com `opentrace_tools_toolbar`. O layout antigo não conhece esses nomes, então o host deixa as duas onde o plugin as pôs, cada uma em linha própria. O nome antigo some do código.
 - Não usar `QTimer` nem mover toolbars depois da partida.
 
+*Abas duplicadas na partida (print do Leandro, 13/10):*
+- Com a janela "Escolher Template de Layers" aberta, aparece uma segunda fileira de abas (Properties, BIM, Terrain, AI) solta no alto, logo abaixo das toolbars. Ela some depois que o diálogo fecha.
+- **Hipótese, a confirmar com um teste antes de mexer:** como o plugin cria uma toolbar, o host refaz o `restoreState` (`load_extensions`, ramo `defer_extensions`) enquanto o diálogo modal está aberto, e as barras de abas dos docks ficam presas na posição antiga até o próximo layout.
+- **Primeiro, reproduzir:** `MainWindow(defer_extensions=True)`, `show()`, um `QDialog` modal aberto (sem `exec`, com `open()`), depois `load_extensions()` e `processEvents`. Conferir que nenhum `QTabBar` filho da janela fica visível acima do `centralWidget`.
+- **Se reproduzir:**
+  - Se a causa for o plugin (por exemplo, criar ou mostrar dock ou toolbar fora do `setup`), corrigir no plugin.
+  - Se for só do host, não contornar no plugin: registrar em `docs/NEXT.md`, seção "Para o IngeTrazo", com o passo a passo, para o Leandro levar ao Marco.
+- **Se não reproduzir:** anotar isso no relatório e seguir.
+
 *Limpeza:*
 - `__init__.setup` cria a `ToolRow` depois dos controladores e antes do `ArchitectureSuitePanel`.
 - `ContextualBar` deixa de esconder ações antigas da `wall.toolbar` (`hidden_legacy_actions` sai), porque a etapa 1 já tirou o conteúdo antigo. A `wall.toolbar` passa a conter só a barra.
