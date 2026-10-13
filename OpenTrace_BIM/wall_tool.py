@@ -64,9 +64,9 @@ class WallTool(AxisMagnet, Tool):
 
     def _show_second(self, viewport):
         if self.mode == self.MODE_RECT_DIAGONAL:
-            show_step(self, viewport, "wall.rect_diag.end")
+            show_step(self, viewport, "wall.rect_diag.after_first")
         elif self.mode == self.MODE_RECT_BASE_WIDTH:
-            show_step(self, viewport, "wall.rect_base.choose")
+            show_step(self, viewport, "wall.rect_base.after_first")
         else:
             show_step(self, viewport, "wall.segment.end")
 
@@ -377,9 +377,9 @@ class CurvedWallTool(WallTool):
 
     def _show_second(self, viewport):
         if self.mode == self.MODE_CENTER:
-            show_step(self, viewport, "wall.arc_center.choose")
+            show_step(self, viewport, "wall.arc_center.after_first")
         elif self.mode == self.MODE_THREE:
-            show_step(self, viewport, "wall.arc_three.choose")
+            show_step(self, viewport, "wall.arc_three.after_first")
         else:
             show_step(self, viewport, "wall.arc_normal.second")
 

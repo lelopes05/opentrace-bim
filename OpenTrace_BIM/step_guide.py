@@ -106,6 +106,10 @@ STEPS = {
     "slab_opening.edit.move.start": "Clique no ponto de referência para mover a abertura.",
     "slab_opening.edit.move.end": "Clique no ponto de destino da abertura.",
     "slab.edit.opening": "Clique nos vértices da abertura e feche no primeiro.",
+    "wall.arc_center.after_first": "Clique no ponto inicial do arco, mantendo o centro marcado.",
+    "wall.arc_three.after_first": "Clique no ponto intermediário por onde o arco passará.",
+    "wall.rect_diag.after_first": "Clique no canto oposto para concluir o retângulo.",
+    "wall.rect_base.after_first": "Clique no fim da base ou digite o comprimento e confirme com Enter.",
 }
 
 
