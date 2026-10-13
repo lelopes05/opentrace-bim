@@ -12,8 +12,8 @@ Branch: `claude/b1-curved-wall-perf`. Último pacote testado pelo Leandro: TEST-
 | 4 | Tirar as bolinhas do meio das arestas; vértices como pontos/bolas; aresta clicável pela linha. | `wall_opening_ui.py` (`_draw`, `_hit_active`) | Sonnet |
 | 5 | Paleta lateral: Home e Perfis não abriam (a sincronização voltava para a página da parede). Correção feita, sem CI. | `suite_panel.py` (`sync_context`) | Sonnet verifica |
 | 6 | Atualizar teste de fumaça para IngeTrazo 0.5.8 (painéis em abas dos dois lados, extensões carregadas depois da janela). | `tests_host/test_install_smoke_host.py` | Sonnet |
+| 7 | Enxugar os cadernos: `docs/DECISIONS.md` (só o que vale hoje: aprovado/descartado/adiado, com data, partindo das decisões de 12/10 no AGENTS.md — onde os cadernos antigos conflitarem, vale o AGENTS.md) e `docs/ARCHITECTURE.md` (módulos e contratos). Remover `INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.md`; o histórico fica no git. Juntos, menos de 250 linhas. | `docs/` | Sonnet |
 
 ## Depois
 - Portas e janelas: ferramenta própria, segundo clique para lado/giro, tamanhos editáveis na barra.
 - Interface (bloco visual): tema, ícones legíveis, paleta que mostre tudo, comportamento das abas no 0.5.8.
-- Enxugar `docs/INTERFACE_MASTER.md` e `docs/DEVELOPMENT_MASTER.md`.
