@@ -37,12 +37,13 @@ def opaque_mean(pm):
 class IconHostTests(unittest.TestCase):
     def test_every_named_icon_works_at_three_sizes(self):
         self.assertEqual(len(_NAMES), len(set(_NAMES)))
+        palette = dark_palette()
         for name in _NAMES:
             for size in (16, 20, 24):
                 with self.subTest(name=name, size=size):
-                    picture = icon(name, size, palette=dark_palette())
+                    picture = icon(name, size, palette=palette)
                     self.assertFalse(picture.isNull())
-                    self.assertFalse(pixmap(name, size, palette=dark_palette()).isNull())
+                    self.assertFalse(pixmap(name, size, palette=palette).isNull())
 
     def test_24px_icons_are_visually_distinct(self):
         pictures = {}

@@ -26,7 +26,7 @@ class ThemeHostTests(unittest.TestCase):
                     self.assertGreaterEqual(
                         contrast(result["border"], result[ground]), 3.0,
                         f"border against {ground}")
-                self.assertEqual(result["panel"], palette.color(palette.Window))
+                self.assertEqual(result["panel"], palette.color(QPalette.Window))
                 self.assertEqual(result["field"], palette.color(QPalette.Base))
 
     def test_qss_uses_tokens(self):
