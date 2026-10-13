@@ -196,6 +196,7 @@ def setup(app):
             beam_controller, profile_controller, bim_controller, membrane_controller, master_dock=_master_dock,
         )
         app.window._arquitetura_parametrica_suite_panel = suite_panel
+        profile_controller.suite_panel = suite_panel
         # English is applied once to the finished OpenTrace widget tree.
         # 0.12.8 used a QApplication-wide event filter here; translating on
         # Show/Polish/LayoutRequest could recursively retrigger Qt layouts and

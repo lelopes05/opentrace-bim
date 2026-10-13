@@ -81,6 +81,23 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertEqual(suite.project_info_button.accessibleName(),"Informações do Projeto")
             self.assertEqual(suite.arrange_button.accessibleName(),"Alinhar e distribuir objetos")
             self.assertEqual(suite.help_button.accessibleName(),"Ajuda OpenTrace BIM")
+            # The profile action must open the REAL library page in the
+            # unified dock, not merely show the dock's previously active page.
+            profile=window._arquitetura_parametrica_profile_controller
+            suite.show_page("home")
+            prior_tool=window.viewport.active_tool
+            profile.show_library()
+            self.assertIs(suite.stack.currentWidget(),suite.pages["profiles"])
+            self.assertIs(window.viewport.active_tool,prior_tool)
+            self.assertGreater(profile.list.topLevelItemCount(),0)
+            profile.search.setText("__no_matching_complex_profile__")
+            self.assertTrue(all(
+                profile.list.topLevelItem(i).isHidden()
+                for i in range(profile.list.topLevelItemCount())))
+            profile.search.clear()
+            self.assertTrue(any(
+                not profile.list.topLevelItem(i).isHidden()
+                for i in range(profile.list.topLevelItemCount())))
             suite.open_help()
             self.assertEqual(suite._help_dialog.chapters.currentRow(),0)
             self.assertIn("O que há de novo",suite._help_dialog.article.toPlainText())
