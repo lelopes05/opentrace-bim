@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The tool row: one fixed line of tools above the options bar."""
+"""The viewport overlay owns both contextual panels, not host toolbars."""
 import os
 import tempfile
 import unittest
@@ -7,8 +7,9 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QSettings, QSize, Qt
+from PySide6.QtCore import QCoreApplication, QPoint, QSettings, QSize, Qt
 from PySide6.QtWidgets import QApplication, QToolBar, QToolButton
+from PySide6.QtTest import QTest
 
 # Settings of their own: the compact state is written by these tests.
 QCoreApplication.setOrganizationName("OpenTraceTests")
@@ -85,22 +86,77 @@ class ToolRowTests(unittest.TestCase):
             [t("Parede paramétrica"), t("Laje paramétrica"), t("Pilar paramétrico"),
              t("Viga paramétrica"), "", t("Abertura"), t("Porta"), t("Janela"), "",
              t("Perfil Complexo…")])
-        self.assertEqual(self.row.objectName(), "opentrace_tools_toolbar")
+        self.assertEqual(self.row.objectName(), "opentrace_tools_row")
         self.assertIs(self.row.widgetForAction(self.row.actions()[0]), self.wall.wall_menu_button)
 
-    def test_tool_row_is_its_own_line_above_the_bar(self):
+    def test_panels_are_not_host_toolbars(self):
+        w = self.window
+        strip = self.row.toolbar
+        overlay = w._arquitetura_parametrica_overlay_dock
+        self.assertIs(overlay.parentWidget(), w.viewport)
+        self.assertIs(strip.parentWidget(), self.row)
+        self.assertEqual(w.toolBarArea(strip), Qt.NoToolBarArea)
+        for tb in w.findChildren(QToolBar):
+            if tb is not strip and tb.objectName() == "layerCombinationsBottomBar":
+                self.assertEqual(w.toolBarArea(tb), Qt.BottomToolBarArea)
+        self.assertNotIn(b"opentrace_", bytes(w.saveState()))
+
+    def test_panels_stacked_top_left_inside_viewport(self):
         self.show_window()
-        w, row, bar = self.window, self.row, self.wall.toolbar
-        self.assertEqual(bar.objectName(), "opentrace_options_toolbar")
-        self.assertTrue(w.toolBarBreak(row))
-        self.assertTrue(w.toolBarBreak(bar))
-        self.assertLess(row.geometry().y(), bar.geometry().y())
-        host = [tb for tb in w.findChildren(QToolBar)
-                if tb not in (row, bar) and tb.isVisible()
-                and w.toolBarArea(tb) == Qt.TopToolBarArea]
-        self.assertTrue(host)
-        for toolbar in host:
-            self.assertLess(toolbar.geometry().y(), row.geometry().y(), toolbar.objectName())
+        overlay = self.window._arquitetura_parametrica_overlay_dock
+        row = self.row
+        frame = overlay.options_frame
+        viewport = self.window.viewport
+        row_origin = row.mapTo(viewport, QPoint(0, 0))
+        bar_origin = frame.mapTo(viewport, QPoint(0, 0))
+        self.assertEqual(overlay.pos(), QPoint(8, 8))
+        self.assertEqual(row_origin.x(), 8)
+        self.assertEqual(bar_origin.x(), 8)
+        self.assertLess(row_origin.y(), bar_origin.y())
+        for panel in (row, frame):
+            top = panel.mapTo(viewport, QPoint(0, 0))
+            self.assertGreaterEqual(top.x(), 0)
+            self.assertGreaterEqual(top.y(), 0)
+            self.assertLessEqual(top.x() + panel.width(), viewport.width())
+            self.assertLessEqual(top.y() + panel.height(), viewport.height())
+
+    def test_panels_follow_viewport_resize(self):
+        self.show_window()
+        w = self.window
+        overlay = w._arquitetura_parametrica_overlay_dock
+        # Force the native toolbar overflow, without modifying its actions.
+        w.resize(630, 900)
+        APP.processEvents()
+        overlay.reposition()
+        self.assertEqual(overlay.x(), 8)
+        self.assertLessEqual(overlay.x() + overlay.width(), w.viewport.width())
+        self.assertLessEqual(overlay.options_frame.width(), w.viewport.width() - 16)
+        extension = self.row.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
+        self.assertIsNotNone(extension, "Qt's native toolbar overflow button must exist")
+        self.assertTrue(extension.isVisible(), "The tool strip must overflow in a narrow viewport")
+        w.resize(1500, 900)
+        APP.processEvents()
+
+    def test_click_on_panel_does_not_reach_tool(self):
+        from OpenTrace_BIM.host import activate_select
+        self.show_window()
+        self.wall.action.trigger()
+        tool = self.window.viewport.active_tool
+        recorded = []
+        original = tool.on_mouse_press
+        def observe(*args, **kwargs):
+            recorded.append((args, kwargs))
+            return original(*args, **kwargs)
+        tool.on_mouse_press = observe
+        try:
+            frame = self.window._arquitetura_parametrica_overlay_dock.options_frame
+            QTest.mouseClick(frame, Qt.LeftButton, pos=QPoint(2, 2))
+            QTest.mouseDClick(self.row, Qt.LeftButton, pos=QPoint(2, 2))
+            APP.processEvents()
+            self.assertEqual(recorded, [])
+        finally:
+            tool.on_mouse_press = original
+            activate_select(self.app)
 
     def test_tool_row_actions_activate_tools(self):
         from OpenTrace_BIM.host import activate_select
@@ -151,21 +207,17 @@ class ToolRowTests(unittest.TestCase):
         self.assertFalse(QSettings().value(COMPACT_KEY, True, type=bool))
         self.assertEqual(row.sizeHint().height(), normal_height)
 
-    def test_tool_row_survives_restore_state(self):
+    def test_host_restore_state_cannot_reposition_overlay(self):
         self.show_window()
         w = self.window
-
-        def layout():
-            bars = sorted((tb for tb in w.findChildren(QToolBar)
-                           if tb.isVisible() and w.toolBarArea(tb) == Qt.TopToolBarArea),
-                          key=lambda tb: (tb.geometry().y(), tb.geometry().x()))
-            return ([tb.objectName() for tb in bars], w.toolBarBreak(self.row),
-                    w.toolBarBreak(self.wall.toolbar), self.entries())
-
-        before = layout()
-        w.restoreState(w.saveState())
+        overlay = w._arquitetura_parametrica_overlay_dock
+        old = overlay.pos()
+        state = w.saveState()
+        self.assertTrue(w.restoreState(state))
         APP.processEvents()
-        self.assertEqual(layout(), before)
+        self.assertEqual(overlay.pos(), old)
+        self.assertIs(overlay.parentWidget(), w.viewport)
+        self.assertEqual(w.toolBarArea(self.row.toolbar), Qt.NoToolBarArea)
 
 
 if __name__ == "__main__":
