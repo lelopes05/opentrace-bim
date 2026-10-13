@@ -72,6 +72,16 @@ jobs:
           path: plugin/i18n_report.md
           if-no-files-found: ignore
           retention-days: 30
+      - id: icon_sheet
+        name: Upload icon review sheet
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenTrace_BIM-ICONS-${{ github.run_number }}
+          path: plugin/docs/icons_sheet.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Icon sheet link
+        run: echo "::notice title=Folha de ícones::${{ steps.icon_sheet.outputs.artifact-url }}"
       - name: Benchmark against the base revision
         env:
           QT_QPA_PLATFORM: offscreen
