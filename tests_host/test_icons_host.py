@@ -6,14 +6,13 @@ from pathlib import Path
 import unittest
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap, QPixmapCache
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter, QPixmap, QPixmapCache
 from views.theme import dark_palette, light_palette
 
 from OpenTrace_BIM.icons import _NAMES, icon, pixmap
 from OpenTrace_BIM.style import contrast, tokens
 
-APP = QApplication.instance() or QApplication([])
+APP = QGuiApplication.instance() or QGuiApplication([])
 
 
 def tearDownModule():
