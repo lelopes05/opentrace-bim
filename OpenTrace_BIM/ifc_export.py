@@ -20,6 +20,7 @@ from . import __version__
 from .bim import (deterministic_ifc_guid, ensure_spatial_ids, ifc_identity_data,
                   element_kind, is_bim_group, load_document_data, new_ifc_guid, record_for)
 from .layers import function_category, wall_overall_offsets
+from .door_window_core import normalize_fill, wallhole_size
 
 
 class IfcExportError(RuntimeError):
@@ -1314,6 +1315,18 @@ def export_ifc(app, path, *, data=None):
         meta = ifc_identity_data(group)
         rec = record_for(group)
         ifc_class = str(meta.get("class") or "IfcBuildingElementProxy")
+        door = None
+        if ifc_class == "IfcDoor" and rec.get("kind") == "door":
+            door = normalize_fill(rec["params"])
+            rough_width, rough_height = wallhole_size(door)
+            meta["overall_width"] = rough_width
+            meta["overall_height"] = rough_height
+            meta["predefined_type"] = "DOOR"
+            # IFC handing is observed from the side into which the leaf opens.
+            # Reversing the swing reverses the observed hinge side.
+            left_handed = (door["hinge"] == "left") == (door["swing"] == 1)
+            meta["operation_type"] = (
+                "SINGLE_SWING_LEFT" if left_handed else "SINGLE_SWING_RIGHT")
         repmap_ref=None; prototype_key=None; source_rep_kind=None
         if bool(options.get("use_representation_maps",True)):
             prototype_key=_component_prototype_key(group)
@@ -1405,7 +1418,24 @@ def export_ifc(app, path, *, data=None):
             for pset_name, values in authored_psets.items():
                 if pset_name in ("Pset_OpenTraceParametric", "EPset_Parametric") or not isinstance(values, dict):
                     continue
+                if door is not None and pset_name == "OpenTrace_Door":
+                    continue
                 _add_named_property_set(step, product, pset_name, values)
+            if door is not None:
+                # Instance data, not family/type metadata. Lengths are metres;
+                # both angles are degrees, as specified in docs/PORTAS.md.
+                _add_named_property_set(step, product, "OpenTrace_Door", {
+                    "LeafWidth": door["width"],
+                    "LeafHeight": door["height"],
+                    "ClearanceLeft": door["clearance_left"],
+                    "ClearanceRight": door["clearance_right"],
+                    "ClearanceTop": door["clearance_top"],
+                    "ClearanceBottom": door["clearance_bottom"],
+                    "PlanAngle": door["plan_angle"],
+                    "ModelAngle": door["model_angle"],
+                    "Family": "F01 swing_single",
+                    "Schema": door["schema"],
+                })
             if include_roundtrip and rec.get("schema"):
                 payload = json.dumps(_parametric_payload(group, rec), ensure_ascii=False, separators=(",", ":"))
                 _add_named_property_set(step, product, "EPset_OpenTraceRoundTrip", {
