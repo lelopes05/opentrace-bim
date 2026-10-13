@@ -64,6 +64,35 @@ class TranslationCatalogTests(unittest.TestCase):
         for lang in ("en", "es"):
             self.assertEqual(catalog(lang), expected[lang])
 
+    def test_english_legacy_fallback_matches_every_dictionary_and_phrase(self):
+        """T1 must preserve the pre-catalog English result for every legacy key."""
+        from core.i18n import current_language, set_language
+        from OpenTrace_BIM import i18n as translator
+
+        old_language = current_language()
+        try:
+            set_language("en")
+            self.assertEqual(translator.language(), "en")
+            dictionaries = (
+                translator._EN, translator._EXTRA_EN, translator._UI_EN,
+                translator._TOOL_EN, translator._LAYERCOMBO_EN,
+            )
+            keys = set().union(*(dictionary.keys() for dictionary in dictionaries))
+            self.assertTrue(keys)
+            for source in sorted(keys):
+                with self.subTest(source=source):
+                    self.assertEqual(translator.t(source), translator.english(source))
+
+            phrase_only = "Clique para criar parede"
+            self.assertNotIn(phrase_only, catalog("en"))
+            self.assertNotIn(phrase_only, keys)
+            expected = translator.english(phrase_only)
+            self.assertNotEqual(expected, phrase_only)
+            self.assertEqual(translator.t(phrase_only), expected)
+            self.assertIn(("en", phrase_only), translator.MISSING)
+        finally:
+            set_language(old_language)
+
     @unittest.expectedFailure  # T2 converts this into a required assertion.
     def test_literal_t_calls_have_complete_en_and_es_catalogs(self):
         used = literal_calls()
