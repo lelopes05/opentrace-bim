@@ -296,6 +296,11 @@ class ToolRowTests(unittest.TestCase):
         slab = self.window._arquitetura_parametrica_slab_controller
         button = self.row.toolbar.widgetForAction(slab.action)
         self.assertIsInstance(button, QToolButton)
+        self.assertTrue(all(
+            control.focusPolicy() == Qt.NoFocus
+            for control in (self.row, self.row.toolbar, self.row.help_button,
+                            self.row.compact_button, self.wall.wall_menu_button,
+                            *self.row._buttons)))
         QTest.mouseClick(button, Qt.LeftButton)
         APP.processEvents()
         self.assertIs(viewport.active_tool, slab.tool)
@@ -303,6 +308,47 @@ class ToolRowTests(unittest.TestCase):
         QTest.keyClick(viewport, Qt.Key_Space)
         APP.processEvents()
         self.assertIs(viewport.active_tool, host_tool(self.app, "select"))
+
+    def test_contextual_buttons_and_fields_focus_contract(self):
+        self.show_window()
+        bar = self.window._arquitetura_parametrica_overlay_dock.bar
+        self.wall.action.trigger()
+        bar.refresh()
+        viewport = self.window.viewport
+        buttons = bar.pages["wall"][0].findChildren(QToolButton)
+        self.assertTrue(buttons)
+        self.assertTrue(all(b.focusPolicy() == Qt.NoFocus for b in buttons))
+        self.assertEqual(bar.collapse_button.focusPolicy(), Qt.NoFocus)
+
+        viewport.setFocus()
+        APP.processEvents()
+        QTest.mouseClick(buttons[0], Qt.LeftButton)
+        APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Contextual method stole focus")
+
+        from PySide6.QtWidgets import QDoubleSpinBox, QComboBox
+        fields = bar.pages["wall"][0].findChildren(QDoubleSpinBox)
+        combos = bar.pages["wall"][0].findChildren(QComboBox)
+        self.assertTrue(fields)
+        self.assertTrue(combos)
+        spin = fields[0]
+        spin.setFocus()
+        APP.processEvents()
+        self.assertTrue(spin.hasFocus())
+        QTest.keyClick(spin, Qt.Key_Return)
+        APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Enter must restore viewport focus")
+        spin.setFocus()
+        APP.processEvents()
+        QTest.keyClick(spin, Qt.Key_Escape)
+        APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Esc must restore viewport focus")
+        combo = combos[0]
+        combo.setFocus()
+        APP.processEvents()
+        QTest.keyClick(combo, Qt.Key_Escape)
+        APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Esc from combo must restore focus")
 
     def test_tool_row_actions_activate_tools(self):
         from OpenTrace_BIM.host import activate_select

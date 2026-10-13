@@ -7,7 +7,7 @@ fields, so existing validation, history, and Undo/Redo remain authoritative.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
@@ -29,6 +29,20 @@ class _CompactStack(QStackedWidget):
         return page.minimumSizeHint() if page is not None else super().minimumSizeHint()
 
 
+class _ReturnViewportFocus(QObject):
+    """Give keyboard shortcuts back to the viewport after a field edit."""
+
+    def __init__(self, viewport, parent):
+        super().__init__(parent)
+        self.viewport = viewport
+
+    def eventFilter(self, watched, event):
+        if (event.type() == QEvent.KeyRelease and
+                event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape)):
+            self.viewport.setFocus()
+        return False
+
+
 class ContextualBar(QWidget):
     """Compact, collapsible view onto the SAME actions and fields as the dock."""
 
@@ -45,6 +59,7 @@ class ContextualBar(QWidget):
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
+        self._focus_return = _ReturnViewportFocus(self.app.viewport, self)
 
         row = QHBoxLayout(self)
         row.setContentsMargins(8, 3, 8, 3)
@@ -55,6 +70,7 @@ class ContextualBar(QWidget):
         self.collapsed_label.hide()
         row.addWidget(self.collapsed_label, 1)
         self.collapse_button = QToolButton(self)
+        self.collapse_button.setFocusPolicy(Qt.NoFocus)
         self.collapse_button.setObjectName("opentrace_context_collapse")
         self.collapse_button.setToolTip("Recolher ou expandir a barra contextual")
         self.collapse_button.setText("▴")
@@ -107,6 +123,7 @@ class ContextualBar(QWidget):
 
     def _method(self, layout, symbol, title, callback, *, active=None):
         button = QToolButton(self)
+        button.setFocusPolicy(Qt.NoFocus)
         button.setAutoRaise(True)
         button.setToolTip(title)
         button.setAccessibleName(title)
@@ -147,6 +164,7 @@ class ContextualBar(QWidget):
         label = self._section(layout, text)
         if isinstance(source, QComboBox):
             mirror = QComboBox(self)
+            mirror.activated.connect(lambda _index: self.app.viewport.setFocus())
             mirror.setMinimumWidth(width)
             mirror.setMaximumWidth(max(width, 145))
             mirror.currentIndexChanged.connect(
@@ -154,6 +172,7 @@ class ContextualBar(QWidget):
             source.currentIndexChanged.connect(self.suite.schedule_sync_context)
         else:
             mirror = QDoubleSpinBox(self)
+            mirror.editingFinished.connect(self.app.viewport.setFocus)
             mirror.setLocale(source.locale())
             mirror.setDecimals(source.decimals())
             mirror.setRange(source.minimum(), source.maximum())
@@ -168,6 +187,11 @@ class ContextualBar(QWidget):
             source.valueChanged.connect(self.suite.schedule_sync_context)
         mirror.setToolTip(source.toolTip() or text)
         mirror.setAccessibleName(text)
+        mirror.installEventFilter(self._focus_return)
+        if isinstance(mirror, QDoubleSpinBox):
+            mirror.lineEdit().installEventFilter(self._focus_return)
+        elif mirror.isEditable():
+            mirror.lineEdit().installEventFilter(self._focus_return)
         self._mirrors.append((mirror, source))
         self._target(layout).addWidget(mirror)
         return label, mirror
@@ -353,6 +377,9 @@ class ContextualBar(QWidget):
         for key, label in (("width", "Largura"), ("height", "Altura"), ("sill", "Peitoril")):
             title = self._section(layout, t(label))
             spin = QDoubleSpinBox(self)
+            spin.editingFinished.connect(self.app.viewport.setFocus)
+            spin.installEventFilter(self._focus_return)
+            spin.lineEdit().installEventFilter(self._focus_return)
             spin.setDecimals(2)
             spin.setRange(0.0 if key == "sill" else MIN_DIM, 100.0)
             spin.setSingleStep(0.05)

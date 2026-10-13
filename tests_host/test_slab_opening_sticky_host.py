@@ -145,11 +145,16 @@ class StickySlabOpeningTests(unittest.TestCase):
 
     def _blank_pixel(self):
         vp = self.viewport
+        overlay = self.window._arquitetura_parametrica_overlay_dock
         for x, y in ((8, 8), (vp.width() - 8, 8),
                      (8, vp.height() - 8),
                      (vp.width() - 8, vp.height() - 8)):
+            pos = QPoint(x, y)
+            # The overlay starts at (8, 8), so that corner is not empty canvas.
+            if overlay.geometry().contains(pos):
+                continue
             if vp.pick_group(x, y) is None:
-                return QPoint(x, y)
+                return pos
         self.fail("No empty viewport pixel available")
 
     def test_empty_click_keeps_sticky_function(self):

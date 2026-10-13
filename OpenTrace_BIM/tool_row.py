@@ -22,6 +22,7 @@ class ToolRow(OverlayFrame):
         super().__init__(parent)
         self.setObjectName("opentrace_tools_row")
         self.setMinimumWidth(0)
+        self.setFocusPolicy(Qt.NoFocus)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 3, 5, 3)
         layout.setSpacing(3)
@@ -34,6 +35,7 @@ class ToolRow(OverlayFrame):
         self.toolbar.setMovable(False)
         self.toolbar.setFloatable(False)
         self.toolbar.setMinimumWidth(0)
+        self.toolbar.setFocusPolicy(Qt.NoFocus)
         self.toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.toolbar.setStyleSheet(
             "QToolBar { background: palette(window); color: palette(window-text); "
@@ -42,6 +44,7 @@ class ToolRow(OverlayFrame):
         layout.addWidget(self.toolbar, 1)
 
         self._buttons = [wall.wall_menu_button]
+        wall.wall_menu_button.setFocusPolicy(Qt.NoFocus)
         self.toolbar.addWidget(wall.wall_menu_button)
         for controller in (slab, column, beam):
             if controller is not None:
@@ -57,11 +60,13 @@ class ToolRow(OverlayFrame):
         self.help_button = QToolButton(self)
         self.help_button.setObjectName("opentrace_tool_help")
         self.help_button.setText("?")
+        self.help_button.setFocusPolicy(Qt.NoFocus)
         self.help_button.setToolTip(t("Ajuda da ferramenta ativa"))
         self.help_button.setAccessibleName(t("Ajuda contextual"))
         self.help_button.setFixedSize(28, 28)
         layout.addWidget(self.help_button)
         self.compact_button = QToolButton(self)
+        self.compact_button.setFocusPolicy(Qt.NoFocus)
         self.compact_button.clicked.connect(self.toggle_compact)
         layout.addWidget(self.compact_button)
         self.set_compact(self.saved_compact())
@@ -72,7 +77,9 @@ class ToolRow(OverlayFrame):
 
     def _add(self, action):
         self.toolbar.addAction(action)
-        self._buttons.append(self.toolbar.widgetForAction(action))
+        button = self.toolbar.widgetForAction(action)
+        button.setFocusPolicy(Qt.NoFocus)
+        self._buttons.append(button)
 
     def set_compact(self, compact):
         self.compact = bool(compact)
@@ -80,6 +87,8 @@ class ToolRow(OverlayFrame):
         style = Qt.ToolButtonIconOnly if self.compact else Qt.ToolButtonTextBesideIcon
         self.toolbar.setIconSize(size)
         self.toolbar.setToolButtonStyle(style)
+        for button in self.toolbar.findChildren(QToolButton):
+            button.setFocusPolicy(Qt.NoFocus)
         for button in self._buttons:
             button.setIconSize(size)
             button.setToolButtonStyle(style)

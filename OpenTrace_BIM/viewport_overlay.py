@@ -49,6 +49,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self.setAcceptDrops(True)
         self.setStyleSheet("QWidget#opentrace_overlay_dock { background: transparent; }")
         self.setMinimumWidth(0)
+        self.setFocusPolicy(Qt.NoFocus)
         self._repositioning = False
         self._layout_request_queued = False
         self.row = tool_row
@@ -58,6 +59,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         layout.setSpacing(4)
         layout.addWidget(tool_row)
         self.options_frame = OverlayFrame(self)
+        self.options_frame.setFocusPolicy(Qt.NoFocus)
         self.options_frame.setObjectName("opentrace_options_frame")
         options_layout = QHBoxLayout(self.options_frame)
         options_layout.setContentsMargins(3, 3, 3, 3)
