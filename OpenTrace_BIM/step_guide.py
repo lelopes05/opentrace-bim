@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Approved, per-state status messages for OpenTrace BIM tools."""
+
+from .i18n import t
+
+# IngeTrazo 0.5.8 does not read status_clause() for extension tools.
+# Keep the step above its native hint for ten minutes using its public API.
+STEP_HOLD_MS = 600000
+
+STEPS = {
+    "wall.segment.start": "Clique no início da parede. Esc cancela; espaço sai.",
+    "wall.segment.end": "Clique no fim da parede ou digite o comprimento e confirme com Enter.",
+    "wall.segment.value": "Aponte a direção e digite o comprimento; Enter confirma.",
+    "wall.segment.created": "Parede criada. Clique no início de outra; espaço sai.",
+    "wall.segment.cancel": "Trecho cancelado. Clique para recomeçar; espaço sai.",
+    "wall.rect_diag.choose": "Clique no primeiro canto do retângulo; depois marque o canto oposto.",
+    "wall.rect_diag.end": "Clique no canto oposto para criar quatro paredes independentes.",
+    "wall.rect_diag.value": "Indique o canto oposto com o mouse; a medida digitada não vale neste modo.",
+    "wall.rect_diag.created": "Bloco criado. Clique no primeiro canto do próximo retângulo; espaço sai.",
+    "wall.rect_base.choose": "Clique no primeiro ponto da base; depois no ponto final.",
+    "wall.rect_base.width": "Clique do lado desejado para fixar a profundidade, ou digite e confirme.",
+    "wall.rect_base.width_value": "Aponte o lado da base; clique ou digite a profundidade e pressione Enter.",
+    "wall.rect_base.created": "Bloco criado. Clique para começar outro com a mesma geometria.",
+    "wall.arc_normal.start": "Clique no primeiro ponto do arco escolhido na barra.",
+    "wall.arc_normal.second": "Clique no próximo ponto do arco escolhido na barra.",
+    "wall.arc_normal.bulge": "Mova o mouse para definir a flecha; clique ou digite a medida e confirme.",
+    "wall.arc_normal.value": "Digite a flecha do arco e pressione Enter, após definir os dois extremos.",
+    "wall.arc_normal.created": "Parede curva criada. Clique para começar outra; espaço sai.",
+    "wall.arc_center.choose": "Clique no centro do arco; depois marque o início.",
+    "wall.arc_center.end": "Clique na direção final do arco; o raio vem do centro ao ponto inicial.",
+    "wall.arc_center.value": "Neste método, indique o fim do arco com o mouse.",
+    "wall.arc_three.choose": "Clique no início do arco; depois escolha o ponto intermediário.",
+    "wall.arc_three.end": "Clique no terceiro ponto, que será o fim da parede curva.",
+    "wall.arc_three.value": "Defina o ponto final com o mouse; a flecha numérica é só do arco padrão.",
+    "wall.arc.cancel": "Arco cancelado. Clique para começar outro; espaço sai.",
+    "slab.create.start": "Clique no primeiro canto da laje; Esc cancela; espaço sai.",
+    "slab.diagonal.second": "Clique no canto oposto; mude o método na barra de opções se necessário.",
+    "slab.diagonal.created": "Laje criada. Clique para começar outra; espaço sai.",
+    "slab.base.choose": "Clique no fim da base da laje.",
+    "slab.base.width": "Clique do lado desejado para definir a largura da laje.",
+    "slab.polygon.choose": "Clique no próximo vértice; feche no primeiro após três pontos.",
+    "slab.polygon.next": "Clique no próximo vértice ou no primeiro para fechar a laje.",
+    "slab.polygon.close": "Clique no primeiro vértice para confirmar o polígono.",
+    "slab.create.cancel": "Laje cancelada. Clique para recomeçar; espaço sai.",
+    "column.start": "Clique no ponto de inserção; espaço sai.",
+    "column.created": "Pilar criado. Clique para inserir outro; espaço sai.",
+    "beam.start": "Clique no ponto inicial da viga; espaço sai.",
+    "beam.end": "Clique no fim da viga ou digite o comprimento e pressione Enter.",
+    "beam.value": "Aponte a direção e digite o comprimento; Enter confirma.",
+    "beam.created": "Viga criada. Clique para começar outra; espaço sai.",
+    "beam.cancel": "Viga cancelada. Clique para começar outra; espaço sai.",
+    "opening.rect.hover": "Passe o mouse sobre uma parede e clique para colocar a abertura.",
+    "opening.rect.placed": "Abertura colocada. Clique noutro ponto para inserir outra; espaço sai.",
+    "opening.square.hover": "Passe o mouse sobre a parede e clique para criar o vão quadrado.",
+    "opening.square.placed": "Vão quadrado criado. Clique para inserir outro; espaço sai.",
+    "opening.circle.hover": "Passe o mouse sobre a parede e clique para colocar a abertura circular.",
+    "opening.circle.placed": "Abertura circular criada. Clique para inserir outra; espaço sai.",
+    "opening.free.start": "Clique no primeiro vértice do vão sobre a face da parede.",
+    "opening.free.next_vertex": "Clique no próximo vértice; feche no primeiro quando houver pelo menos três.",
+    "opening.free.close": "Clique no primeiro vértice para fechar e criar o vão.",
+    "opening.free.placed": "Abertura livre criada. Clique na parede para começar outro contorno.",
+    "opening.free.cancel": "Contorno cancelado. Clique para começar outro; espaço sai.",
+    "door.hover": "Passe o mouse sobre uma parede e clique para inserir a porta.",
+    "door.placed": "Porta colocada. Clique para inserir outra; espaço sai.",
+    "window.hover": "Passe o mouse sobre uma parede e clique para inserir a janela.",
+    "window.placed": "Janela colocada. Clique para inserir outra; espaço sai.",
+    "opening.position.value": "Aponte uma parede; digite a distância desde o início e pressione Enter.",
+    "profile.origin.start": "Clique no ponto de origem do perfil.",
+    "profile.origin.done": "Origem definida. Continue o perfil ou clique em Salvar Perfil.",
+    "wall_opening.edit.sticky": "Função ativa: clique em outra aresta ou vértice para repetir; Esc ou espaço sai.",
+    "wall_opening.edit.exit": "Esc ou espaço sai; clique no vazio mantém esta função ativa.",
+    "slab_opening.next": "Clique no próximo vértice da abertura; feche no primeiro.",
+    "slab_opening.created": "Abertura criada. Use Selecionar para editar a laje.",
+    "slab_opening.cancel": "Abertura cancelada. Use Selecionar para escolher outra área.",
+    "slab_opening.edit.sticky": "Função ativa: clique em outra aresta ou vértice para repetir; Esc ou espaço sai.",
+    "slab_opening.edit.exit": "Esc ou espaço sai; clique no vazio mantém esta função ativa.",
+    "wall_opening.edit.after": "Clique em outra aresta ou vértice para repetir; Esc ou espaço sai.",
+    "slab_opening.edit.after": "Clique em outra aresta ou vértice para repetir; Esc ou espaço sai.",
+    "membrane.polygon.start": "Clique no primeiro vértice; feche o contorno depois de três.",
+    "membrane.polygon.second": "Clique no próximo vértice da membrana.",
+    "membrane.polygon.next": "Clique no próximo vértice ou no primeiro para fechar.",
+    "membrane.rect.start": "Clique no primeiro canto do retângulo de membrana.",
+    "membrane.rect.end": "Clique no canto oposto para confirmar o retângulo.",
+    "membrane.ellipse.start": "Clique no centro da elipse.",
+    "membrane.ellipse.end": "Clique num canto da caixa envolvente para confirmar a elipse.",
+    "membrane.created": "Membrana criada. Clique para começar outra; espaço sai.",
+    "membrane.cancel": "Desenho cancelado. Clique para recomeçar; espaço sai.",
+    "membrane.edit.select": "Clique num vértice, numa aresta ou sobre a pele para abrir a paleta.",
+    "membrane.edit.after": "Membrana atualizada. Clique no próximo controle para continuar.",
+}
+
+
+def step_text(step_id):
+    return t(STEPS[step_id])
+
+
+def show_step(tool, viewport, step_id):
+    tool.step_id = step_id
+    viewport.flash_status(step_text(step_id), STEP_HOLD_MS)
