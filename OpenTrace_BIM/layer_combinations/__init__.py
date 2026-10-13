@@ -841,7 +841,7 @@ class InitialTemplateDialog(QDialog):
         self.choice = None
         self.setWindowTitle("Escolher Template de Camadas")
         self.setModal(False)
-        self.setWindowModality(Qt.WindowModal)
+        self.setWindowModality(Qt.NonModal)
         self.resize(520, 330)
 
         root = QVBoxLayout(self)
@@ -1863,7 +1863,9 @@ class Controller:
         dlg = InitialTemplateDialog(self)
         self._initial_template_dialog = dlg
         dlg.finished.connect(self._initial_template_finished)
-        dlg.open()
+        # QDialog.open() enables WindowModal and blocks the host Space shortcut.
+        # This first-run choice must be asynchronous AND genuinely non-modal.
+        dlg.show()
 
     def _initial_template_finished(self, result):
         dlg = self._initial_template_dialog

@@ -98,6 +98,13 @@ class DeferredOverlayTests(unittest.TestCase):
         w = self.window
         self.assertIsNotNone(getattr(w, "_layer_combinations_service", None))
         viewport = w.viewport
+        # The first-run layer template chooser may be visible, but cannot
+        # block the host's keyboard shortcuts with WindowModal.
+        chooser = w._layer_combinations_service._initial_template_dialog
+        if chooser is not None:
+            self.assertEqual(chooser.windowModality(), Qt.NonModal)
+            self.assertFalse(chooser.isModal())
+        self.assertIsNone(APP.activeModalWidget())
         vp_left = viewport.mapTo(w, QPoint(0, 0)).x()
         vp_right = vp_left + viewport.width()
         vp_top = viewport.mapTo(w, QPoint(0, 0)).y()

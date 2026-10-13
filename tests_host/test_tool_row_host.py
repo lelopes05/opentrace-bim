@@ -291,6 +291,8 @@ class ToolRowTests(unittest.TestCase):
         activate_select(self.app)
         viewport.setFocus()
         APP.processEvents()
+        self.assertIsNone(APP.activeModalWidget(),
+                          "The first-run layer chooser must not block shortcuts")
         self.assertTrue(viewport.hasFocus(), "Test requires an active viewport")
 
         slab = self.window._arquitetura_parametrica_slab_controller
@@ -307,38 +309,6 @@ class ToolRowTests(unittest.TestCase):
         self.assertTrue(viewport.hasFocus(), "Tool-row button stole viewport focus")
         QTest.keyClick(viewport, Qt.Key_Space)
         APP.processEvents()
-        if viewport.active_tool is not host_tool(self.app, "select"):
-            action = self.window._tool_actions["select"]
-            focus = APP.focusWidget()
-            active_window = APP.activeWindow()
-            self.fail(str({
-                "viewport_focus": viewport.hasFocus(),
-                "focus_widget": focus.objectName() if focus else None,
-                "active_window": active_window.objectName() if active_window else None,
-                "window_active": self.window.isActiveWindow(),
-                "action_enabled": action.isEnabled(),
-                "action_visible": action.isVisible(),
-                "shortcut_context": str(action.shortcutContext()),
-                "value_buffer": repr(viewport._value_buffer),
-                "space_actions": [
-                    (a.text(), a.objectName(), a.isVisible(), a.isEnabled())
-                    for a in self.window.findChildren(__import__(
-                        "PySide6.QtGui", fromlist=["QAction"]).QAction)
-                    if __import__("PySide6.QtGui", fromlist=["QKeySequence"]).QKeySequence(
-                        Qt.Key_Space) in a.shortcuts()
-                ],
-                "select_owners": [
-                    (type(obj).__name__, obj.objectName(),
-                     obj.isVisible() if hasattr(obj, "isVisible") else None)
-                    for obj in action.associatedObjects()
-                ],
-                "modal": bool(APP.activeModalWidget()),
-                "popup": bool(APP.activePopupWidget()),
-                "tool_claims_space": viewport._tool_claims_key(
-                    __import__("PySide6.QtGui", fromlist=["QKeyEvent"]).QKeyEvent(
-                        __import__("PySide6.QtCore", fromlist=["QEvent"]).QEvent.KeyPress,
-                        Qt.Key_Space, Qt.NoModifier)),
-            }))
         self.assertIs(viewport.active_tool, host_tool(self.app, "select"))
 
     def test_contextual_buttons_and_fields_focus_contract(self):
