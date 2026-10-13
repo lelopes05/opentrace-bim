@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
 
 BLUE = QColor("#42658d")
 BLUE_LIGHT = QColor("#a9bfd7")
@@ -349,9 +349,11 @@ def pixmap(name, size=24, state="normal", palette=None):
     }.get(state)
     if key is None:
         raise ValueError(f"Unsupported icon state: {state}")
-    pm = QPixmap(int(size), int(size))
-    pm.fill(Qt.transparent)
-    painter = QPainter(pm)
+    # Rasterize on CPU-owned QImage. Painting many QPixmaps directly on
+    # offscreen Qt 6.10 can corrupt native pixmap lifetime at shutdown.
+    image = QImage(int(size), int(size), QImage.Format_ARGB32_Premultiplied)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.scale(float(size) / 24, float(size) / 24)
     stroke = 1.5 * 24 / float(size)
@@ -367,7 +369,7 @@ def pixmap(name, size=24, state="normal", palette=None):
         painter.setPen(pen)
     painter.drawPath(accent)
     painter.end()
-    return pm
+    return QPixmap.fromImage(image)
 
 
 def icon(name, size=32, state="normal", palette=None):
