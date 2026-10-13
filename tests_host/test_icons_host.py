@@ -35,9 +35,17 @@ def opaque_mean(pm):
 
 
 class IconHostTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Keep native QPalette values alive while the same icon is repainted.
+        # Recreating host palettes on every pixel-level assertion destabilizes
+        # PySide6/Shiboken on the offscreen Qt runner.
+        cls.dark = dark_palette()
+        cls.light = light_palette()
+
     def test_every_named_icon_works_at_three_sizes(self):
         self.assertEqual(len(_NAMES), len(set(_NAMES)))
-        palette = dark_palette()
+        palette = self.dark
         for name in _NAMES:
             for size in (16, 20, 24):
                 with self.subTest(name=name, size=size):
@@ -48,13 +56,13 @@ class IconHostTests(unittest.TestCase):
     def test_24px_icons_are_visually_distinct(self):
         pictures = {}
         for name in _NAMES:
-            key = rgba_key(pixmap(name, 24, palette=dark_palette()))
+            key = rgba_key(pixmap(name, 24, palette=self.dark))
             self.assertNotIn(key, pictures,
                              f"{name} is indistinguishable from {pictures.get(key)}")
             pictures[key] = name
 
     def test_opaque_average_contrast_in_both_themes(self):
-        for palette in (dark_palette(), light_palette()):
+        for palette in (self.dark, self.light):
             for name in _NAMES:
                 with self.subTest(name=name, theme=tokens(palette)["panel"].name()):
                     mean = opaque_mean(pixmap(name, 24, palette=palette))
@@ -64,12 +72,12 @@ class IconHostTests(unittest.TestCase):
     def test_normal_differs_from_marked(self):
         for name in _NAMES:
             self.assertNotEqual(
-                rgba_key(pixmap(name, 24, "normal", dark_palette())),
-                rgba_key(pixmap(name, 24, "marked", dark_palette())),
+                rgba_key(pixmap(name, 24, "normal", self.dark)),
+                rgba_key(pixmap(name, 24, "marked", self.dark)),
                 name)
 
     def test_16px_stroke_is_at_least_1_point_3_pixels(self):
-        image = pixmap("anchor_center", 16, palette=dark_palette()).toImage()
+        image = pixmap("anchor_center", 16, palette=self.dark).toImage()
         # Above the anchor rectangle: only its central vertical stroke.
         coverage = sum(image.pixelColor(x, 3).alpha() / 255 for x in range(5, 12))
         self.assertGreaterEqual(coverage, 1.3)
@@ -77,7 +85,7 @@ class IconHostTests(unittest.TestCase):
     def test_ci_icon_sheet(self):
         if os.environ.get("GITHUB_ACTIONS") != "true":
             self.skipTest("Icon sheet is generated only on the CI runner.")
-        palettes = (("Escuro", dark_palette()), ("Claro", light_palette()))
+        palettes = (("Escuro", self.dark), ("Claro", self.light))
         states = ("normal", "active", "marked", "disabled")
         row_height, cell_width, label_width = 38, 47, 135
         width = label_width + len(palettes) * len(states) * cell_width
