@@ -314,6 +314,7 @@ class DeferredExtensionStartupTests(unittest.TestCase):
 
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         cls._previous_data_home=os.environ.get("XDG_DATA_HOME")
+        cls._previous_config_home=os.environ.get("XDG_CONFIG_HOME")
         cls._installation=tempfile.TemporaryDirectory()
         root=Path(cls._installation.name)/"ingetrazo"/"plugins"
         root.mkdir(parents=True)
@@ -321,6 +322,7 @@ class DeferredExtensionStartupTests(unittest.TestCase):
                         root/"OpenTrace_BIM",
                         ignore=shutil.ignore_patterns("__pycache__","*.pyc"))
         os.environ["XDG_DATA_HOME"]=cls._installation.name
+        os.environ["XDG_CONFIG_HOME"]=cls._installation.name
         cls.qt=QApplication.instance() or QApplication([])
         cls.window=MainWindow(defer_extensions=True)
         cls.window.show()
@@ -336,6 +338,10 @@ class DeferredExtensionStartupTests(unittest.TestCase):
             del os.environ["XDG_DATA_HOME"]
         else:
             os.environ["XDG_DATA_HOME"]=cls._previous_data_home
+        if cls._previous_config_home is None:
+            del os.environ["XDG_CONFIG_HOME"]
+        else:
+            os.environ["XDG_CONFIG_HOME"]=cls._previous_config_home
         cls._installation.cleanup()
 
     def _objects(self):
@@ -369,12 +375,13 @@ class DeferredExtensionStartupTests(unittest.TestCase):
             w._arquitetura_parametrica_column_controller.action,
             w._arquitetura_parametrica_beam_controller.action])
         self.assertTrue(actions[4].isSeparator())
-        self.assertEqual(actions[5:8],wall.openings.tool_actions)
+        self.assertEqual(actions[5:8],list(wall.openings.tool_actions))
         self.assertTrue(actions[8].isSeparator())
         self.assertIs(actions[9],w._arquitetura_parametrica_profile_controller.action)
 
     def test_sidebar_is_a_tab_next_to_host_panels(self):
         suite,dock,overlay,row=self._objects()
+        suite.show_page("home")
         self.assertTrue(self.window.tabifiedDockWidgets(dock),
                         "OpenTrace must be one of the host's side-tray tabs")
 
