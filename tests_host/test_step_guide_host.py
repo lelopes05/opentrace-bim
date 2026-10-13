@@ -58,6 +58,9 @@ class GuideHostTests(unittest.TestCase):
 
     def tearDown(self):
         activate_select(self.app)
+        self.wall.openings.clear_sticky()
+        self.slab.clear_sticky()
+        self.app.release_pick()
         self.wall.draw_tool.set_geometry("single")
         self.slab.tool.set_mode("diagonal")
         self.scene.clear_selection()
