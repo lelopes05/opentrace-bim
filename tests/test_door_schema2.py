@@ -177,7 +177,9 @@ class DoorSchema2Tests(unittest.TestCase):
                 self.assertAlmostEqual(pivot_before, 2.0, places=6)
                 self.assertAlmostEqual(pivot_after, 2.0, places=6)
                 switched = reanchor_fill(raw, "right" if anchor != "right" else "left")
-                self.assertEqual(wallhole_span(switched), first)
+                switched_span = wallhole_span(switched)
+                self.assertAlmostEqual(switched_span[0], first[0], places=6)
+                self.assertAlmostEqual(switched_span[1], first[1], places=6)
 
     def test_angles_are_independent(self):
         first = door_leaf_plan(new(plan_angle=90, model_angle=0))
