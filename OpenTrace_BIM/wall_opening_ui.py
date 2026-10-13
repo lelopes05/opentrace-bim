@@ -2,9 +2,10 @@
 """Wall openings in the viewport: select with one click, edit by points and edges.
 
 The flow mirrors the slab opening editor. One click on an opening (its outline
-or the empty hole) selects it and shows its corners and edge midpoints; no wall
-has to be selected first. A click on a corner, an edge or inside the selected
-opening opens the radial with the actions that fit; the chosen tool previews
+or the empty hole) selects it and shows its corners as dots; no wall has to be
+selected first. A click on a corner, on an edge line or inside the selected
+opening opens the radial with the actions that fit (an edge action anchors at
+the middle of the edge, where nothing is drawn); the chosen tool previews
 under the mouse and one click confirms. The opening stays selected afterwards,
 so the next edit is one click away.
 """
@@ -37,7 +38,6 @@ from .wall_opening_place import DrawWallOpeningTool, PlaceWallOpeningTool
 
 KEY = "opentrace_wall_opening_"
 ORANGE = QColor("#e78b24")
-ORANGE_SOFT = QColor("#fff0d5")
 INACTIVE = QColor("#6997b0")
 
 # action -> (symbol, tooltip, tool class or None, parts it applies to, also on doors/windows)
@@ -294,10 +294,6 @@ class WallOpeningEditor(QObject):
             q = vp._world_to_pixel(p)
             if q is not None and math.hypot(px - q[0], py - q[1]) <= threshold:
                 return wall, shape, "vertex", i, p
-        for i, p in enumerate(shape["mids"]):
-            q = vp._world_to_pixel(p)
-            if q is not None and math.hypot(px - q[0], py - q[1]) <= threshold:
-                return wall, shape, "edge", i, p
         hit = self._hit_opening(vp, wall, shape, px, py, threshold)
         if hit is None:
             return None
@@ -421,12 +417,6 @@ class WallOpeningEditor(QObject):
         painter.setPen(QPen(ORANGE, 1.5))
         painter.setBrush(QColor("white"))
         for p in active["vertices"]:
-            q = visible_pixel(viewport, p)
-            if q is not None:
-                painter.drawRect(QRectF(q[0] - 4, q[1] - 4, 8, 8))
-        painter.setPen(QPen(QColor("#cf651c"), 1.5))
-        painter.setBrush(ORANGE_SOFT)
-        for p in active["mids"]:
             q = visible_pixel(viewport, p)
             if q is not None:
                 painter.drawEllipse(QRectF(q[0] - 4.5, q[1] - 4.5, 9, 9))
