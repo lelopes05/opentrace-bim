@@ -308,7 +308,7 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 **O que muda:**
 - Hoje, depois de confirmar uma edição (deslocar, mover vértice, curvar, chanfrar, arredondar, inserir vértice, esticar), a ferramenta volta para Selecionar: `edit_finished` chama `return_to_select`.
 - Passa a ser assim: a função escolhida no radial continua ativa depois de confirmar. O próximo clique em qualquer vértice ou aresta do mesmo tipo (de qualquer vão da mesma parede, ou da mesma laje) aplica a mesma função, sem reabrir o radial.
-- **Para sair:** Esc, escolher outra função no radial ou na paleta, ou escolher outra ferramenta. Clicar fora de qualquer vão também volta para Selecionar.
+- **Para sair (decisão de 13/10):** Esc ou barra de espaço (atalho do Selecionar do IngeTrazo); escolher outra função no radial ou na paleta substitui a função ativa, e escolher outra ferramenta também a encerra. Clicar fora do vão ou no vazio **não** sai da função ativa.
 - O vão editado continua selecionado depois de cada confirmação.
 - Vale para os vãos da parede e para os da laje, com o mesmo código de "função ativa" nos dois.
 
@@ -316,9 +316,13 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - `test_offset_stays_active_after_commit`:
   - Deslocar uma aresta e depois clicar em outra aresta do mesmo vão desloca a segunda sem passar pelo radial.
   - São dois comandos no histórico.
-- `test_sticky_function_ends_on_escape_and_on_empty_click`.
+- `test_sticky_function_ends_on_escape_and_space`: Esc e espaço encerram a função; espaço ativa Selecionar do host.
+- `test_empty_click_keeps_sticky_function`: clicar no vazio não cancela a função.
 - `test_choosing_another_function_replaces_the_sticky_one`.
-- O mesmo trio para a abertura da laje.
+- Os mesmos testes para a abertura da laje.
+
+### Para o IngeTrazo
+- **13/10 — solicitação ao Marco:** documentar `viewport.set_extension_pick(hit)` para extensões, ou disponibilizar `app.select_pick(item)` na `ExtensionApp`. Depois que um comando de edição altera `scene.version`, a seleção de vão da parede continua visível no plugin, mas a versão guardada no `extension_pick` do host fica antiga. Até existir API pública, foi **autorizado explicitamente por Leandro em 13/10** o uso de `viewport.set_extension_pick` no OpenTrace BIM para atualizar essa seleção; `add_pickable` não retorna a entrada registrada, de modo que o plugin precisa conservar a referência da entrada interna. O comportamento deve permitir selecionar novamente sem clique e manter `on_select(None)` quando o Selecionar é usado em área vazia. As aberturas de laje derivam sua seleção da seleção nativa da laje (`scene.selection`), sem duplicá-la como `extension_pick`.
 
 ### Fora deste bloco
 - O segundo clique de porta e janela (lado e giro) e o desenho da folha ficam no bloco seguinte, "Portas e janelas".

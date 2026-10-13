@@ -28,6 +28,7 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 13/10: cor de destaque: petróleo na ferramenta ativa, laranja na opção marcada e na seção aberta da paleta.
 
 ### Vãos
+- 13/10: sair da função ativa por Esc ou espaço, como o host; clique fora não sai.
 - 12/10: o vão é um contorno na face da parede, editado com o motor da abertura da laje, e fica preso à parede onde nasceu.
 - 12/10: pontos de controle só nos vértices, desenhados como bolas. A aresta é uma linha clicável. O radial de aresta usa o meio da aresta como âncora, sem desenhar nada ali.
 - 10/10: recuar a parede não apaga o vão. Registro, ID e GUID IFC ficam mesmo com o vão fora do trecho; só a parte que cabe corta a malha.

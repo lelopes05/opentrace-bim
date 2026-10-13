@@ -35,7 +35,7 @@ from .materials import material_names
 from .palette import RadialPalette
 from .layer_ui import LayerEditor
 from .slab_opening import SlabOpeningTool
-from .slab_opening_edit import (InsertOpeningVertexTool, StretchOpeningEdgeTool,
+from .slab_opening_edit import (StickyOpeningFunction, InsertOpeningVertexTool, StretchOpeningEdgeTool,
                                 MoveOpeningVertexTool, CurveOpeningEdgeTool,
                                 ChamferOpeningVertexTool, FilletOpeningVertexTool,
                                 OffsetOpeningTool, MoveOpeningTool)
@@ -100,6 +100,7 @@ class SlabController(QObject):
         self.opening_fillet_tool = FilletOpeningVertexTool(self)
         self.opening_offset_tool = OffsetOpeningTool(self)
         self.opening_move_tool = MoveOpeningTool(self)
+        self.sticky = StickyOpeningFunction()
         self.target = None; self._loading = False; self._queued = False
         self._ui_ready = False; self._init_error = None
         self._make_action()
@@ -367,7 +368,20 @@ class SlabController(QObject):
         self.app.scene.clear_selection();self.defaults["openings"]=[];self.tool.reset();activate_slab(self.app);self.schedule_refresh();self.message("Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão.");self.app.viewport.setFocus()
 
     def stop_drawing(self):self.hide_mode_palette();activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
-    def return_to_select(self):activate_select(self.app);self.schedule_refresh();self.app.viewport.setFocus()
+    def clear_sticky(self):
+        self.sticky.clear()
+
+    def return_to_select(self):
+        self.clear_sticky()
+        activate_select(self.app)
+        self.schedule_refresh()
+        self.app.viewport.setFocus()
+
+    def edit_finished(self, slab, opening_index):
+        """Keep the edited slab selected and wait for the next matching part."""
+        self.sticky.finished(self.app.viewport.active_tool)
+        self.schedule_refresh()
+        self.app.viewport.update()
     def message(self,text,error=False):
         shown=t(text)
         if hasattr(self,"feedback"):
@@ -488,15 +502,47 @@ class SlabController(QObject):
         return angular_snap_result(viewport,snap,px,py)
 
     def eventFilter(self,obj,event):
-        if obj is self.app.viewport and event.type()==QEvent.MouseButtonPress and event.button()==Qt.LeftButton:
+        vp = self.app.viewport
+        if obj is not vp:
+            return False
+        if (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
+                and self.sticky.tool is not None and vp.active_tool is self.sticky.tool):
+            self.return_to_select()
+            return True
+        if (event.type() == QEvent.MouseButtonPress and
+                event.button() in (Qt.LeftButton, Qt.RightButton) and
+                self.sticky.waiting and vp.active_tool is self.sticky.tool):
+            slabs = selected_slabs(self.app.scene)
+            hit = (self._reference_context(event.position().x(), event.position().y(), slabs[0])
+                   if len(slabs) == 1 else None)
+            if hit is None or hit[0] not in ("opening_edge", "opening_vertex"):
+                # Ignore clicks without a matching opening handle; the
+                # selected function remains active until Esc or another tool.
+                return True
+            kind, index, anchor = hit
+            if event.button() == Qt.RightButton or not self.sticky.ready(vp.active_tool, kind):
+                self.show_edit_palette(event.globalPosition().toPoint(), slabs[0], kind, index, anchor)
+                return True
+            try:
+                self.sticky.tool.arm(slabs[0], index, anchor)
+            except SlabError as exc:
+                self.message(str(exc), error=True)
+                return True
+            self.sticky.armed()
+            vp.update()
+            return True
+        if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
             if self.edit_palette.isVisible():
                 self.edit_palette.hide();self._edit_slab=None;self._edit_kind=None;self._edit_index=None;self._edit_anchor=None
-            if event.modifiers()==Qt.NoModifier:
-                vp=self.app.viewport;select_tool=host_tool(self.app, "select");slabs=selected_slabs(self.app.scene)
-                if vp.active_tool is select_tool and len(slabs)==1:
-                    hit=self._reference_context(event.position().x(),event.position().y(),slabs[0])
+            if event.modifiers() == Qt.NoModifier:
+                select_tool = host_tool(self.app, "select")
+                slabs = selected_slabs(self.app.scene)
+                if vp.active_tool is select_tool and len(slabs) == 1:
+                    hit = self._reference_context(event.position().x(), event.position().y(), slabs[0])
                     if hit is not None:
-                        kind,index,anchor=hit;self.show_edit_palette(event.globalPosition().toPoint(),slabs[0],kind,index,anchor);return True
+                        kind,index,anchor = hit
+                        self.show_edit_palette(event.globalPosition().toPoint(), slabs[0], kind, index, anchor)
+                        return True
         return super().eventFilter(obj,event)
 
     def show_edit_palette(self,global_pos,slab,kind,index,anchor):
@@ -540,8 +586,23 @@ class SlabController(QObject):
 
     def _arm(self,tool,activator):
         self.edit_palette.hide()
-        try:tool.arm(self._edit_slab,self._edit_index,self._edit_anchor);activator(self.app);self.app.viewport.setFocus()
-        except SlabError as exc:self.message(str(exc),error=True)
+        try:
+            tool.arm(self._edit_slab, self._edit_index, self._edit_anchor)
+            if self.app.viewport.active_tool is not tool:
+                activator(self.app)
+            opening_tools = (
+                self.opening_insert_tool, self.opening_stretch_tool,
+                self.opening_move_vertex_tool, self.opening_curve_tool,
+                self.opening_chamfer_tool, self.opening_fillet_tool,
+                self.opening_offset_tool, self.opening_move_tool,
+            )
+            if tool in opening_tools:
+                self.sticky.choose(tool, self._edit_kind)
+            else:
+                self.clear_sticky()
+            self.app.viewport.setFocus()
+        except SlabError as exc:
+            self.message(str(exc), error=True)
 
     def begin_insert_vertex(self):
         if self._edit_kind=="opening_edge": self._arm(self.opening_insert_tool,activate_slab_opening_insert_vertex)
