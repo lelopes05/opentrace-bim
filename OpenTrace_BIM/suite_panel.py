@@ -132,10 +132,9 @@ class ArchitectureSuitePanel:
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
         from .workspace_menu import install_workspace_menu
         self.workspace_menus = install_workspace_menu(self)
-        # Stage B3b: the EXISTING architecture toolbar now contains one
-        # context-sensitive Info Box instead of an always-visible tool pile.
-        from .contextual_bar import ContextualBar
-        self.context_bar = ContextualBar(self)
+        # The viewport overlay creates the contextual bar with an explicit
+        # overlay reference after the sidebar is ready.
+        self.context_bar = None
         self._auto_check_timer.start(1800)
 
     def _add_page(self,key,widget):
@@ -248,7 +247,7 @@ class ArchitectureSuitePanel:
 
     def _actions_for(self,key,ctrl):
         names={
-            "wall":("simple_wall_action","composite_wall_action","curve_action"),
+            "wall":("simple_wall_action","composite_wall_action"),
             "slab":("simple_action","composite_action"),
             "column":("action",),"beam":("action",),"profiles":("action",),
         }.get(key,("action",))
@@ -409,11 +408,8 @@ class ArchitectureSuitePanel:
             # Toolbar, menu and keyboard all invoke the SAME host actions.
             # Update the Info Box after their tool switch, without polling
             # cursor moves or creating any parallel command registration.
-            for action in (getattr(wall,"action",None),
-                           getattr(wall,"curve_action",None),
-                           *wall.openings.tool_actions):
-                if action is not None:
-                    action.triggered.connect(self.schedule_sync_context)
+            for action in (wall.action,*wall.openings.tool_actions):
+                action.triggered.connect(self.schedule_sync_context)
 
     def schedule_sync_context(self,*_):
         if self._sync_queued:return
@@ -451,14 +447,10 @@ class ArchitectureSuitePanel:
         self.sync_mode_buttons()
 
     def sync_mode_buttons(self):
-        active=getattr(self.app.viewport,"active_tool",None)
         wall=self.controllers.get("wall")
         if wall is not None and self._mode_buttons.get("wall"):
-            if active is getattr(wall,"curve_create_tool",None):idx=2
-            else:
-                kind=(getattr(getattr(wall,"structure",None),"currentData",lambda:None)() or getattr(wall,"defaults",{}).get("structure","simple"))
-                idx=1 if kind=="composite" else 0
-            self._set_mode_button("wall",idx)
+            kind=(getattr(getattr(wall,"structure",None),"currentData",lambda:None)() or getattr(wall,"defaults",{}).get("structure","simple"))
+            self._set_mode_button("wall",1 if kind=="composite" else 0)
         slab=self.controllers.get("slab")
         if slab is not None and self._mode_buttons.get("slab"):
             kind=(getattr(getattr(slab,"structure",None),"currentData",lambda:None)() or getattr(slab,"defaults",{}).get("structure","simple"))
@@ -490,8 +482,8 @@ class ArchitectureSuitePanel:
         for key in ("wall","slab","column","beam"):
             ctrl=self.controllers.get(key)
             if ctrl is None:continue
-            tool=getattr(ctrl,"tool",None);curve_tool=getattr(ctrl,"curve_create_tool",None)
-            if (tool is not None and active is tool) or (curve_tool is not None and active is curve_tool):
+            tool=getattr(ctrl,"draw_tool",None) or getattr(ctrl,"tool",None)
+            if tool is not None and active is tool:
                 self.show_page(key);return
         for key in ("beam","column","slab","wall"):
             ctrl=self.controllers.get(key)

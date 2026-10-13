@@ -80,11 +80,8 @@ class BeamController(QWidget):
         self.action=QAction(beam_icon(),t("Viga paramétrica"),self.app.window);self.action.setCheckable(True);self.action.setToolTip(t("Viga paramétrica\nComprimento, largura, altura, inclinação e curvaturas horizontal/vertical."));register_tool(self.app,self.tool,self.action,key=BEAM_TOOL_KEY);self.action.triggered.connect(self.start_drawing)
         register_tool(self.app,self.move_free_tool,key=BEAM_MOVE_FREE_TOOL_KEY);register_tool(self.app,self.move_continue_tool,key=BEAM_MOVE_CONTINUE_TOOL_KEY);register_tool(self.app,self.move_vertical_tool,key=BEAM_MOVE_VERTICAL_TOOL_KEY)
         register_tool(self.app,self.move_tool,key=BEAM_MOVE_TOOL_KEY);register_tool(self.app,self.curve_tool,key=BEAM_CURVE_TOOL_KEY);register_tool(self.app,self.vertical_curve_tool,key=BEAM_VERTICAL_CURVE_TOOL_KEY);register_tool(self.app,self.incline_tool,key=BEAM_INCLINE_TOOL_KEY)
-        if self.wall_controller is not None and hasattr(self.wall_controller,"toolbar"):
-            self.wall_controller.toolbar.addAction(self.action);self.wall_controller.fit_toolbar();m=getattr(self.wall_controller,"arch_menu",None)
-            if m is not None:m.addAction(self.action)
-        else:
-            m=self.app.add_menu(t("Ferramentas arquitetônicas"));m.addAction(self.action) if m is not None else None
+        m=self.wall_controller.arch_menu if self.wall_controller is not None else self.app.add_menu(t("Ferramentas arquitetônicas"))
+        if m is not None:m.addAction(self.action)
     def _make_endpoint_palette(self):
         self.endpoint_palette=RadialPalette(self.app.window,popup=False,role="edit");row=self.endpoint_palette.row
         def add(sym,tip,slot):

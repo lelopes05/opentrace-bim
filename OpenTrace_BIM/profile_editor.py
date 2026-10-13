@@ -251,7 +251,7 @@ class ProfileWorkspace:
 class ComplexProfileController(QObject):
     def __init__(self,app,wall_controller=None):
         super().__init__(app.window);self.app=app;self.wall_controller=wall_controller
-        self._ws=None;self.origin_tool=ProfileOriginTool(self)
+        self._ws=None;self.suite_panel=None;self.origin_tool=ProfileOriginTool(self)
         register_tool(app, self.origin_tool, key=PROFILE_ORIGIN_TOOL_KEY)
         self._make_panel();self._make_action();app.add_overlay(self.draw_origin_overlay)
         app.viewport.sceneVersionChanged.connect(lambda _v:self._workspace_scene_changed())
@@ -261,6 +261,12 @@ class ComplexProfileController(QObject):
         self.panel=QWidget();lay=QVBoxLayout(self.panel);lay.setContentsMargins(6,6,6,6)
         self.heading=QLabel(t("Perfis Complexos"));lay.addWidget(self.heading)
         self.library_widget=QWidget();lb=QVBoxLayout(self.library_widget);lb.setContentsMargins(0,0,0,0)
+        self.search=QLineEdit()
+        self.search.setObjectName("opentrace_profile_search")
+        self.search.setPlaceholderText(t("Buscar perfil por nome, pasta ou catálogo"))
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self.filter_library)
+        lb.addWidget(self.search)
         self.list=QTreeWidget();self.list.setHeaderHidden(True);self.list.setSelectionMode(QAbstractItemView.SingleSelection);self.list.itemDoubleClicked.connect(lambda _i,_c=0:self.edit_selected());lb.addWidget(self.list)
         row=QHBoxLayout();self.new_btn=QPushButton(t("Novo"));self.edit_btn=QPushButton(t("Editar"));self.dup_btn=QToolButton();self.dup_btn.setText("⧉");self.dup_btn.setToolTip(t("Duplicar perfil"));self.del_btn=QToolButton();set_symbol_icon(self.del_btn,"⌫",18);self.del_btn.setToolTip(t("Excluir perfil"))
         self.new_btn.clicked.connect(self.new_profile);self.edit_btn.clicked.connect(self.edit_selected);self.dup_btn.clicked.connect(self.duplicate_selected);self.del_btn.clicked.connect(self.delete_selected)
@@ -282,19 +288,18 @@ class ComplexProfileController(QObject):
             self.dock=self.app.add_panel(t("Perfis"),self.panel,name="profiles");self.dock.hide()
 
     def _make_action(self):
-        self.action=QAction(profile_icon(),t("Perfil Complexo"),self.app.window);self.action.setToolTip(t("Criar e editar perfis 2D reutilizáveis."));self.action.triggered.connect(self.show_library)
-        if self.wall_controller is not None and hasattr(self.wall_controller,"toolbar"):
-            self.wall_controller.toolbar.addAction(self.action);self.wall_controller.fit_toolbar()
-            menu=getattr(self.wall_controller,"arch_menu",None)
-            if menu is not None:
-                menu.addSeparator();menu.addAction(self.action)
-        else:
-            self.app.add_menu_action(t("Perfil Complexo…"),self.show_library,tip=t("Criar e editar perfis 2D reutilizáveis."))
+        self.action=QAction(profile_icon(),t("Perfil Complexo…"),self.app.window);self.action.setToolTip(t("Criar e editar perfis 2D reutilizáveis."));self.action.triggered.connect(self.show_library)
+        menu=self.wall_controller.arch_menu if self.wall_controller is not None else self.app.add_menu(t("Ferramentas arquitetônicas"))
+        if menu is not None:
+            menu.addSeparator();menu.addAction(self.action)
 
     def show_library(self,*_):
         if self.is_profile_workspace():self.sync_workspace_ui()
         else:self.refresh_library()
-        self.app.show_panel(self.dock)
+        if self.suite_panel is not None:
+            self.suite_panel.show_page("profiles")
+        else:
+            self.app.show_panel(self.dock)
 
     def refresh_library(self):
         if self.is_profile_workspace():return
@@ -319,11 +324,36 @@ class ComplexProfileController(QObject):
             else:self.list.addTopLevelItem(item)
             if p["id"]==selected:selected_item=item
         self.list.expandToDepth(1)
-        if selected_item is not None:self.list.setCurrentItem(selected_item);self.list.scrollToItem(selected_item)
+        self.filter_library()
+        if selected_item is not None and not selected_item.isHidden():
+            self.list.setCurrentItem(selected_item);self.list.scrollToItem(selected_item)
         self.library_widget.show();self.editor_widget.hide();self.heading.setText(t("Perfis Complexos"));self._selection_state()
         try:self.list.currentItemChanged.disconnect(self._selection_state)
         except Exception:pass
         self.list.currentItemChanged.connect(self._selection_state)
+    def filter_library(self, *_):
+        """Filter only the displayed catalogue; never modify stored profiles."""
+        query = self.search.text().strip().casefold()
+        def visit(item, inherited_match=False):
+            matches = query in (item.text(0) + " " + item.toolTip(0)).casefold()
+            show_children = inherited_match or matches
+            child_match = False
+            for i in range(item.childCount()):
+                child_match = visit(item.child(i), show_children) or child_match
+            visible = not query or show_children or child_match
+            item.setHidden(not visible)
+            return visible
+        for i in range(self.list.topLevelItemCount()):
+            visit(self.list.topLevelItem(i))
+        if query:
+            self.list.expandAll()
+        else:
+            self.list.collapseAll()
+            self.list.expandToDepth(1)
+        current = self.list.currentItem()
+        if current is not None and current.isHidden():
+            self.list.setCurrentItem(None)
+
     def _selection_state(self,*_):
         p=self.selected_profile();on=p is not None;self.edit_btn.setEnabled(on);self.dup_btn.setEnabled(on);self.del_btn.setEnabled(on and not p.get("readonly",False));self.edit_btn.setText(t("Personalizar") if on and p.get("readonly",False) else t("Editar"))
     def selected_id(self):

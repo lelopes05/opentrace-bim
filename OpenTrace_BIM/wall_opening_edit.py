@@ -371,6 +371,7 @@ class MoveWallOpeningTool(AxisMagnet, Tool):
 
     def on_deactivate(self, viewport):
         self.reset()
+        self.controller.clear_sticky()
         viewport.update()
 
     def _delta(self, sheet_point):

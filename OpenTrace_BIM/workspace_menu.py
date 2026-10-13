@@ -36,7 +36,7 @@ def install_workspace_menu(suite):
     create=QMenu("Criar",root)
     create.setObjectName("opentrace_workspace_create")
     wall_menu=create.addMenu("Paredes")
-    for attr in ("simple_wall_action","composite_wall_action","curve_action"):
+    for attr in ("simple_wall_action","composite_wall_action"):
         action=getattr(wall,attr,None)
         if action is not None:
             wall_menu.addAction(action)
@@ -67,14 +67,6 @@ def install_workspace_menu(suite):
         action.triggered.connect(lambda _=False,cb=callback:cb())
         organize.addAction(action)
 
-    # Keep toolbar visibility after a separator and do not change native
-    # registration, focus or selection state when constructing the menu.
-    toggle=getattr(getattr(wall,"toolbar",None),"toggleViewAction",lambda:None)()
-    marker=toggle if toggle in root.actions() else None
-    if marker is not None:
-        root.insertMenu(marker,create)
-        root.insertMenu(marker,organize)
-    else:
-        root.addMenu(create)
-        root.addMenu(organize)
+    root.addMenu(create)
+    root.addMenu(organize)
     return {"create":create,"organize":organize}

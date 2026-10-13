@@ -3,6 +3,7 @@
 Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 
 ## Feito em 13/10
+- Direção de interface atualizada: fileira e barra contextual deixam o layout de toolbars do host e passam a flutuar sobre a vista; a toolbar de layers é uma exceção expressa. A implementação segue na branch `gpt/painel-flutuante` a partir de `cc40f18` (validação por CI ainda necessária).
 - Vãos na parede (TEST-7): parede achada pelo cursor (`wall_under_cursor`), inserir vértice na aresta clicada, malha do vão curvo em parede curva (float32), vértices como pontos sem bolinha no meio, Home e Perfis da paleta voltando a abrir, teste de fumaça do 0.5.8, cadernos enxutos (`DECISIONS.md`, `ARCHITECTURE.md`).
 - Botões de criar abertura, porta, janela e vão livre saíram da paleta radial da parede. Criar vão passa a ser só pelas ferramentas do bloco abaixo.
 - Etapa 1 do bloco de interface feita (aguarda o teste do Leandro): Abertura, Porta e Janela são ferramentas do host (`WallOpeningTool`, chaves `opentrace_wall_opening_tool`, `..._door_tool`, `..._window_tool`), no menu "Ferramentas arquitetônicas ▸ Vãos" e em "Criar ▸ Vãos e esquadrias". Saíram os botões da toolbar antiga, os métodos que iniciavam vão e o bloco da Home. As páginas `opening`, `door` e `window` da barra ficam vazias até a etapa 3.
@@ -85,71 +86,28 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - Não sobrou botão de Abertura, Porta ou Janela na toolbar antiga, na Home da paleta nem na barra de opções.
 - Ainda sem como trocar a forma (quadrada, circular, livre) e a âncora pela interface: vem na etapa 3.
 
-### Etapa 2 — Fileira de ferramentas fixa no topo
-**Arquivos:** `tool_row.py` (novo), `__init__.py`, `ui.py`, `slab_ui.py`, `column_ui.py`, `beam_ui.py`, `contextual_bar.py`, `i18n.py`, `tests_host/test_tool_row_host.py` (novo).
+### Etapa 2 — Painéis flutuantes no viewport (decisão de 13/10)
+**Arquivos:** `viewport_overlay.py` (novo), `tool_row.py`, `__init__.py`, `ui.py`, `contextual_bar.py`, `layer_combinations/__init__.py`, testes do host, workflow.
 
-**O que muda:**
-
-*A fileira:*
-- `tool_row.ToolRow` cria uma `QToolBar` com `objectName "opentrace_tools_toolbar"` e título `t("OpenTrace BIM · Ferramentas")`.
-- Conteúdo, nesta ordem:
-  - Parede: o `wall_menu_button` atual, sem mudar o menu dele. É um `QToolButton` com a ação Parede e a seta (simples, composta, curva).
-  - Laje, Pilar e Viga: as `action` existentes de cada controlador.
-  - Um separador.
-  - Abertura, Porta e Janela: as ações da etapa 1.
-  - Um separador.
-  - Perfil complexo: a ação que já abre o editor de perfis (`profile_editor`, "Perfil Complexo…"). Ela passa a ser uma `QAction` guardada no controlador de perfis, usada no menu e na fileira.
-- A fileira só referencia as QActions; não cria ações novas.
-- Membrana não entra agora. Ela entra quando a ferramenta estiver pronta (resposta de 13/10).
-- Estilo do botão (resposta de 13/10): ícone com o nome ao lado (`Qt.ToolButtonTextBesideIcon`).
-
-*Posição:*
-- Linha própria, abaixo das toolbars do host e acima da barra de opções.
-- Se `window.toolBarBreak` ainda não tiver quebra, insere `insertToolBarBreak` antes da fileira e antes da toolbar da barra (`wall.toolbar`).
-- A fileira entra com `window.insertToolBar(wall.toolbar, fileira)`.
-- `setMovable(False)` e `setFloatable(False)`, como a barra.
-
-*Recolher (resposta de 13/10: não some, fica compacta):*
-- Um botão ▴/▾ no fim da fileira alterna entre normal e compacta.
-- Compacta: só ícones, a 16 px, sem texto, com o nome na dica. Normal: ícone com nome ao lado, ícones a 24 px.
-- O estado compacto fica em `QSettings`, chave `OpenTrace_BIM/tool_row_compact`, e é lido na partida.
-- A fileira nunca é escondida pelo plugin. Se o usuário fechar pelo menu Toolbars do host, o host lembra.
-
-*Layout salvo antigo (achado no print do Leandro, 13/10):*
-- No Windows, a barra aparece espremida na mesma linha das toolbars do IngeTrazo.
-- **Causa:** no 0.5.8 o host reaplica o `restoreState` salvo depois que as extensões carregam (`load_extensions` → `restoreState` → `_pack_toolbars`). O layout salvo de versões antigas tem `arquitetura_parametrica_toolbar` sem quebra de linha, e isso desfaz o `insertToolBarBreak` feito no `setup`.
-- **Correção:** a toolbar da barra ganha `objectName` novo, `opentrace_options_toolbar`, e a fileira já nasce com `opentrace_tools_toolbar`. O layout antigo não conhece esses nomes, então o host deixa as duas onde o plugin as pôs, cada uma em linha própria. O nome antigo some do código.
-- Não usar `QTimer` nem mover toolbars depois da partida.
-
-*Abas duplicadas na partida (print do Leandro, 13/10):*
-- Com a janela "Escolher Template de Layers" aberta, aparece uma segunda fileira de abas (Properties, BIM, Terrain, AI) solta no alto, logo abaixo das toolbars. Ela some depois que o diálogo fecha.
-- **Hipótese, a confirmar com um teste antes de mexer:** como o plugin cria uma toolbar, o host refaz o `restoreState` (`load_extensions`, ramo `defer_extensions`) enquanto o diálogo modal está aberto, e as barras de abas dos docks ficam presas na posição antiga até o próximo layout.
-- **Primeiro, reproduzir:** `MainWindow(defer_extensions=True)`, `show()`, um `QDialog` modal aberto (sem `exec`, com `open()`), depois `load_extensions()` e `processEvents`. Conferir que nenhum `QTabBar` filho da janela fica visível acima do `centralWidget`.
-- **Se reproduzir:**
-  - Se a causa for o plugin (por exemplo, criar ou mostrar dock ou toolbar fora do `setup`), corrigir no plugin.
-  - Se for só do host, não contornar no plugin: registrar em `docs/NEXT.md`, seção "Para o IngeTrazo", com o passo a passo, para o Leandro levar ao Marco.
-- **Se não reproduzir:** anotar isso no relatório e seguir.
-
-*Limpeza:*
-- `__init__.setup` cria a `ToolRow` depois dos controladores e antes do `ArchitectureSuitePanel`.
-- `ContextualBar` deixa de esconder ações antigas da `wall.toolbar` (`hidden_legacy_actions` sai), porque a etapa 1 já tirou o conteúdo antigo. A `wall.toolbar` passa a conter só a barra.
-- `ui.py` deixa de pôr `wall.toolbar.toggleViewAction()` no menu. O recolher da barra continua sendo o ▴ dela.
+**Composição e posição:**
+- `OverlayDock(QWidget)` é filho direto de `app.viewport`, nunca uma toolbar do `QMainWindow`. Tem `QVBoxLayout` com fileira acima e barra contextual abaixo.
+- A origem é (8, 8) em coordenadas do viewport. `eventFilter` observa `QEvent.Resize` do viewport, recalcula `adjustSize()` e move o painel, sem `QTimer` de posicionamento. Largura máxima = viewport menos 16 px.
+- `ToolRow(QFrame)` contém uma `QToolBar` **interna**, nunca entregue ao `window.addToolBar`. Conserva o » nativo de overflow. `ContextualBar` fica dentro de outro `QFrame`. Ambos usam `Qt.WA_StyledBackground`, bordas arredondadas de 8 px e `palette(window)` / `palette(window-text)`, sem novos hexadecimais. Roda, clique e arrasto não alcançam a ferramenta da vista.
+- Fileira reaproveita **as ações existentes**, nesta ordem: Parede (com menu simples/composta), Laje, Pilar, Viga, separador, Abertura, Porta, Janela, separador, Perfil Complexo. Normal: texto ao lado de ícone 24 px; compacta: só ícone 16 px. O botão ▴/▾ grava em `QSettings` a chave `OpenTrace_BIM/tool_row_compact`. Membrana fica de fora.
+- Barra mantém **todo o conteúdo da etapa 3**, inclusive as geometrias de `WallDrawTool`, campos das ferramentas de vão e âncoras; o botão ▴ continua recolhendo a barra.
+- As toolbars `opentrace_tools_toolbar` e `opentrace_options_toolbar` deixam de existir na janela, bem como `insertToolBarBreak`, `insertToolBar` e ações de alternância das barras. F3 e menu "Ferramentas arquitetônicas" continuam com as QActions de ferramentas.
+- **Exceção expressa (Leandro, 13/10):** preservar sem modificações a toolbar inferior de combinações de layers (`layerCombinationsBottomBar`), inclusive seu `addToolBar`. A proibição de `addToolBar` aplica-se à fileira e à barra contextual.
+- O seletor inicial de template de layers usa um evento real do viewport já pronto, `QDialog.open()` não bloqueante e modalidade de janela (não modalidade global). Não usa `QTimer.singleShot` de inicialização nem `dlg.exec()`.
+- Workflow de teste com `timeout-minutes: 25`.
 
 **Testes que provam:**
-- `test_tool_row_order`: os textos das ações da fileira, na ordem, são Parede, Laje, Pilar, Viga, separador, Abertura, Porta, Janela, separador, Perfil complexo.
-- `test_tool_row_is_its_own_line_above_the_bar`:
-  - `window.toolBarBreak(fileira)` e `window.toolBarBreak(wall.toolbar)` são verdadeiros.
-  - O `y` da fileira é menor que o da barra, e o de qualquer toolbar do host é menor que o da fileira (offscreen, depois de `show` e `processEvents`).
-- `test_tool_row_actions_activate_tools`: `trigger()` em cada ação deixa ativa a ferramenta da chave dela.
-- `test_tool_row_compact`:
-  - O botão ▴ deixa a fileira compacta: os botões ficam com `Qt.ToolButtonIconOnly` e ícone de 16 px, e a altura da fileira diminui.
-  - Um novo clique volta ao normal.
-  - Uma nova `ToolRow` lê o estado salvo.
-- `test_old_saved_layout_does_not_squeeze_the_bars`:
-  - Grava um `ui/window_state` em que uma toolbar `arquitetura_parametrica_toolbar` está na mesma linha das do host.
-  - Abre `MainWindow(defer_extensions=True)`, `show()` e `load_extensions()`.
-  - A fileira e a barra ficam em linhas próprias, abaixo das do host.
-- `test_tool_row_survives_restore_state`: `saveState`, depois `restoreState`, mantém a fileira na mesma linha e na mesma ordem.
+- `test_panels_are_not_host_toolbars`: strip não tem `toolBarArea` e `saveState()` não registra `opentrace_`; exceção de layers continua no rodapé.
+- `test_panels_stacked_top_left_inside_viewport`: `show()` + `processEvents()`, ambas as caixas dentro da vista, x=8, fileira acima.
+- `test_panels_follow_viewport_resize`: janela estreita mantém os painéis contidos e exibe » do Qt.
+- `test_old_saved_layout_does_not_move_panels`: layout salvo com `arquitetura_parametrica_toolbar`, `MainWindow(defer_extensions=True)`, `show()`, `load_extensions()` com plugin real; barras do host ficam na mesma área.
+- `test_click_on_panel_does_not_reach_tool`: eventos no painel não chegam a `on_mouse_press`.
+- `test_no_stray_tab_bar_at_startup_with_real_plugin`: sem patch do plugin nem execução bloqueante.
+- Mantêm-se `test_tool_row_order`, `test_tool_row_actions_activate_tools`, `test_tool_row_compact`, `test_opening_tools_are_in_menu_and_f3` e os testes da etapa 3. Testes antigos de `toolBarBreak` são substituídos.
 
 ### Etapa 3 — Barra de opções da ferramenta ativa
 **Arquivos:** `contextual_bar.py`, `wall_opening_place.py`, `wall_tool.py`, `ui.py`, `host.py` (sai `activate_curved_wall` e a chave `CURVED_WALL_TOOL_KEY`), `workspace_menu.py`, `suite_panel.py`, `i18n.py`, `tests_host/test_contextual_bar_host.py` (novo).
@@ -234,16 +192,16 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 **O que muda:**
 - `setup` funciona com a janela já na tela (`MainWindow(defer_extensions=True)` e depois `load_extensions()`).
 - Sem `QTimer` de partida e sem `addDockWidget` próprio. A posição do dock é do host (`add_panel`), que lembra o lado e a aba escolhidos.
-- As toolbars novas (fileira e barra) são postas pelo `restoreState` que o host reaplica quando aparecem toolbars de extensão. Nada no plugin move toolbars depois da partida.
+- A fileira e a barra contextual são filhos do viewport, não entram em `restoreState` e não são reposicionadas pelo host. O dock lateral continua sendo responsabilidade do `add_panel` do host.
 - A paleta funciona igual no tray esquerdo e no direito: sem largura, lado ou área fixos no código. Hoje o `__init__.py` cria o dock mestre; confira que nenhum controlador chama `setAllowedAreas` ou `addDockWidget`.
 
 **Testes que provam:**
-- `test_deferred_setup_builds_tool_row_and_bar`: com `defer_extensions=True` e `show()` antes de `load_extensions()`, a fileira e a barra existem, em linhas próprias e na ordem da etapa 2.
+- `test_deferred_setup_builds_tool_row_and_bar`: com `defer_extensions=True` e `show()` antes de `load_extensions()`, a fileira e a barra existem no overlay da vista, na ordem da etapa 2.
 - `test_sidebar_works_in_left_tray`:
   - Mover o dock mestre para `LeftDockWidgetArea` (como o usuário faria) e ativar a Abertura abre a seção "Vão".
   - `sync_context` continua funcionando.
 - `test_sidebar_is_a_tab_next_to_host_panels`: `window.tabifiedDockWidgets(dock)` não é vazio, como no teste atual de 0.5.8.
-- `test_restart_keeps_layout`: `saveState` numa janela e `restoreState` em outra (processos separados, se necessário) mantêm o lado do dock e a ordem das toolbars.
+- `test_restart_keeps_layout`: `saveState` e `restoreState` mantêm o lado do dock; a fileira e a barra não pertencem ao estado salvo e ficam ancoradas ao viewport.
 
 ### Etapa 6 — Tema legível no escuro e no claro
 **Arquivos:** `style.py` (novo), `suite_panel.py`, `contextual_bar.py`, `palette.py`, `ui.py` e os outros `*_ui.py` que tenham `setStyleSheet` com cor fixa, `tests/test_style_contrast.py` (novo, puro), `tests_host/test_theme_host.py` (novo).
@@ -308,7 +266,7 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 **O que muda:**
 - Hoje, depois de confirmar uma edição (deslocar, mover vértice, curvar, chanfrar, arredondar, inserir vértice, esticar), a ferramenta volta para Selecionar: `edit_finished` chama `return_to_select`.
 - Passa a ser assim: a função escolhida no radial continua ativa depois de confirmar. O próximo clique em qualquer vértice ou aresta do mesmo tipo (de qualquer vão da mesma parede, ou da mesma laje) aplica a mesma função, sem reabrir o radial.
-- **Para sair:** Esc, escolher outra função no radial ou na paleta, ou escolher outra ferramenta. Clicar fora de qualquer vão também volta para Selecionar.
+- **Para sair (decisão de 13/10):** Esc ou barra de espaço (atalho do Selecionar do IngeTrazo); escolher outra função no radial ou na paleta substitui a função ativa, e escolher outra ferramenta também a encerra. Clicar fora do vão ou no vazio **não** sai da função ativa.
 - O vão editado continua selecionado depois de cada confirmação.
 - Vale para os vãos da parede e para os da laje, com o mesmo código de "função ativa" nos dois.
 
@@ -316,9 +274,13 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - `test_offset_stays_active_after_commit`:
   - Deslocar uma aresta e depois clicar em outra aresta do mesmo vão desloca a segunda sem passar pelo radial.
   - São dois comandos no histórico.
-- `test_sticky_function_ends_on_escape_and_on_empty_click`.
+- `test_sticky_function_ends_on_escape_and_space`: Esc e espaço encerram a função; espaço ativa Selecionar do host.
+- `test_empty_click_keeps_sticky_function`: clicar no vazio não cancela a função.
 - `test_choosing_another_function_replaces_the_sticky_one`.
-- O mesmo trio para a abertura da laje.
+- Os mesmos testes para a abertura da laje.
+
+### Para o IngeTrazo
+- **13/10 — solicitação ao Marco:** documentar `viewport.set_extension_pick(hit)` para extensões, ou disponibilizar `app.select_pick(item)` na `ExtensionApp`. Depois que um comando de edição altera `scene.version`, a seleção de vão da parede continua visível no plugin, mas a versão guardada no `extension_pick` do host fica antiga. Até existir API pública, foi **autorizado explicitamente por Leandro em 13/10** o uso de `viewport.set_extension_pick` no OpenTrace BIM para atualizar essa seleção; `add_pickable` não retorna a entrada registrada, de modo que o plugin precisa conservar a referência da entrada interna. O comportamento deve permitir selecionar novamente sem clique e manter `on_select(None)` quando o Selecionar é usado em área vazia. As aberturas de laje derivam sua seleção da seleção nativa da laje (`scene.selection`), sem duplicá-la como `extension_pick`.
 
 ### Fora deste bloco
 - O segundo clique de porta e janela (lado e giro) e o desenho da folha ficam no bloco seguinte, "Portas e janelas".
@@ -350,3 +312,32 @@ Nenhuma.
 
 ## Depois
 - Portas e janelas: segundo clique para lado e giro, folha e marco, tamanhos editáveis na barra (já preparados na etapa 3).
+
+
+## Portas — P0 (13/10/2026; branch `gpt/portas-p0`)
+
+- Contrato de dados de porta schema 2, com migração explícita e não destrutiva de schema 1; janelas permanecem no schema 1.
+- Oito famílias declaradas; apenas F01 (`swing_single`) está habilitada. Sem interface nova.
+- Identidade e GUID preservados; porta hospedada com IDs de parede/vão e porta livre validável sem ambos.
+- `width` e `height` permanecem chaves existentes e representam dimensões nominais da folha; conjunto e folgas calculam separadamente o vão de corte. F01 inicia com 4 cm nos lados e em cima, zero embaixo. Porta migrada mantém folgas zero.
+- `plan_angle` (padrão 90°) e `model_angle` (padrão 0°) independentes. Porta legada preserva seu `open_angle` em ambos, sem salto visual.
+- Testes puros em `tests/test_door_schema2.py`; teste real de persistência e histórico em `tests_host/test_door_schema2_igz_host.py`.
+- Especificação integral com erratas de 13/10 em `docs/PORTAS.md`.
+- **Limite do P0:** a ferramenta do host ainda cria registros sem `schema`, que são corretamente tratados como legados; emitir schema 2 na criação e reconciliar encaixe da geometria com o vão bruto pertencem ao bloco P1 e exigem avaliação específica das restrições dos arquivos compartilhados. Não anunciar o comportamento visual novo da ferramenta antes desse ajuste.
+
+## Tradução — T1 e T2 (13/10/2026)
+
+**T1 — infraestrutura e auditoria, branch `gpt/traducao`:**
+- O idioma do OpenTrace BIM acompanha `core.i18n.current_language()`: `pt-BR` → português de origem, `es` → espanhol, demais → inglês.
+- Catálogos exatos `OpenTrace_BIM/i18n/en.json` e `es.json`; chaves continuam sendo as frases portuguesas usadas por `t()`. Os dicionários Python e a tradução posterior permanecem SOMENTE como compatibilidade temporária do inglês.
+- Gerador auditável `scripts/build_i18n_catalogs.py` (fora do pacote); exclui fragmentos dependentes de contexto e todas as substituições de `_PHRASE_EN`.
+- `ui_locale()` prepara as três localidades, mas entradas numéricas e campos da interface só serão migrados na T2.
+- Testes `tests/test_i18n_catalogs.py` (catálogos + cobertura literal) e `tests_host/test_i18n_coverage_host.py` (janelas reais, três idiomas, sem `translate_widget`), com contagem de faltas e relatório `i18n_report.md` como artefato separado do CI. Falhas de cobertura são `expectedFailure` apenas nesta etapa.
+
+**T2 — não implementar antes da junção:**
+1. Aguardar entrada das branches `gpt/painel-flutuante` e etapa 8 na oficial. Conciliar as ~34 entradas extras do painel flutuante nos JSONs sem copiar sua implementação para esta branch.
+2. Passar todo texto visível por `i18n.t()` na criação, arquivo por arquivo, eliminando textos diretos e zerando a auditoria de cobertura.
+3. Completar `en.json` e `es.json`, conferindo semântica e parâmetros formatados.
+4. Remover integralmente `english()`, `englishize_widget()`, `translate_widget()`, `_PHRASE_EN` e dicionários Python legados, além dos chamadores.
+5. Tornar os testes de cobertura estritos (sem `expectedFailure`) e manter relatório com zero faltas.
+6. Aplicar `ui_locale()` nos campos numéricos para vírgula decimal em português/espanhol.

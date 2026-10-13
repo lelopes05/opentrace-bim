@@ -34,7 +34,6 @@ def _host_version_tuple(raw):
 
 
 WALL_TOOL_KEY = "arquitetura_parametrica_wall"
-CURVED_WALL_TOOL_KEY = "arquitetura_parametrica_curved_wall"
 VERTEX_TOOL_KEY = "arquitetura_parametrica_insert_vertex"
 MOVE_XY_TOOL_KEY = "arquitetura_parametrica_move_xy"
 MOVE_Z_TOOL_KEY = "arquitetura_parametrica_move_z"
@@ -95,10 +94,6 @@ def host_tool(app, key):
 
 def activate_wall(app):
     activate_tool(app, WALL_TOOL_KEY)
-
-
-def activate_curved_wall(app):
-    activate_tool(app, CURVED_WALL_TOOL_KEY)
 
 
 def activate_vertex_insert(app):

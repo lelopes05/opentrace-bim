@@ -14,7 +14,21 @@ from __future__ import annotations
 import math
 import copy
 
-SCHEMA = 1
+SCHEMA = 1  # Window schema; window records remain unchanged.
+SCHEMA_DOOR = 2
+DOOR_FAMILIES = {
+    "swing_single": {
+        "code": "F01", "name": "Abrir · 1 folha", "enabled": True,
+        "clearances": {"left": 0.04, "right": 0.04, "top": 0.04, "bottom": 0.0},
+    },
+    "swing_double": {"code": "F02", "name": "Abrir · 2 folhas", "enabled": False},
+    "sliding_surface": {"code": "F03", "name": "Correr aparente", "enabled": False},
+    "sliding_pocket": {"code": "F04", "name": "Correr embutida", "enabled": False},
+    "composite": {"code": "F05", "name": "Composta", "enabled": False},
+    "pivot": {"code": "F06", "name": "Pivotante", "enabled": False},
+    "folding": {"code": "F07", "name": "Articulada/camarão/sanfonada", "enabled": False},
+    "revolving_special": {"code": "F08", "name": "Vaivém/giratória/especial", "enabled": False},
+}
 ANCHORS = ("left", "center", "right")
 KINDS = ("door", "window")
 HINGES = ("left", "right")
@@ -40,6 +54,50 @@ def _number(value, label, *, positive=False, minimum=None):
     return result
 
 
+def migrate_door(raw):
+    """Migrate a legacy hosted door without changing its cut or appearance.
+
+    Migration is non-destructive for unknown extension metadata. The schema-1
+    open_angle is replaced by independent plan/model angles.
+    """
+    if not isinstance(raw, dict) or str(raw.get("kind", "")).lower() != "door":
+        raise FillError("Migração exige registro de porta.")
+    schema = raw.get("schema", 1)
+    if schema in (2, "2"):
+        return copy.deepcopy(raw)
+    if schema not in (1, "1", None):
+        raise FillError(f"Versão de porta não suportada (schema {schema}).")
+    result = copy.deepcopy(raw)
+    angle = result.pop("open_angle", 90)
+    result.update({
+        "schema": SCHEMA_DOOR,
+        "family_key": "swing_single",
+        "host_mode": "hosted",
+        "clearance_left": 0.0, "clearance_right": 0.0,
+        "clearance_top": 0.0, "clearance_bottom": 0.0,
+        "plan_angle": angle, "model_angle": angle,
+    })
+    # The legacy default anchor was left, unlike a new schema-2 door.
+    result.setdefault("anchor", "left")
+    return result
+
+
+def _door_schema(raw):
+    schema = raw.get("schema", 1)
+    if schema in (1, "1", None):
+        return migrate_door(raw)
+    if schema in (2, "2"):
+        return copy.deepcopy(raw)
+    try:
+        newer = int(schema)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise FillError(f"Schema de porta inválido: {schema}.") from exc
+    if newer > SCHEMA_DOOR:
+        raise FillError(
+            f"Porta salva por versão mais nova do OpenTrace BIM (schema {newer}).")
+    raise FillError(f"Versão de porta não suportada (schema {schema}).")
+
+
 def normalize_fill(raw):
     """Validate a door/window object while preserving stable references."""
     if not isinstance(raw, dict):
@@ -47,12 +105,26 @@ def normalize_fill(raw):
     kind = str(raw.get("kind", "")).lower()
     if kind not in KINDS:
         raise FillError("Tipo de esquadria inválido.")
+    if kind == "door":
+        raw = _door_schema(raw)
+        family_key = str(raw.get("family_key", "swing_single"))
+        family = DOOR_FAMILIES.get(family_key)
+        if family is None:
+            raise FillError("Família de porta desconhecida.")
+        if not family["enabled"]:
+            raise FillError("Família em desenvolvimento.")
+        host_mode = str(raw.get("host_mode", "hosted"))
+        if host_mode not in ("hosted", "free"):
+            raise FillError("Modo de hospedagem inválido.")
     uid = str(raw.get("id") or "").strip()
     host_id = str(raw.get("host_id") or "").strip()
     opening_id = str(raw.get("opening_id") or "").strip()
-    if not uid or not host_id or not opening_id:
-        raise FillError("Objeto, parede e abertura precisam de IDs persistentes.")
-    anchor = str(raw.get("anchor", "left")).lower()
+    if kind == "window" or (kind == "door" and host_mode == "hosted"):
+        if not uid or not host_id or not opening_id:
+            raise FillError("Objeto, parede e abertura precisam de IDs persistentes.")
+    elif not uid or host_id or opening_id:
+        raise FillError("Porta livre exige ID próprio, sem parede ou abertura.")
+    anchor = str(raw.get("anchor", "center" if kind == "door" else "left")).lower()
     if anchor not in ANCHORS:
         raise FillError("Âncora inválida.")
     defaults = {"door": (0.90, 2.10, 0.0), "window": (1.20, 1.20, 0.90)}
@@ -67,7 +139,7 @@ def normalize_fill(raw):
     if frame >= min(width, height)/2:
         raise FillError("Marco muito grande para o vão.")
     out = {
-        "schema": SCHEMA,
+        "schema": SCHEMA_DOOR if kind == "door" else SCHEMA,
         "id": uid, "kind": kind,
         "host_id": host_id, "opening_id": opening_id,
         "anchor": anchor, "position": position,
@@ -86,10 +158,24 @@ def normalize_fill(raw):
             "hinge": hinge, "swing": swing,
             "leaf_thickness": _number(raw.get("leaf_thickness", 0.035),
                                       "Espessura da folha", positive=True),
-            "open_angle": _number(raw.get("open_angle", 90), "Ângulo de abertura"),
+            "family_key": family_key, "host_mode": host_mode,
+            "plan_angle": _number(raw.get("plan_angle", 90), "Ângulo da planta"),
+            "model_angle": _number(raw.get("model_angle", 0), "Ângulo do modelo"),
         })
-        if not 0 <= out["open_angle"] <= 180:
-            raise FillError("Ângulo de abertura fora do intervalo de 0 a 180°.")
+        # Unit sizes are explicit instance overrides only. Without a key,
+        # the unit follows the nominal width/height at evaluation time.
+        for axis, label in (("width", "Largura do conjunto"),
+                            ("height", "Altura do conjunto")):
+            key = "unit_" + axis
+            if key in raw:
+                out[key] = _number(raw[key], label, positive=True)
+        for side in ("left", "right", "top", "bottom"):
+            out["clearance_" + side] = _number(
+                raw.get("clearance_" + side, family["clearances"][side]),
+                "Folga " + side, minimum=0.0)
+        for angle in ("plan_angle", "model_angle"):
+            if not 0 <= out[angle] <= 180:
+                raise FillError(f"{angle}: ângulo fora do intervalo de 0 a 180°.")
     else:
         out["panes"] = int(raw.get("panes", 1))
         if not 1 <= out["panes"] <= 16:
@@ -97,6 +183,12 @@ def normalize_fill(raw):
     for key in ("ifc_global_id", "type_name", "material_name"):
         if raw.get(key):
             out[key] = str(raw[key])
+    if kind == "door":
+        # Retain extension/vendor fields without altering their values.
+        preserved = copy.deepcopy(raw)
+        preserved.pop("open_angle", None)
+        preserved.update(out)
+        return preserved
     return out
 
 
@@ -111,6 +203,28 @@ def station_span(raw):
 def center_station(raw):
     a, b = station_span(raw)
     return (a+b)/2
+
+
+def wallhole_size(raw):
+    """Physical rough opening for a door; nominal dimensions stay unchanged."""
+    spec = normalize_fill(raw)
+    if spec["kind"] != "door":
+        raise FillError("Vão de obra calculado apenas para portas.")
+    return (
+        spec.get("unit_width", spec["width"]) + spec["clearance_left"] + spec["clearance_right"],
+        spec.get("unit_height", spec["height"]) + spec["clearance_top"] + spec["clearance_bottom"],
+    )
+
+
+def wallhole_span(raw):
+    """Left/right rough-cut stations, keeping the chosen unit anchor fixed."""
+    spec = normalize_fill(raw)
+    if spec["kind"] != "door":
+        raise FillError("Vão de obra calculado apenas para portas.")
+    shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
+    unit_width = spec.get("unit_width", spec["width"])
+    left = spec["position"] - shift * unit_width
+    return left - spec["clearance_left"], left + unit_width + spec["clearance_right"]
 
 
 def reverse_swing(raw):
@@ -130,11 +244,20 @@ def opening_request(raw, *, opening_guid=None):
     corresponds to the parametric fill.
     """
     spec = normalize_fill(raw)
+    if spec["kind"] == "door" and spec["host_mode"] == "free":
+        raise FillError("Porta livre não solicita abertura na parede.")
+    if spec["kind"] == "door":
+        left, right = wallhole_span(spec)
+        cut_width, cut_height = wallhole_size(spec)
+        cut_center = (left + right) / 2
+    else:
+        cut_width, cut_height = spec["width"], spec["height"]
+        cut_center = center_station(spec)
     return {
         "id": spec["opening_id"], "kind": "rect",
-        "position": center_station(spec),
-        "width": spec["width"], "sill": spec["sill"],
-        "height": spec["height"], "source_id": spec["id"],
+        "position": cut_center,
+        "width": cut_width, "sill": spec["sill"],
+        "height": cut_height, "source_id": spec["id"],
         "ifc_global_id": opening_guid,
         "fill": {
             "class": "IfcDoor" if spec["kind"] == "door" else "IfcWindow",
@@ -181,7 +304,7 @@ def door_leaf_plan(raw):
     left, right = station_span(spec)
     hinge = left if spec["hinge"] == "left" else right
     direction = 1 if spec["hinge"] == "left" else -1
-    angle = math.radians(spec["open_angle"])*spec["swing"]
+    angle = math.radians(spec["plan_angle"])*spec["swing"]
     def at(radians):
         return [hinge + direction*spec["width"]*math.cos(radians),
                 direction*spec["width"]*math.sin(radians)]

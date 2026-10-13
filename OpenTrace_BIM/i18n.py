@@ -7,6 +7,25 @@ coherent English UI, applied explicitly to OpenTrace-owned widgets only.
 from __future__ import annotations
 
 from PySide6.QtCore import QLocale
+from functools import lru_cache
+import json
+from pathlib import Path
+
+# Missing translations are recorded only in memory for the T1 audit.
+MISSING: set[tuple[str, str]] = set()
+_CATALOG_DIR = Path(__file__).resolve().parent / "i18n"
+
+
+@lru_cache(maxsize=2)
+def _catalog(lang: str) -> dict[str, str]:
+    data = json.loads((_CATALOG_DIR / f"{lang}.json").read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in data.items()
+    ):
+        raise ValueError(f"Invalid OpenTrace translation catalog: {lang}")
+    return data
+
 
 # Portuguese is the author's working/source language.  English and Spanish are
 # explicit so the plugin can be published independently on GitHub without
@@ -14,6 +33,23 @@ from PySide6.QtCore import QLocale
 _EN = {
     "Arquitetura": "Architecture",
     "Ferramentas arquitetônicas": "Architecture tools",
+    "Geometria": "Geometry",
+    "Quadrada": "Square",
+    "Livre": "Free",
+    "Âncora": "Anchor",
+    "Âncora esquerda": "Left anchor",
+    "Âncora central": "Center anchor",
+    "Âncora direita": "Right anchor",
+    "Reta: início e fim": "Straight: start and end",
+    "Retângulo por diagonal": "Rectangle by diagonal",
+    "Retângulo por base e largura": "Rectangle by base and width",
+    "Arco normal": "Normal arc",
+    "Arco pelo centro": "Arc by center",
+    "Arco por 3 pontos": "Arc by 3 points",
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Tools",
+    "Expandir a fileira de ferramentas": "Expand the tool row",
+    "Recolher a fileira de ferramentas": "Collapse the tool row",
+    "Perfil Complexo…": "Complex Profile…",
     "Abertura": "Opening",
     "Porta": "Door",
     "Janela": "Window",
@@ -183,6 +219,23 @@ _EN = {
 _ES = {
     "Arquitetura": "Arquitectura",
     "Ferramentas arquitetônicas": "Herramientas de arquitectura",
+    "Geometria": "Geometría",
+    "Quadrada": "Cuadrada",
+    "Livre": "Libre",
+    "Âncora": "Ancla",
+    "Âncora esquerda": "Ancla izquierda",
+    "Âncora central": "Ancla central",
+    "Âncora direita": "Ancla derecha",
+    "Reta: início e fim": "Recta: inicio y fin",
+    "Retângulo por diagonal": "Rectángulo por diagonal",
+    "Retângulo por base e largura": "Rectángulo por base y ancho",
+    "Arco normal": "Arco normal",
+    "Arco pelo centro": "Arco por el centro",
+    "Arco por 3 pontos": "Arco por 3 puntos",
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Herramientas",
+    "Expandir a fileira de ferramentas": "Expandir la fila de herramientas",
+    "Recolher a fileira de ferramentas": "Contraer la fila de herramientas",
+    "Perfil Complexo…": "Perfil complejo…",
     "Abertura": "Abertura",
     "Porta": "Puerta",
     "Janela": "Ventana",
@@ -1388,26 +1441,46 @@ def englishize_widget(root) -> None:
 
 
 def translate_widget(root) -> None:
-    """Translate one OpenTrace-owned widget tree in place.
+    """Legacy T1-only fallback for English OpenTrace widget chrome.
 
-    This is deliberately an explicit, one-shot operation.  Do not install a
-    QApplication event filter here: translating on Show/Polish/LayoutRequest
-    can recursively trigger Qt layout events and made 0.12.8 unstable on
-    Windows.  Call this only after an OpenTrace panel/dialog has been built.
+    Do not translate completed widgets in Portuguese or Spanish. T2 removes
+    this function once all visible strings use t() at creation time.
     """
-    englishize_widget(root)
+    if language() == "en":
+        englishize_widget(root)
 
 
 def language() -> str:
-    # Public builds use one coherent language. Host locale is intentionally
-    # ignored until the extension owns a complete translation catalogue.
+    """Follow the host locale; unsupported languages use English."""
+    from core.i18n import current_language
+    host_lang = current_language()
+    if host_lang == "pt-BR":
+        return "pt-BR"
+    if host_lang == "es":
+        return "es"
     return "en"
 
 
-def t(text: str, **kw) -> str:
-    out = english(text)
+def t(text: str, *, _locale: str | None = None, **kw) -> str:
+    """Translate Portuguese source text; accept an explicit locale for pure audits."""
+    if not isinstance(text, str) or not text:
+        return text
+    lang = language() if _locale is None else _locale
+    if lang not in ("en", "es", "pt-BR"):
+        raise ValueError(f"Unsupported OpenTrace locale: {lang}")
+    if lang == "pt-BR":
+        out = text
+    else:
+        catalog = _catalog(lang)
+        if text in catalog:
+            out = catalog[text]
+        else:
+            MISSING.add((lang, text))
+            # English's legacy fallback is removed in T2.
+            out = english(text) if lang == "en" else text
     return out.format(**kw) if kw else out
 
 
 def ui_locale() -> QLocale:
-    return QLocale("en_US")
+    """Locale to use for numeric input in T2 (not applied to fields in T1)."""
+    return QLocale({"pt-BR": "pt_BR", "es": "es_ES", "en": "en_US"}[language()])

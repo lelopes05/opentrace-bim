@@ -27,6 +27,7 @@ from .model import WallError, read_wall, wall_record
 from .overlay_safety import visible_pixel
 from .palette import RadialPalette
 from .slab_model import SlabError, edge_point, sample_boundary
+from .slab_opening_edit import StickyOpeningFunction
 from .wall_face import WallFace
 from .wall_opening_edit import (
     ChamferWallOpeningVertexTool, CurveWallOpeningEdgeTool, FilletWallOpeningVertexTool,
@@ -125,6 +126,7 @@ class WallOpeningEditor(QObject):
         self.walls = wall_controller
         self.active = None            # (wall, opening_id)
         self._radial_target = None    # (wall, opening_id, part, index, world_anchor)
+        self.sticky = StickyOpeningFunction()
         self.opening_tool = WallOpeningTool(self)
         self.door_tool = PlaceWallOpeningTool(self, "door")
         self.window_tool = PlaceWallOpeningTool(self, "window")
@@ -144,6 +146,9 @@ class WallOpeningEditor(QObject):
                 register_tool(app, self.tools[action], key=KEY + action)
         self._make_radial()
         app.add_pickable(self._pick, self._on_pick, self._delete_pick)
+        # The registered entry is required by the host's set_extension_pick.
+        # ExtensionApp.add_pickable does not return it.
+        self._pick_entry = app.viewport._ext_pickables[-1]
         app.add_overlay(self._draw)
         app.viewport.installEventFilter(self)
 
@@ -174,24 +179,39 @@ class WallOpeningEditor(QObject):
     def message(self, text, error=False):
         self.walls.message(text, error=error)
 
+    def clear_sticky(self):
+        self.sticky.clear()
+
     def return_to_select(self):
+        self.clear_sticky()
         activate_select(self.app)
         self.app.viewport.setFocus()
         self.app.viewport.update()
 
     def select_opening(self, wall, opening_id):
-        self.active = (wall, str(opening_id))
+        identity = (str(wall.uid), str(opening_id))
+        viewport = self.app.viewport
+        pick = viewport.extension_pick
+        if (pick is None or pick[0] is not self._pick_entry
+                or pick[1] != identity or pick[2] != self.app.scene.version):
+            # A geometry command increments the scene version and invalidates
+            # the old pick even though the opening remains selected visually.
+            # set_extension_pick notifies on_select, keeping both in sync.
+            self.app.scene.clear_selection()
+            viewport.set_extension_pick((self._pick_entry, identity))
+        self.active = (wall, identity[1])
         self.walls._active_opening_wall = wall
-        self.walls._active_opening_id = str(opening_id)
+        self.walls._active_opening_id = identity[1]
         self.walls._state_key = None
         self.walls.schedule_refresh()
-        self.app.viewport.update()
+        viewport.update()
 
     def edit_finished(self, wall, opening_id):
         """After an edit (or its cancel): stay on the same opening, ready again."""
         if wall is not None and wall in self.app.scene.groups:
             self.select_opening(wall, opening_id)
-        self.return_to_select()
+        self.sticky.finished(self.app.viewport.active_tool)
+        self.app.viewport.update()
 
     def delete_opening(self, wall, opening_id):
         try:
@@ -206,6 +226,8 @@ class WallOpeningEditor(QObject):
         except (WallError, SlabError, ValueError) as exc:
             self.message(str(exc), error=True)
             return
+        self.clear_sticky()
+        self.app.release_pick()
         self.active = None
         self.walls._active_opening_id = None
         self.walls._state_key = None
@@ -267,8 +289,7 @@ class WallOpeningEditor(QObject):
 
     def _on_pick(self, identity):
         if identity is None:
-            # Esc or a click elsewhere. A pick dropped because the document
-            # changed never reaches here, so edits keep the opening selected.
+            # A selection release must not cancel the chosen editing function.
             QTimer.singleShot(0, self._release_if_unpicked)
             return
         wall = self._wall_by_uid(identity[0])
@@ -279,7 +300,8 @@ class WallOpeningEditor(QObject):
         self.select_opening(wall, identity[1])
 
     def _release_if_unpicked(self):
-        if getattr(self.app.viewport, "extension_pick", None) is None:
+        pick = self.app.viewport.extension_pick
+        if pick is None or pick[0] is not self._pick_entry:
             self.active = None
             self.walls._active_opening_id = None
             self.walls._state_key = None
@@ -324,9 +346,70 @@ class WallOpeningEditor(QObject):
         sheet_centre = sum((p for p in shape["pts"][1:]), shape["pts"][0]) / len(shape["pts"])
         return wall, shape, "body", None, WallFace(wall).world(sheet_centre)
 
+    def _hit_sticky_wall(self, px, py):
+        """Find any compatible opening part on the previously edited wall."""
+        if self.active is None:
+            return None
+        wall, _oid = self.active
+        if wall not in self.app.scene.groups:
+            return None
+        vp = self.app.viewport
+        threshold = max(8.0, float(getattr(vp, "snap_threshold_px", 10.0)))
+        try:
+            shapes = _shapes(self.app.scene, wall)
+        except WallError:
+            return None
+        hits = []
+        for shape in shapes:
+            for i, point in enumerate(shape["vertices"]):
+                pixel = vp._world_to_pixel(point)
+                if pixel is not None:
+                    distance = math.hypot(px - pixel[0], py - pixel[1])
+                    if distance <= threshold:
+                        hits.append((distance, wall, shape, "vertex", i, point))
+            hit = self._hit_opening(vp, wall, shape, px, py, threshold)
+            if hit is not None:
+                part, index, distance = hit
+                if part == "edge":
+                    anchor = shape["mids"][index]
+                else:
+                    centre = sum(shape["pts"][1:], shape["pts"][0]) / len(shape["pts"])
+                    anchor = WallFace(wall).world(centre)
+                hits.append((distance + (threshold if part == "body" else 0),
+                             wall, shape, part, index, anchor))
+        return None if not hits else min(hits, key=lambda hit: hit[0])[1:]
+
     def eventFilter(self, obj, event):
-        if obj is not self.app.viewport:
+        viewport = self.app.viewport
+        if obj is not viewport:
             return False
+        active_tool = viewport.active_tool
+        if (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
+                and active_tool is self.sticky.tool and self.sticky.tool is not None):
+            self.return_to_select()
+            return True
+        if (event.type() == QEvent.MouseButtonPress
+                and event.button() in (Qt.LeftButton, Qt.RightButton)
+                and self.sticky.waiting and active_tool is self.sticky.tool):
+            hit = self._hit_sticky_wall(event.position().x(), event.position().y())
+            if hit is None:
+                # Nothing to edit here; keep the tool and avoid dispatching
+                # an unarmed on_click to the host.
+                return True
+            wall, shape, part, index, anchor = hit
+            if event.button() == Qt.RightButton or not self.sticky.ready(active_tool, part):
+                self._show_radial(event.globalPosition().toPoint(),
+                                  wall, shape, part, index, anchor)
+                return True
+            try:
+                self.sticky.tool.arm(wall, (shape["id"], index or 0), anchor)
+            except (SlabError, WallError) as exc:
+                self.message(str(exc), error=True)
+                return True
+            self.select_opening(wall, shape["id"])
+            self.sticky.armed()
+            self.app.viewport.update()
+            return True
         if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
             if (self.active is not None and event.modifiers() == Qt.NoModifier
                     and self.app.viewport.active_tool is host_tool(self.app, "select")):
@@ -378,9 +461,11 @@ class WallOpeningEditor(QObject):
             return
         wall, oid, part, index, anchor = self._radial_target
         if action == "delete":
+            self.clear_sticky()
             self.delete_opening(wall, oid)
             return
         if action == "delete_vertex":
+            self.clear_sticky()
             self._delete_vertex(wall, oid, index)
             return
         try:
@@ -388,7 +473,9 @@ class WallOpeningEditor(QObject):
         except (SlabError, WallError) as exc:
             self.message(str(exc), error=True)
             return
-        activate_tool(self.app, KEY + action)
+        if self.app.viewport.active_tool is not self.tools[action]:
+            activate_tool(self.app, KEY + action)
+        self.sticky.choose(self.tools[action], part)
         self.app.viewport.setFocus()
 
     def _delete_vertex(self, wall, oid, index):
