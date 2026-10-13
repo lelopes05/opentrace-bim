@@ -53,7 +53,7 @@ jobs:
           text = open("host.txt").read()
           blocks = text.split("=" * 70)[1:] or [text[-3000:]]  # a crash leaves no report: show the tail
           for block in blocks:
-              print("::error title=host test::" + block.strip()[-3000:].replace("%", "%25").replace("\n", "%0A"))
+              print("::error title=host test::" + block.strip()[:3000].replace("%", "%25").replace("\n", "%0A"))
           PY
           fi
           tail -5 host.txt
