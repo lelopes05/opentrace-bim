@@ -73,8 +73,6 @@ def migrate_door(raw):
         "schema": SCHEMA_DOOR,
         "family_key": "swing_single",
         "host_mode": "hosted",
-        "unit_width": result.get("width", 0.90),
-        "unit_height": result.get("height", 2.10),
         "clearance_left": 0.0, "clearance_right": 0.0,
         "clearance_top": 0.0, "clearance_bottom": 0.0,
         "plan_angle": angle, "model_angle": angle,
@@ -161,13 +159,16 @@ def normalize_fill(raw):
             "leaf_thickness": _number(raw.get("leaf_thickness", 0.035),
                                       "Espessura da folha", positive=True),
             "family_key": family_key, "host_mode": host_mode,
-            "unit_width": _number(raw.get("unit_width", width), "Largura do conjunto",
-                                  positive=True),
-            "unit_height": _number(raw.get("unit_height", height), "Altura do conjunto",
-                                   positive=True),
             "plan_angle": _number(raw.get("plan_angle", 90), "Ângulo da planta"),
             "model_angle": _number(raw.get("model_angle", 0), "Ângulo do modelo"),
         })
+        # Unit sizes are explicit instance overrides only. Without a key,
+        # the unit follows the nominal width/height at evaluation time.
+        for axis, label in (("width", "Largura do conjunto"),
+                            ("height", "Altura do conjunto")):
+            key = "unit_" + axis
+            if key in raw:
+                out[key] = _number(raw[key], label, positive=True)
         for side in ("left", "right", "top", "bottom"):
             out["clearance_" + side] = _number(
                 raw.get("clearance_" + side, family["clearances"][side]),
@@ -210,8 +211,8 @@ def wallhole_size(raw):
     if spec["kind"] != "door":
         raise FillError("Vão de obra calculado apenas para portas.")
     return (
-        spec["unit_width"] + spec["clearance_left"] + spec["clearance_right"],
-        spec["unit_height"] + spec["clearance_top"] + spec["clearance_bottom"],
+        spec.get("unit_width", spec["width"]) + spec["clearance_left"] + spec["clearance_right"],
+        spec.get("unit_height", spec["height"]) + spec["clearance_top"] + spec["clearance_bottom"],
     )
 
 
@@ -221,8 +222,9 @@ def wallhole_span(raw):
     if spec["kind"] != "door":
         raise FillError("Vão de obra calculado apenas para portas.")
     shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
-    left = spec["position"] - shift * spec["unit_width"]
-    return left - spec["clearance_left"], left + spec["unit_width"] + spec["clearance_right"]
+    unit_width = spec.get("unit_width", spec["width"])
+    left = spec["position"] - shift * unit_width
+    return left - spec["clearance_left"], left + unit_width + spec["clearance_right"]
 
 
 def reverse_swing(raw):
