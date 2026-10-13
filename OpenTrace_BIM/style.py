@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import colorsys
+import re
 from math import isfinite
 
 
@@ -183,7 +184,14 @@ def qss(template, palette):
             values[key] = color.name()
         else:
             values[key] = f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alphaF():.3f})"
-    return template.format(**values)
+    # The braces delimiting CSS blocks are not Python format placeholders.
+    # Only token-like {names} are substituted; unknown tokens fail loudly.
+    def replace(match):
+        name = match.group(1)
+        if name not in values:
+            raise KeyError(name)
+        return values[name]
+    return re.sub(r"\{([a-z][a-z0-9-]*)\}", replace, template)
 
 
 def theme_font(font, name):
@@ -218,6 +226,14 @@ def _create_watcher():
             if obj is self.parent() and event.type() == QEvent.ApplicationPaletteChange:
                 self.changed.emit()
             return False
+
+        def close(self):
+            """Detach from the application before Qt deletes the signal source."""
+            app = self.parent()
+            app.removeEventFilter(self)
+            if app._opentrace_theme_watcher is self:
+                app._opentrace_theme_watcher = None
+            self.deleteLater()
 
     return ThemeWatcher
 

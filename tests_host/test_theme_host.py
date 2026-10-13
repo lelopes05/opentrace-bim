@@ -30,15 +30,22 @@ class ThemeHostTests(unittest.TestCase):
 
     def test_qss_uses_tokens(self):
         palette = dark_palette()
-        css = qss("QWidget { background: {panel}; color: {text}; }", palette)
-        self.assertIn(tokens(palette)["panel"].name(), css)
-        self.assertIn(tokens(palette)["text"].name(), css)
+        css = qss("QFrame { background: {panel}; border: 1px solid {border}; }", palette)
+        self.assertEqual(css, (
+            f'QFrame {{ background: {tokens(palette)["panel"].name()}; '
+            f'border: 1px solid {tokens(palette)["border"].name()}; }}'))
+        with self.assertRaisesRegex(KeyError, "missing-token"):
+            qss("QFrame { color: {missing-token}; }", palette)
 
     def test_theme_watcher_emits_once_per_application_change(self):
         old = APP.palette()
         watcher = ThemeWatcher()
+        self.assertIs(watcher.parent(), APP)
+        self.assertIs(APP._opentrace_theme_watcher, watcher)
         counter = []
-        watcher.changed.connect(lambda: counter.append(True))
+        def on_change():
+            counter.append(True)
+        watcher.changed.connect(on_change)
         try:
             APP.setPalette(dark_palette())
             APP.processEvents()
@@ -49,9 +56,10 @@ class ThemeHostTests(unittest.TestCase):
         finally:
             APP.setPalette(old)
             APP.processEvents()
-            watcher.deleteLater()
+            watcher.changed.disconnect(on_change)
+            watcher.close()
             APP.processEvents()
-            APP._opentrace_theme_watcher = None
+            self.assertIsNone(APP._opentrace_theme_watcher)
 
 
 if __name__ == "__main__":
