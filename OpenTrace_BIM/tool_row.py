@@ -46,7 +46,7 @@ class ToolRow(OverlayFrame):
 
         self._icon_cache = {}
         self._buttons = [wall.wall_menu_button]
-        self._icon_entries = [(wall.wall_menu_button, wall.action, "wall")]
+        self._icon_entries = [(wall.wall_menu_button, wall.wall_menu_button.defaultAction(), "wall")]
         wall.wall_menu_button.setFocusPolicy(Qt.NoFocus)
         self.toolbar.addWidget(wall.wall_menu_button)
         for controller, name in ((slab, "slab"), (column, "column"), (beam, "beam")):
@@ -59,12 +59,14 @@ class ToolRow(OverlayFrame):
         if profile is not None:
             self._add(profile.action, "profile")
         for _button, action, _name in self._icon_entries:
-            action.toggled.connect(self.apply_theme)
+            if action is not None:
+                action.toggled.connect(self.apply_theme)
 
         # Header and controls stay visible when the internal toolbar overflows.
         self.help_button = QToolButton(self)
         self.help_button.setObjectName("opentrace_tool_help")
-        self.help_button.setText("")
+        self.help_button.setText("?")
+        self.help_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.help_button.setFocusPolicy(Qt.NoFocus)
         self.help_button.setToolTip(t("Ajuda da ferramenta ativa"))
         self.help_button.setAccessibleName(t("Ajuda contextual"))
@@ -136,7 +138,7 @@ class ToolRow(OverlayFrame):
             button.setMaximumHeight(height)
             button.setIcon(self._design_icon(
                 palette, name, COMPACT_ICON if self.compact else NORMAL_ICON,
-                state="active" if action.isChecked() else "normal"))
+                state="active" if action is not None and action.isChecked() else "normal"))
             button.setIconSize(QSize(COMPACT_ICON, COMPACT_ICON) if self.compact else
                                QSize(NORMAL_ICON, NORMAL_ICON))
         for button, name in ((self.help_button, "help"),
