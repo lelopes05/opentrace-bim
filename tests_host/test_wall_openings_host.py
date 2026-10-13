@@ -4,11 +4,12 @@
 Runs the real tools against IngeTrazo's Scene and History; the viewport is a
 front-view stand-in (x → right, z → up), so clicks are world points.
 """
+import gc
 import math
 import unittest
 from types import SimpleNamespace
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence, QMouseEvent, QVector3D
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
@@ -118,6 +119,11 @@ def tearDownModule():
     if window is not None:
         window.deleteLater()
         APP.processEvents()
+        # Flush Qt's deferred C++ owners while Python wrappers are still live.
+        # Leaving this to interpreter GC crashes PySide6's offscreen teardown.
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        APP.processEvents()
+    gc.collect()
 
 
 RECT = {"id": "a", "kind": "rect", "position": 2.5, "width": 1.0, "sill": 0.9, "height": 1.2}
