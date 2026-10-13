@@ -31,6 +31,10 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - Tem uma `PlaceWallOpeningTool` (kind = shape) para rect/square/circle e uma `DrawWallOpeningTool` para free.
 - Repassa à ferramenta da forma atual todos os ganchos públicos de `tools.base.Tool`.
 - `set_shape(shape)` com a ferramenta ativa desativa a interna antiga e ativa a nova, no mesmo viewport. Não troca a ferramenta do host.
+- **Memória da sessão (resposta de 13/10):**
+  - Toda ferramenta reabre com a última forma, as últimas medidas e a última âncora usadas na sessão. Isso fica só em atributos da ferramenta; nada vai para arquivo ou preferência.
+  - Cada objeto colocado guarda as próprias medidas no seu registro (já é assim). Editar um vão selecionado muda só aquele vão, nunca as medidas da ferramenta nem os outros vãos.
+- **Sem atalho de teclado** (resposta de 13/10): as ações não recebem `setShortcut`.
 
 *Chaves e ações (`wall_opening_ui.WallOpeningEditor`):*
 - Registra três chaves:
@@ -84,7 +88,10 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Laje, Pilar e Viga: as `action` existentes de cada controlador.
   - Um separador.
   - Abertura, Porta e Janela: as ações da etapa 1.
-- A fileira só referencia as QActions; não cria ações novas. Membrana e Perfis não entram (ver P6).
+  - Um separador.
+  - Perfil complexo: a ação que já abre o editor de perfis (`profile_editor`, "Perfil Complexo…"). Ela passa a ser uma `QAction` guardada no controlador de perfis, usada no menu e na fileira.
+- A fileira só referencia as QActions; não cria ações novas.
+- Membrana não entra agora. Ela entra quando a ferramenta estiver pronta (resposta de 13/10).
 - Estilo do botão: o da janela (`window.toolButtonStyle()`), até a resposta de P1.
 
 *Posição:*
@@ -103,7 +110,7 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `ui.py` deixa de pôr `wall.toolbar.toggleViewAction()` no menu. O recolher da barra continua sendo o ▴ dela.
 
 **Testes que provam:**
-- `test_tool_row_order`: os textos das ações da fileira, na ordem, são Parede, Laje, Pilar, Viga, separador, Abertura, Porta, Janela.
+- `test_tool_row_order`: os textos das ações da fileira, na ordem, são Parede, Laje, Pilar, Viga, separador, Abertura, Porta, Janela, separador, Perfil complexo.
 - `test_tool_row_is_its_own_line_above_the_bar`:
   - `window.toolBarBreak(fileira)` e `window.toolBarBreak(wall.toolbar)` são verdadeiros.
   - O `y` da fileira é menor que o da barra, e o de qualquer toolbar do host é menor que o da fileira (offscreen, depois de `show` e `processEvents`).
@@ -133,7 +140,8 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 *Comportamento:*
 - Mudar um valor redesenha a prévia no viewport (`viewport.update()`), sem trocar de ferramenta.
 - Digitar a distância no viewport continua como hoje.
-- Os valores iniciais são os `PRESETS` atuais (ver P10).
+- Os valores iniciais são os `PRESETS` atuais (confirmados em 13/10). Depois, valem os últimos usados na sessão (etapa 1).
+- Com um vão selecionado (página `opening_edit`), os campos editam aquele vão, por comando desfazível, e não tocam as medidas da ferramenta.
 
 *Remover chamadas que escolhem ferramenta:*
 - Na página `idle`: "Criar parede", "Criar laje" e "Criar abertura".
@@ -158,10 +166,12 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `user_show_page` só mostra a página; sai a chamada a `_activate_default` (e o método, se ninguém mais o usar).
 - Os botões de modo da página (`_trigger_mode`) só valem com a ferramenta daquela página já ativa. Fora dela, ficam desabilitados com a dica "Ative a ferramenta na fileira do topo." Escolher um modo não pode ativar a ferramenta.
 - **Topo da paleta:** com uma ferramenta ativa ou um objeto selecionado, a página dele abre com as configurações completas expandidas. Com Abertura, Porta ou Janela ativa, a página `wall` mostra uma seção "Vão" que espelha os mesmos campos da barra (fonte única: `tool.sizes`).
-- **Home:**
-  - O bloco "Criar elementos" vira "Configurações" e abre as páginas Parede, Laje, Pilar e Viga sem ativar ferramenta.
+- **Home (resposta de 13/10):**
+  - Os blocos vêm de uma tabela `HOME_SECTIONS`, nesta ordem: Plantas, Vistas, Configurações, Projeto e organização.
+  - Cada entrada tem título, chave de página e ícone. Entrada sem página (`page=None`) não aparece.
+  - Plantas e Vistas entram hoje com `page=None`. Na etapa 05 basta ligar a página delas.
+  - "Configurações" (antigo "Criar elementos") abre as páginas Parede, Laje, Pilar e Viga sem ativar ferramenta.
   - "Projeto e organização" continua igual.
-  - Plantas e Vistas não aparecem enquanto não existirem: a etapa 05 do roteiro e a regra de 09/10 dizem que nada é anunciado antes de existir. Ver P8.
 - `sync_context` continua com as regras atuais (não sai de `bim`, `project` ou `arrange`, nem desfaz a escolha do usuário).
 
 **Testes que provam:**
@@ -169,6 +179,9 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `test_mode_buttons_disabled_without_their_tool`.
 - `test_active_tool_opens_its_settings_on_top`: com a Abertura ativa, a página atual é `wall` e a seção "Vão" está visível e expandida.
 - `test_palette_and_bar_share_opening_sizes`: mudar a Largura na paleta muda a da barra.
+- `test_home_hides_sections_without_page`:
+  - Plantas e Vistas estão em `HOME_SECTIONS` e não aparecem na Home.
+  - Trocar `page` de uma delas para uma página existente faz a seção aparecer na próxima montagem.
 - Os testes atuais de `sync_context` continuam verdes.
 
 ### Etapa 5 — Partida e abas no IngeTrazo 0.5.8
@@ -235,33 +248,50 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `test_icons_contrast_in_both_themes`: em cada paleta do host, a média dos pixels opacos do ícone tem contraste ≥ 3:1 com a cor `Window`.
 - `test_icons_repaint_on_theme_change`: a imagem do ícone da ação Parede muda ao trocar de escura para clara.
 
+### Etapa 8 — A função de edição escolhida continua ativa
+Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `suite_panel.py`.
+
+**Arquivos:** `wall_opening_ui.py`, `wall_opening_edit.py`, `slab_ui.py`, `slab_opening_edit.py`, `tests_host/test_wall_openings_host.py`, `tests_host/test_slab_opening_sticky_host.py` (novo).
+
+**O que muda:**
+- Hoje, depois de confirmar uma edição (deslocar, mover vértice, curvar, chanfrar, arredondar, inserir vértice, esticar), a ferramenta volta para Selecionar: `edit_finished` chama `return_to_select`.
+- Passa a ser assim: a função escolhida no radial continua ativa depois de confirmar. O próximo clique em qualquer vértice ou aresta do mesmo tipo (de qualquer vão da mesma parede, ou da mesma laje) aplica a mesma função, sem reabrir o radial.
+- **Para sair:** Esc, escolher outra função no radial ou na paleta, ou escolher outra ferramenta. Clicar fora de qualquer vão também volta para Selecionar.
+- O vão editado continua selecionado depois de cada confirmação.
+- Vale para os vãos da parede e para os da laje, com o mesmo código de "função ativa" nos dois.
+
+**Testes que provam:**
+- `test_offset_stays_active_after_commit`:
+  - Deslocar uma aresta e depois clicar em outra aresta do mesmo vão desloca a segunda sem passar pelo radial.
+  - São dois comandos no histórico.
+- `test_sticky_function_ends_on_escape_and_on_empty_click`.
+- `test_choosing_another_function_replaces_the_sticky_one`.
+- O mesmo trio para a abertura da laje.
+
 ### Fora deste bloco
 - O segundo clique de porta e janela (lado e giro) e o desenho da folha ficam no bloco seguinte, "Portas e janelas".
 - A barra personalizável pelo usuário está adiada (DECISIONS).
-- Plantas e Vistas ficam para a etapa 05 do roteiro.
+- Plantas e Vistas: ficam para a etapa 05 do roteiro; a Home já tem o lugar delas (etapa 4).
+- Membrana na fileira: quando a ferramenta estiver pronta.
 
-### Perguntas abertas (respostas na Caixa de Revisão)
-- **P1 (etapa 2) Botões da fileira:** só ícone com dica, ícone com o nome ao lado, ou ícone com o nome embaixo?
-- **P2 (etapa 2) Recolher a fileira:** basta esconder e mostrar (menu e F3), ou deve existir também um modo compacto, só com ícones?
-- **P3 (etapa 3) Medidas da Abertura, Porta e Janela:** quando o usuário muda largura, altura ou peitoril, o valor deve:
-  - valer só até fechar o programa;
-  - ficar salvo no arquivo do projeto;
-  - ficar salvo como preferência do usuário?
-- **P4 (etapa 1) Forma ao reabrir a Abertura:** começa sempre em Retangular, ou na última forma usada?
-- **P5 (etapa 1) Atalhos de teclado:** as ferramentas novas têm atalho? Se sim, quais? O F3 já está tomado pelo host.
-- **P6 (etapa 2) Membrana e Perfis complexos:** entram na fileira ou ficam só no menu?
-- **P7 (etapa 3) Parede curva:** é um modo da ferramenta Parede, escolhido na barra (como reta, arco e polígono na Laje), ou uma ferramenta separada na seta do botão Parede (como hoje)? Se for modo, a barra pode trocá-lo sem violar "a barra não troca ferramenta".
-- **P8 (etapa 4) Home da paleta:** com Plantas e Vistas ainda inexistentes, a Home fica com "Configurações" e "Projeto e organização", ou deve sumir, abrindo a paleta direto na página do contexto?
-- **P9 (etapa 6) Cor de destaque:** a do host (`Highlight` da paleta), ou uma cor própria da marca OpenTrace BIM? Se for própria, qual?
-- **P10 (etapa 3) Medidas iniciais:** confirmar os padrões atuais:
+### Respondidas em 13/10
+- **Medidas:**
+  - Cada objeto guarda as suas.
+  - A ferramenta lembra as últimas usadas na sessão.
+  - Editar um objeto não muda a ferramenta.
+- **Forma e função:** toda ferramenta e toda função de edição continuam na última escolha da sessão (etapas 1 e 8).
+- **Atalhos:** nenhum.
+- **Fileira:**
+  - Perfil complexo entra e abre o editor de perfis.
+  - Membrana entra quando estiver pronta.
+- **Home:** Plantas e Vistas previstas, escondidas até existirem.
+- **Medidas iniciais:** as atuais servem para começar.
 
-  | Tipo | Largura | Altura | Peitoril |
-  |---|---|---|---|
-  | Abertura retangular | 1,00 | 1,20 | 0,90 |
-  | Quadrada | 0,60 lado | — | 1,50 |
-  | Circular | 0,60 diâmetro | — | 1,30 |
-  | Porta | 0,80 | 2,10 | 0 |
-  | Janela | 1,20 | 1,20 | 1,00 |
+### Perguntas abertas (na Caixa de Revisão)
+- **P1 (etapa 2):** botões da fileira de ferramentas do topo (a faixa retrátil com Parede, Laje, Pilar…): só ícone, ícone com nome ao lado, ou ícone com nome embaixo?
+- **P2 (etapa 2):** recolher a fileira: some inteira, ou fica uma faixa fina só com ícones pequenos?
+- **P7 (etapa 3):** parede curva como forma dentro da Parede, escolhida na barra de opções (como no Archicad), ou entrada separada na setinha do botão Parede, como hoje? Enquanto não responder, os dois botões que trocam reta e curva na barra continuam.
+- **P9 (etapa 6):** cor de destaque. Até a resposta, a etapa 6 usa o `Highlight` da paleta do IngeTrazo.
 
 ---
 

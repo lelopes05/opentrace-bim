@@ -18,6 +18,12 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 09/10: ajuda "?" em capítulos, sempre começando por "O que há de novo"; "Sobre" só com links reais (repositório, licença, discussão #449 do IngeTrazo). Texto e desenhos, sem capturas de tela que envelhecem.
 - 11/10: CI verde e Qt offscreen não aprovam interface. O aceite visual é o teste do Leandro no Windows.
 
+- 13/10: ferramentas só pela fileira do topo e pelo menu; barra e paleta nunca trocam de ferramenta. Sem atalhos de teclado para as ferramentas.
+- 13/10: toda ferramenta e toda função de edição continuam na última escolha da sessão (forma, medidas, âncora, função do radial) até o usuário escolher outra.
+- 13/10: medidas são do objeto. A ferramenta lembra as últimas da sessão; editar um objeto não muda a ferramenta nem os outros objetos (sem família ou biblioteca para cada variação).
+- 13/10: fileira com Parede, Laje, Pilar, Viga, Abertura, Porta, Janela e Perfil complexo; Membrana entra quando estiver pronta.
+- 13/10: Home da paleta já prevê Plantas e Vistas, escondidas até existirem.
+
 ### Vãos
 - 12/10: o vão é um contorno na face da parede, editado com o motor da abertura da laje, e fica preso à parede onde nasceu.
 - 12/10: pontos de controle só nos vértices, desenhados como bolas. A aresta é uma linha clicável. O radial de aresta usa o meio da aresta como âncora, sem desenhar nada ali.
