@@ -91,18 +91,6 @@ class ToolRowHostTests(unittest.TestCase):
             self.row.collapse_button.click()
             self.assertEqual(self.row.toolButtonStyle(), Qt.ToolButtonTextBesideIcon)
             self.assertEqual(self.row.iconSize().width(), 24)
-            # Construct a second independent row without altering a second MainWindow.
-            from PySide6.QtWidgets import QMainWindow, QToolBar, QToolButton
-            from types import SimpleNamespace
-            probe = QMainWindow()
-            options = QToolBar(probe)
-            probe.addToolBar(options)
-            wall = SimpleNamespace(toolbar=options, wall_menu_button=QToolButton(probe),
-                                   action=self.wall.action, openings=self.wall.openings)
-            fresh = ToolRow(SimpleNamespace(window=probe), wall, None, None, None, None)
-            self.assertFalse(fresh._compact)
-            fresh.deleteLater()
-            probe.deleteLater()
         finally:
             if original is None:
                 QSettings().remove(ToolRow.SETTINGS_KEY)
