@@ -623,6 +623,38 @@ class StickyWallOpeningTests(unittest.TestCase):
         self.assertIs(self.editor.sticky.tool, tool)
         self.assertTrue(self.editor.sticky.waiting)
 
+    def test_host_pick_is_released_by_select_after_edit_and_empty_click(self):
+        """A real host pick must not leave the opening highlighted after Space/blank."""
+        from OpenTrace_BIM.host import host_tool
+        viewport = self.window.viewport
+        self.editor.active = None
+        self.editor.app.release_pick()
+        self.window.show()
+        APP.processEvents()
+        self.window.activateWindow()
+        viewport.setFocus()
+        APP.processEvents()
+
+        near = self.shape["mids"][1]
+        px = viewport._world_to_pixel(near)
+        self.assertIsNotNone(px)
+        point = QPoint(round(px[0]), round(px[1]))
+        self._click_viewport(point)
+        self.assertIsNotNone(viewport.extension_pick,
+                             "The initial opening must be selected by the host.")
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+
+        self._commit_first_edge()
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+
+        QTest.keyClick(viewport, Qt.Key_Space)
+        APP.processEvents()
+        self.assertIs(viewport.active_tool, host_tool(self.app, "select"))
+        self._click_viewport(self._blank_pixel())
+        self.assertIsNone(viewport.extension_pick)
+        self.assertIsNone(self.editor.active,
+                          "An empty click with Select must remove plugin selection.")
+
     def test_choosing_another_function_replaces_the_sticky_one(self):
         self._commit_first_edge()
         self._choose("offset")

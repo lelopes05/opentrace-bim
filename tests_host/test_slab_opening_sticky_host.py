@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 
 from OpenTrace_BIM.slab_model import DEFAULTS, make_slab, slab_openings_world
+from OpenTrace_BIM.slab_ui import selected_slabs
 
 
 APP = QApplication.instance() or QApplication([])
@@ -172,6 +173,27 @@ class StickySlabOpeningTests(unittest.TestCase):
         self.assertIs(self.viewport.active_tool, tool)
         self.assertIs(self.controller.sticky.tool, tool)
         self.assertTrue(self.controller.sticky.waiting)
+
+    def test_host_slab_selection_clears_after_edit_space_and_empty_click(self):
+        """The slab opening overlay is derived from the host slab selection."""
+        from OpenTrace_BIM.host import host_tool
+        vp = self.viewport
+        self.window.show()
+        APP.processEvents()
+        self.window.activateWindow()
+        vp.setFocus()
+        APP.processEvents()
+
+        self.assertIn(self.slab, self.scene.selection)
+        self._first_commit()
+        QTest.keyClick(vp, Qt.Key_Space)
+        APP.processEvents()
+        self.assertIs(vp.active_tool, host_tool(self.app, "select"))
+
+        self._click_viewport(self._blank_pixel())
+        self.assertNotIn(self.slab, self.scene.selection)
+        self.assertEqual(selected_slabs(self.scene), [],
+                         "The plugin must follow the host's cleared selection.")
 
     def test_choosing_another_function_replaces_the_sticky_one(self):
         self._first_commit()
