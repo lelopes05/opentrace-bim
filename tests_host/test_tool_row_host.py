@@ -150,11 +150,11 @@ class ToolRowTests(unittest.TestCase):
         self.wall.action.trigger()
         tool = self.window.viewport.active_tool
         recorded = []
-        original = tool.on_mouse_press
+        original = tool.on_click
         def observe(*args, **kwargs):
             recorded.append((args, kwargs))
             return original(*args, **kwargs)
-        tool.on_mouse_press = observe
+        tool.on_click = observe
         try:
             frame = self.window._arquitetura_parametrica_overlay_dock.options_frame
             QTest.mouseClick(frame, Qt.LeftButton, pos=QPoint(2, 2))
@@ -162,7 +162,7 @@ class ToolRowTests(unittest.TestCase):
             APP.processEvents()
             self.assertEqual(recorded, [])
         finally:
-            tool.on_mouse_press = original
+            tool.on_click = original
             activate_select(self.app)
 
     def test_tool_row_actions_activate_tools(self):
