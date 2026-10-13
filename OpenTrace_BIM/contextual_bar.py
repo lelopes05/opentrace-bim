@@ -222,6 +222,7 @@ class ContextualBar(QWidget):
         buttons.setExclusive(True)
         for caption, value in source_values:
             button = QToolButton(self)
+            button.setFocusPolicy(Qt.NoFocus)
             button.setObjectName(f"opentrace_opt_{group_name}_{value}")
             button.setText(t(caption))
             button.setAccessibleName(t(caption))
