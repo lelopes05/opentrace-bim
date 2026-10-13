@@ -173,6 +173,40 @@ class InstallationSmokeTests(unittest.TestCase):
             qt.processEvents()
 
 
+    def test_setup_after_window_is_shown_puts_the_sidebar_in_the_side_tray(self):
+        """IngeTrazo 0.5.8 runs setup(app) once the window is on screen.
+
+        The app starts with MainWindow(defer_extensions=True) and loads the
+        extensions afterwards; the panel must still become one tab of the
+        side tray, registered under the stable dock name, and open on demand.
+        """
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM","offscreen")
+        from PySide6.QtWidgets import QApplication
+        from views.main_window import MainWindow
+        from views.extension_api import ExtensionApp
+        from OpenTrace_BIM import setup
+
+        qt=QApplication.instance() or QApplication([])
+        window=MainWindow(defer_extensions=True)
+        try:
+            window.show()
+            qt.processEvents()
+            setup(ExtensionApp(window,"OpenTrace_BIM"))
+            suite=window._arquitetura_parametrica_suite_panel
+            dock=window.extension_panels().get("extension_OpenTrace_BIM_parametric_architecture")
+            self.assertIsNotNone(dock,"the sidebar is not registered as an extension panel")
+            self.assertIs(dock,suite.master_dock)
+            self.assertIs(dock.widget(),suite.panel)
+            self.assertTrue(dock.isHidden(),"the sidebar must start closed")
+            suite.show_page("wall")
+            self.assertFalse(dock.isHidden())
+            self.assertIs(suite.stack.currentWidget(),suite.pages["wall"])
+        finally:
+            window.deleteLater()
+            qt.processEvents()
+
+
     def test_live_qt_opening_editor_updates_correct_wall_void(self):
         """Real Qt signal: selecting B and editing width must not modify A."""
         import os
