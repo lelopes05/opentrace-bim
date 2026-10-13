@@ -39,15 +39,19 @@ def rgba_key(pm):
 
 def opaque_mean(pm):
     image = pm.toImage()
-    colours = [image.pixelColor(x, y)
-               for y in range(image.height())
-               for x in range(image.width())
-               if image.pixelColor(x, y).alpha() >= 224]
-    if not colours:
+    # pixelColor() allocates a PySide QColor wrapper per pixel; thousands of
+    # short-lived wrappers can destabilize Shiboken during Python teardown.
+    # QImage.pixel() returns the equivalent ARGB integer without Qt wrappers.
+    pixels = [image.pixel(x, y)
+              for y in range(image.height())
+              for x in range(image.width())]
+    opaque = [value for value in pixels if (value >> 24) >= 224]
+    if not opaque:
         raise AssertionError("No opaque stroke pixels detected.")
-    return QColor(round(sum(v.red() for v in colours) / len(colours)),
-                  round(sum(v.green() for v in colours) / len(colours)),
-                  round(sum(v.blue() for v in colours) / len(colours)))
+    count = len(opaque)
+    return QColor(round(sum((v >> 16) & 255 for v in opaque) / count),
+                  round(sum((v >> 8) & 255 for v in opaque) / count),
+                  round(sum(v & 255 for v in opaque) / count))
 
 
 class IconHostTests(unittest.TestCase):
