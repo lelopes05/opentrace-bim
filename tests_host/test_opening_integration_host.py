@@ -8,7 +8,6 @@ from core.scene import Scene
 
 from OpenTrace_BIM.model import (DEFAULTS, make_wall_segment, make_arc_wall,
                                  read_wall, wall_opening_intervals)
-from OpenTrace_BIM.opening_controller import (all_opening_wires, hit_test)
 from OpenTrace_BIM.commands import EditWall, ReshapeWall
 from OpenTrace_BIM.door_window_commands import (
     CreateHostedFill, DeleteHostedOpening, sync_hosted_fill_placements
@@ -67,7 +66,6 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
         ctrl=SimpleNamespace(app=SimpleNamespace(scene=scene),
                              target=wall,_active_opening_wall=None,
                              _active_opening_id="extreme-clipping",
-                             _opening_wires_for=lambda host:all_opening_wires(host,read_wall(host)),
                              curve_create_tool=None,move_vertex_continue_tool=None)
         vp.active_tool=object()
         vp.extension_pick=None
@@ -80,66 +78,6 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
             painter.end()
         self.assertTrue(any(image.pixelColor(x,120)!=QColor("white")
                             for x in range(100,700)))
-
-    def test_native_opening_selection_without_selected_wall(self):
-        from OpenTrace_BIM.ui import WallController
-        scene,wall=scene_wall([{"id":"pick-without-wall",
-             "kind":"rect","position":2.5,"width":1.0,
-             "sill":0.0,"height":2.1}])
-        self.assertFalse(scene.selection)
-        vp=FakeViewport()
-        vp.scene=scene
-        pick_wires=lambda target:all_opening_wires(target,read_wall(target))
-        ctrl=SimpleNamespace(_active_opening_id=None,_active_opening_wall=None,
-                             _opening_wires_for=pick_wires)
-        selection=WallController._pick_virtual_opening(ctrl,vp,200,-210)
-        self.assertIsNotNone(selection)
-        self.assertEqual(selection[0],wall.uid)
-        self.assertEqual(selection[1],"pick-without-wall")
-        # Slab-parity: a free rectangular void now exposes an exact logical
-        # corner even on its FIRST pick; it is no longer a generic outline.
-        self.assertEqual(selection[2],"vertex-3")
-        self.assertIsNone(WallController._pick_virtual_opening(ctrl,vp,-1000,-1000))
-
-    def test_native_pick_selection_without_mutating_wall_geometry(self):
-        from OpenTrace_BIM.ui import WallController
-        scene,wall=scene_wall([{"id":"pick-callback",
-            "kind":"rect","position":2.5,"width":1.0,
-            "sill":0,"height":2.1}])
-        body=wall.children[0]
-        changes=[]
-        ctrl=SimpleNamespace(app=SimpleNamespace(scene=scene),
-             _active_opening_id=None,_active_opening_wall=None,
-             _state_key=None,schedule_refresh=lambda:changes.append("refresh"))
-        WallController._select_virtual_opening(ctrl,(wall.uid,"pick-callback",None))
-        self.assertIs(ctrl._active_opening_wall,wall)
-        self.assertEqual(ctrl._active_opening_id,"pick-callback")
-        self.assertIs(wall.children[0],body)
-        self.assertEqual(changes,["refresh"])
-
-    def test_independent_virtual_controller_and_six_handles(self):
-        op={"id":"free-cut","kind":"rect","position":2.5,
-            "width":1.0,"sill":0.0,"height":2.1}
-        scene,wall=scene_wall([op])
-        before=wall.children[0]
-        wires=all_opening_wires(wall,read_wall(wall))
-        self.assertEqual(len(wires),1)
-        self.assertEqual(len(wires[0][1]),12)
-        self.assertEqual(len(wires[0][2]),6)
-        self.assertIs(wall.children[0],before)
-        hit=hit_test(FakeViewport(),wires,200,-210,
-                     active_id="free-cut")
-        self.assertIsNotNone(hit)
-        self.assertEqual(hit[0],"free-cut")
-
-    def test_two_openings_can_be_picked_individually(self):
-        ops=[{"id":name,"position":pos,"width":.7,
-              "sill":.7,"height":1.0} for name,pos in
-             (("A",1.2),("B",3.7))]
-        _scene,wall=scene_wall(ops)
-        wires=all_opening_wires(wall,read_wall(wall))
-        self.assertEqual({oid for oid,_,_ in wires},{"A","B"})
-        self.assertEqual(len(wall.children),1)
 
     def test_floor_level_door_creation_and_atomic_deletion(self):
         scene,wall=scene_wall()
@@ -307,101 +245,6 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
         for key in ("position","sill","height"):
             self.assertEqual(updated[1][key],original["openings"][1][key])
 
-    def test_selected_grip_press_move_release_commits_directly(self):
-        from PySide6.QtCore import QEvent, QPointF, Qt
-        from OpenTrace_BIM.ui import WallController
-        scene,wall=scene_wall([{"id":"mouse-grip","position":2.5,
-            "width":1.0,"sill":.6,"height":1.2}])
-        scene.selection.add(wall)
-        marker=object()
-        calls=[]
-        tool=SimpleNamespace(on_hover=lambda ctx:calls.append("hover"),
-                             on_click=lambda ctx:calls.append("commit"),
-                             on_cancel=lambda vp:calls.append("cancel"))
-        vp=SimpleNamespace(scene=scene,active_tool=marker,
-                           extension_pick=None,
-                           _build_ctx=lambda ev:SimpleNamespace(
-                               world=QVector3D(3.5,0,.6),viewport=vp))
-        app=SimpleNamespace(viewport=vp,scene=scene,
-                             window=SimpleNamespace(_tools={"select":marker}))
-        def begin(oid,handle,action):
-            calls.append(("start",oid,handle,action))
-            vp.active_tool=tool
-        controller=SimpleNamespace(app=app,opening_drag_tool=tool,
-            path_palette=SimpleNamespace(isVisible=lambda:False),
-            hide_path_palette=lambda:None,
-            _active_opening_wall=wall,_active_opening_id="mouse-grip",
-            _pointer_opening_grip=None,_pointer_opening_drag=False,
-            _pick_virtual_opening=lambda *_:(wall.uid,"mouse-grip","bottom-right"),
-            _start_opening_handle_drag=begin)
-        def evt(kind,point,button=Qt.LeftButton,buttons=Qt.NoButton):
-            return SimpleNamespace(type=lambda:kind,button=lambda:button,
-                buttons=lambda:buttons,position=lambda:QPointF(*point),
-                modifiers=lambda:Qt.NoModifier)
-        p=evt(QEvent.MouseButtonPress,(300,150))
-        m=evt(QEvent.MouseMove,(325,150),buttons=Qt.LeftButton)
-        r=evt(QEvent.MouseButtonRelease,(325,150))
-        self.assertTrue(WallController.eventFilter(controller,vp,p))
-        self.assertTrue(WallController.eventFilter(controller,vp,m))
-        self.assertTrue(WallController.eventFilter(controller,vp,r))
-        self.assertEqual(calls,[("start","mouse-grip","bottom-right","width"),
-                                "hover","hover","commit"])
-        self.assertIsNone(controller._pointer_opening_grip)
-
-    def test_grip_pull_interactive_preview_and_single_undo_step(self):
-        from OpenTrace_BIM.opening_handle_drag import OpeningHandleDragTool
-        scene,wall=scene_wall([{"id":"grip-pull","position":2.5,"width":1.0,
-                                "sill":.6,"height":1.2}])
-        edits=[]
-        class History:
-            last_error=None
-            def execute(self,command):
-                edits.append(command)
-                command.do(scene)
-        vp=SimpleNamespace(scene=scene,history=History(),update=lambda:None,
-                           notify_scene_changed=lambda:None)
-        ctr=SimpleNamespace(app=SimpleNamespace(scene=scene),
-                            _find_linked_fill=lambda opening:None,
-                            message=lambda *a,**kw:None,
-                            return_to_select=lambda:None,
-                            _state_key=None,_loaded_key=None)
-        tool=OpeningHandleDragTool(ctr)
-        tool.prepare(wall,"grip-pull","bottom-right","width")
-        tool.on_activate(vp)
-        self.assertIsNotNone(tool.grip)
-        self.assertAlmostEqual(tool.station,3.0,places=5)
-        tool.on_hover(SimpleNamespace(viewport=vp,world=QVector3D(3.35,0,.6)))
-        self.assertGreater(len(tool.rubber_band_lines()),0)
-        self.assertAlmostEqual(read_wall(wall)["openings"][0]["width"],1.0)
-        tool.on_click(SimpleNamespace(viewport=vp,world=QVector3D(3.35,0,.6)))
-        self.assertEqual(len(edits),1)
-        self.assertAlmostEqual(read_wall(wall)["openings"][0]["width"],1.35,places=5)
-        self.assertEqual(read_wall(wall)["openings"][0]["id"],"grip-pull")
-        edits[0].undo(scene)
-        self.assertAlmostEqual(read_wall(wall)["openings"][0]["width"],1.0)
-
-    def test_parametric_opening_pick_inside_edited_wall_group_exits_safely(self):
-        from OpenTrace_BIM.ui import WallController
-        scene,wall=scene_wall([{"id":"inside-group","position":2.5,"width":1.0,
-                                "sill":.7,"height":1.1}])
-        scene.begin_group_edit(wall)
-        self.assertIs(scene.edit_group,wall)
-        vp=FakeViewport()
-        vp.scene=scene
-        vp.end_group_edit=scene.end_group_edit
-        ctr=SimpleNamespace(app=SimpleNamespace(scene=scene,viewport=vp),
-                            _active_opening_id=None,_active_opening_wall=None,
-                            _opening_wires_for=lambda w:all_opening_wires(w,read_wall(w)),
-                            _state_key=None,_loaded_key=None,
-                            schedule_refresh=lambda:None)
-        result=WallController._pick_virtual_opening(ctr,vp,250,-130)
-        self.assertIsNotNone(result)
-        self.assertEqual(result[1],"inside-group")
-        WallController._select_virtual_opening(ctr,result)
-        self.assertIsNone(scene.edit_group)
-        self.assertIs(ctr._active_opening_wall,wall)
-        self.assertEqual(ctr._active_opening_id,"inside-group")
-
     def test_polygon_opening_recedes_through_host_and_restores(self):
         from OpenTrace_BIM.model import path_world
         opening={"id":"poly-recede","kind":"polygon",
@@ -444,25 +287,6 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
         self.assertTrue(iv[0]["cut_clipped"])
         for child in wall.children:
             self.assertFalse([e for e in child.mesh.edges if len(e.faces)!=2])
-
-    def test_virtual_controller_persists_outside_receded_wall(self):
-        scene,wall=scene_wall([{
-            "id":"ghost-cut","position":2.5,"width":1.0,"sill":.8,
-            "height":1.2}])
-        data=read_wall(wall)
-        data["length"]=1.5
-        EditWall(scene,wall,data).do(scene)
-        self.assertEqual(wall_opening_intervals(
-            read_wall(wall),
-            __import__("OpenTrace_BIM.model",fromlist=["path_world"]).path_world(wall)),[])
-        wires=all_opening_wires(wall,read_wall(wall))
-        self.assertEqual(len(wires),1)
-        self.assertEqual(len(wires[0][1]),12)
-        self.assertEqual(len(wires[0][2]),6)
-        selected=hit_test(FakeViewport(),wires,250,-140,
-                          allow_interior=True)
-        self.assertEqual(selected,("ghost-cut",None))
-        self.assertGreater(wires[0][2][0][1].x(),1.5)
 
     def test_wall_recedes_through_opening_and_reexpands_without_losing_params(self):
         from OpenTrace_BIM.model import wall_opening_intervals, path_world
@@ -516,36 +340,6 @@ class IntegratedOpeningRuntimeTests(unittest.TestCase):
             void=read_wall(wall)["openings"][0]
             self.assertEqual(void["id"],"door-void")
             self.assertEqual(void["source_id"],"recede-door")
-
-    def test_pick_inside_free_opening_but_not_a_filled_leaf(self):
-        from OpenTrace_BIM.ui import WallController
-        wall_data=[
-            {"id":"free","position":1.2,"width":.8,"sill":.6,"height":1.2},
-            {"id":"door","position":3.5,"width":.8,"sill":.6,"height":1.2,
-             "source_id":"some-fill"}]
-        scene,wall=scene_wall(wall_data)
-        vp=FakeViewport()
-        vp.scene=scene
-        ctl=SimpleNamespace(_active_opening_id=None,_active_opening_wall=None,
-                            _opening_wires_for=lambda w:all_opening_wires(w,read_wall(w)))
-        pick_free=WallController._pick_virtual_opening(ctl,vp,120,-120)
-        self.assertEqual(pick_free[1],"free")
-        pick_door=WallController._pick_virtual_opening(ctl,vp,350,-120)
-        self.assertIsNone(pick_door)
-
-    def test_curved_host_outline_keeps_mesh_independent(self):
-        values=dict(DEFAULTS,length=4.0,openings=[
-            {"id":"curved-cut","position":2.0,"width":.8,
-             "sill":.8,"height":1.1}])
-        wall=make_arc_wall(QVector3D(0,0,0),QVector3D(4,0,0),
-                           .65,values)
-        wires=all_opening_wires(wall,read_wall(wall))
-        self.assertEqual(len(wires),1)
-        self.assertEqual(len(wires[0][2]),6)
-        interval=wall_opening_intervals(read_wall(wall),
-                                       __import__("OpenTrace_BIM.model",fromlist=["path_world"]).path_world(wall))[0]
-        self.assertGreater(interval["reference_span"],0.0)
-
 
 if __name__=="__main__":
     unittest.main()

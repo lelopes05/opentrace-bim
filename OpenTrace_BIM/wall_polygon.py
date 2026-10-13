@@ -201,111 +201,60 @@ def clip_to_wall(a, b, length, base_profile, top_profile):
             (a[0]+dx*upper, a[1]+dz*upper))
 
 
-def project_to_edge(points, edge_index, point):
-    """Nearest point on a straight polygon edge and its interpolation factor."""
-    a = points[edge_index % len(points)]
-    b = points[(edge_index+1) % len(points)]
-    dx, dz = b[0]-a[0], b[1]-a[1]
-    size2 = dx*dx+dz*dz
-    if size2 <= EPS*EPS:
-        raise ValueError("Aresta degenerada.")
-    u = max(0.0, min(1.0,
-        ((point[0]-a[0])*dx+(point[1]-a[1])*dz)/size2))
-    return [a[0]+u*dx, a[1]+u*dz], u
+def arc_samples(a, b, sagitta, max_step_deg=6.0):
+    """Points of a circular edge from a to b (both included).
 
-
-def insert_vertex(points, edge_index, point, length, *, allow_outside=False):
-    """Split a polygon edge at the projected location."""
-    n = len(points)
-    if n < 3:
-        raise ValueError("Abertura sem polígono válido.")
-    index = edge_index % n
-    projected, u = project_to_edge(points, index, point)
-    if not 0.01 < u < 0.99:
-        raise ValueError("Insira o vértice afastado das extremidades da aresta.")
-    updated = [list(p) for p in points]
-    updated.insert(index+1, projected)
-    return normalize_polygon(updated, length, allow_outside=allow_outside)
-
-
-def move_vertex(points, vertex_index, point, length, *, allow_outside=False):
-    """Move exactly one local vertex and revalidate the boundary."""
-    updated = [list(p) for p in points]
-    updated[vertex_index % len(updated)] = list(point)
-    return normalize_polygon(updated, length, allow_outside=allow_outside)
-
-
-def move_edge(points, edge_index, delta, length, *, allow_outside=False):
-    """Translate one edge perpendicular to itself, moving both endpoints."""
-    n = len(points)
-    index = edge_index % n
-    a, b = points[index], points[(index+1) % n]
-    dx, dz = b[0]-a[0], b[1]-a[1]
-    edge_length = math.hypot(dx, dz)
-    if edge_length <= EPS:
-        raise ValueError("Aresta degenerada.")
-    normal = (-dz/edge_length, dx/edge_length)
-    magnitude = delta[0]*normal[0]+delta[1]*normal[1]
-    updated = [list(p) for p in points]
-    for i in (index, (index+1) % n):
-        updated[i] = [points[i][0]+normal[0]*magnitude,
-                      points[i][1]+normal[1]*magnitude]
-    return normalize_polygon(updated, length, allow_outside=allow_outside)
-
-
-
-def rectangle_to_polygon(opening, length):
-    """Editable wall-elevation corners for a free rectangular void.
-
-    Converting at the FIRST real vertex/edge commit is atomic with the edit.
-    It never converts live IfcDoor/IfcWindow fills, which need their own
-    parametric width/sill/height controls to stay hosted.
+    Same convention as slab edges: a positive sagitta bulges to the LEFT of
+    a→b, measured at the chord midpoint.
     """
-    if opening.get("source_id") or opening.get("fill"):
-        raise ValueError("Esquadria hospedada não pode ser convertida em vão livre.")
-    position=float(opening["position"])
-    half=float(opening["width"])*.5
-    sill=float(opening["sill"])
-    top=sill+float(opening["height"])
-    return normalize_polygon([
-        [position-half,sill],[position+half,sill],
-        [position+half,top],[position-half,top]],
-        length,allow_outside=True)
+    (ax, az), (bx, bz) = a, b
+    dx, dz = bx - ax, bz - az
+    chord = math.hypot(dx, dz)
+    h = float(sagitta)
+    if chord <= EPS or abs(h) <= 1e-9:
+        return [(ax, az), (bx, bz)]
+    nx, nz = -dz / chord, dx / chord
+    radius = (chord * chord / 4.0 + h * h) / (2.0 * abs(h))
+    # Centre lies on the chord normal, on the far side from the bulge when
+    # the arc is shorter than a half circle.
+    mx, mz = (ax + bx) / 2.0, (az + bz) / 2.0
+    offset = radius - abs(h)
+    sign = 1.0 if h > 0 else -1.0
+    cx, cz = mx - nx * sign * offset, mz - nz * sign * offset
+    a0 = math.atan2(az - cz, ax - cx)
+    a1 = math.atan2(bz - cz, bx - cx)
+    apex = (mx + nx * h, mz + nz * h)
+    am = math.atan2(apex[1] - cz, apex[0] - cx)
+
+    def wrap(t):
+        while t <= -math.pi:
+            t += 2 * math.pi
+        while t > math.pi:
+            t -= 2 * math.pi
+        return t
+    sweep, through = wrap(a1 - a0), wrap(am - a0)
+    if sweep >= 0.0 and not 0.0 <= through <= sweep:
+        sweep -= 2 * math.pi
+    elif sweep < 0.0 and not sweep <= through <= 0.0:
+        sweep += 2 * math.pi
+    spans = max(2, int(math.ceil(abs(math.degrees(sweep)) / max_step_deg)))
+    pts = [(cx + radius * math.cos(a0 + sweep * k / spans),
+            cz + radius * math.sin(a0 + sweep * k / spans)) for k in range(spans + 1)]
+    pts[0], pts[-1] = (ax, az), (bx, bz)
+    return pts
 
 
-def translate_polygon(points, delta, length, *, allow_outside=True):
-    """Move the whole authored opening in wall station/elevation coordinates."""
-    dx,dz=map(float,delta)
-    return normalize_polygon([[float(x)+dx,float(z)+dz] for x,z in points],
-                             length,allow_outside=allow_outside)
-
-
-def stretch_edge(points, edge_index, delta, length, *, allow_outside=True):
-    """Slab-style extrude: preserve the old edge as anchoring vertices.
-
-    Adds exactly two corners and a displaced copy of the selected edge.
-    """
-    n=len(points);i=int(edge_index)%n;j=(i+1)%n
-    ax,az=map(float,points[i]);bx,bz=map(float,points[j])
-    dx,dz=bx-ax,bz-az
-    norm=math.hypot(dx,dz)
-    if norm<0.001:
-        raise ValueError("A aresta precisa ter pelo menos 1 mm.")
-    nx,nz=-dz/norm,dx/norm
-    distance=float(delta[0])*nx+float(delta[1])*nz
-    if abs(distance)<0.001:
-        raise ValueError("Arraste a aresta ao menos 1 mm.")
-    shifted_a=[ax+nx*distance,az+nz*distance]
-    shifted_b=[bx+nx*distance,bz+nz*distance]
-    rotated=[list(points[(i+k)%n]) for k in range(n)]
-    expanded=[rotated[0],shifted_a,shifted_b,rotated[1]]+rotated[2:]
-    return normalize_polygon(expanded,length,allow_outside=allow_outside)
-
-
-def delete_vertex(points, index, length, *, allow_outside=False):
-    """Remove one vertex, never reducing an opening below three vertices."""
-    if len(points) <= 3:
-        raise ValueError("A abertura deve conservar pelo menos três vértices.")
-    updated = [list(p) for p in points]
-    del updated[index % len(updated)]
-    return normalize_polygon(updated, length, allow_outside=allow_outside)
+def sample_outline(points, edges=None):
+    """Closed polyline of a polygon whose edges may be straight or circular."""
+    n = len(points)
+    edges = list(edges or ())
+    out = []
+    for i in range(n):
+        a = tuple(map(float, points[i]))
+        b = tuple(map(float, points[(i + 1) % n]))
+        spec = edges[i] if i < len(edges) and isinstance(edges[i], dict) else {}
+        if spec.get("type") == "arc":
+            out.extend(arc_samples(a, b, spec.get("sagitta", 0.0))[:-1])
+        else:
+            out.append(a)
+    return [list(p) for p in out]

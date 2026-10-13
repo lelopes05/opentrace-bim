@@ -9,7 +9,7 @@ import uuid
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QVector3D
 from PySide6.QtWidgets import (
-    QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QMenu, QInputDialog,
+    QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QMenu,
     QToolBar, QToolButton, QVBoxLayout, QWidget, QSizeGrip,
 )
 
@@ -17,11 +17,11 @@ from . import __version__
 from .commands import EditWall, MeetWalls, root_edit_allowed
 from .host import (ARC_TOOL_KEY, CURVED_WALL_TOOL_KEY, HEIGHT_TOOL_KEY, WALL_TOTAL_HEIGHT_TOOL_KEY, MOVE_XY_TOOL_KEY,
                    MOVE_Z_TOOL_KEY, MOVE_VERTEX_CONTINUE_TOOL_KEY, MOVE_VERTEX_FREE_TOOL_KEY,
-                   WALL_STATION_Z_TOOL_KEY, WALL_LEAN_TOOL_KEY, WALL_OPENING_TOOL_KEY, WALL_POLYGON_TOOL_KEY, WALL_OPENING_HANDLE_DRAG_TOOL_KEY,
+                   WALL_STATION_Z_TOOL_KEY, WALL_LEAN_TOOL_KEY,
                    VERTEX_TOOL_KEY, activate_arc, activate_curved_wall, activate_height, activate_wall_total_height,
                    activate_move_vertex_continue, activate_move_vertex_free, activate_move_xy,
-                   activate_move_z, activate_wall_station_z, activate_wall_lean, activate_wall_opening, activate_wall_polygon,
-                   activate_select, activate_vertex_insert, activate_wall, register_tool, host_tool, activate_opening_handle_drag)
+                   activate_move_z, activate_wall_station_z, activate_wall_lean,
+                   activate_select, activate_vertex_insert, activate_wall, register_tool, host_tool)
 from .levels import available_levels, level_by_name, sync_bound_wall_tops
 from .junctions import sync_wall_junctions
 from .layer_intersections import intersection_group as wall_intersection_group
@@ -36,13 +36,10 @@ from . import wall_cache
 from .snaprefs import snap_to_wall_references, snap_to_wall_top_references, snap_to_structure_reference_endpoints
 from .path_edit import (ArcWallTool, ChangeWallHeightTool, ConstrainedMoveWallTool,
                         InsertVertexTool, MoveWallVertexTool, MoveWallStationZTool, LeanWallTopTool, ChangeWholeWallHeightTool)
-from .wall_opening_tool import WallOpeningTool
-from .wall_polygon_tool import WallPolygonTool
-from .opening_controller import all_opening_wires, hit_test
-from .opening_handle_drag import OpeningHandleDragTool
+from .wall_opening_ui import WallOpeningEditor
 from .overlay_safety import visible_pixel, visible_segment
-from .door_window_commands import EditHostedFill, DeleteHostedOpening, reverse_hosted_door, sync_hosted_fill_placements, _fill_record
-from .door_window_core import edit_from_hotspot, normalize_fill, reanchor_fill
+from .door_window_commands import EditHostedFill, reverse_hosted_door, sync_hosted_fill_placements, _fill_record
+from .door_window_core import normalize_fill, reanchor_fill
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
 from .i18n import t, ui_locale
 from .icons import icon as pa_icon, set_symbol_icon
@@ -181,9 +178,6 @@ class WallController(QObject):
         self.total_height_tool = ChangeWholeWallHeightTool(self)
         self.station_z_tool = MoveWallStationZTool(self)
         self.lean_tool = LeanWallTopTool(self)
-        self.opening_tool = WallOpeningTool(self)
-        self.polygon_tool = WallPolygonTool(self)
-        self.opening_drag_tool = OpeningHandleDragTool(self)
         self.arc_tool = ArcWallTool(self)
         self.move_vertex_free_tool = MoveWallVertexTool(self, "free")
         self.move_vertex_continue_tool = MoveWallVertexTool(self, "continue")
@@ -200,25 +194,21 @@ class WallController(QObject):
         self._path_palette_anchor = None
         self._path_palette_kind = None
         self._active_opening_id = None
-        self._opening_wire_key = None
-        self._opening_wire_data = []
         self._fill_sync_key = None
         self._active_opening_wall = None
         self._fields_opening_id = None
-        self._pointer_opening_grip = None
-        self._pointer_opening_drag = False
         self._make_panel()
         self._make_actions()
         self._make_path_palette()
-        self._make_opening_edit_palette()
         self._make_straight_mode_palette()
         self._make_curve_mode_palette()
         app.add_overlay(self.draw_reference_overlay)
-        if hasattr(app, "add_pickable"):
-            app.add_pickable(self._pick_virtual_opening, self._select_virtual_opening,
-                             self._delete_virtual_opening)
         app.add_snap_provider(self._snap_provider)
         app.viewport.installEventFilter(self)
+        # Installed after this controller's filter, so Qt asks it FIRST: a
+        # click on a selected opening's point wins over the wall reference
+        # line it may sit on (a door's bottom edge).
+        self.openings = WallOpeningEditor(app, self)
         # Selection/model changes emit sceneVersionChanged. Tool activation and
         # deactivation schedule their own refreshes; do not bind the heavy panel
         # refresh to measurementChanged because that signal also fires during
@@ -338,25 +328,9 @@ class WallController(QObject):
         self.reverse_swing_btn.setToolTip("Inverter o sentido de abertura desta porta sem alterar a parede.")
         self.reverse_swing_btn.clicked.connect(self._reverse_hosted_swing)
         oform.addRow("Porta",self.reverse_swing_btn)
-        self.polygon_label=QLabel("Abertura livre: edição por vértices",self.opening_widget)
+        self.polygon_label=QLabel("Abertura livre: edite pelos pontos e arestas na vista.",self.opening_widget)
+        self.polygon_label.setWordWrap(True)
         oform.addRow(self.polygon_label)
-        self.polygon_tools=QWidget(self.opening_widget)
-        polygon_row=QHBoxLayout(self.polygon_tools)
-        polygon_row.setContentsMargins(0,0,0,0)
-        polygon_row.setSpacing(4)
-        for symbol,description,operation in (
-            ("✥","Mover vértice","move_vertex"),
-            ("＋","Inserir vértice","insert_vertex"),
-            ("↔","Mover aresta","move_edge"),
-            ("−","Excluir vértice","delete_vertex"),
-        ):
-            btn=QToolButton(self.polygon_tools)
-            btn.setText(symbol)
-            btn.setToolTip(description + " da abertura livre")
-            btn.setFixedSize(32,32)
-            btn.clicked.connect(lambda _checked=False, mode=operation: self.edit_wall_polygon(mode))
-            polygon_row.addWidget(btn)
-        oform.addRow(self.polygon_tools)
         self.delete_opening_btn=QToolButton(self.opening_widget);set_symbol_icon(self.delete_opening_btn,"⊘",20);self.delete_opening_btn.setToolTip(t("Excluir esta abertura da parede."));self.delete_opening_btn.clicked.connect(self.delete_wall_opening);oform.addRow(t("Abertura hospedada"),self.delete_opening_btn)
         layout.addWidget(self.opening_widget);self.opening_widget.hide()
 
@@ -411,9 +385,6 @@ class WallController(QObject):
         register_tool(self.app, self.total_height_tool, key=WALL_TOTAL_HEIGHT_TOOL_KEY)
         register_tool(self.app, self.station_z_tool, key=WALL_STATION_Z_TOOL_KEY)
         register_tool(self.app, self.lean_tool, key=WALL_LEAN_TOOL_KEY)
-        register_tool(self.app, self.opening_tool, key=WALL_OPENING_TOOL_KEY)
-        register_tool(self.app, self.polygon_tool, key=WALL_POLYGON_TOOL_KEY)
-        register_tool(self.app, self.opening_drag_tool, key=WALL_OPENING_HANDLE_DRAG_TOOL_KEY)
         register_tool(self.app, self.arc_tool, key=ARC_TOOL_KEY)
         register_tool(self.app, self.move_vertex_free_tool, key=MOVE_VERTEX_FREE_TOOL_KEY)
         register_tool(self.app, self.move_vertex_continue_tool, key=MOVE_VERTEX_CONTINUE_TOOL_KEY)
@@ -442,8 +413,9 @@ class WallController(QObject):
         self.opening_toolbar_action.triggered.connect(
             lambda checked=False:self.begin_hosted_fill("opening"))
         self.opening_toolbar_menu=QMenu(self.app.window)
-        self.opening_toolbar_menu.addAction(
-            "Vão retangular",lambda checked=False:self.begin_hosted_fill("opening"))
+        for title,kind in (("Vão retangular","opening"),("Vão quadrado","square"),("Vão circular","circle")):
+            self.opening_toolbar_menu.addAction(
+                title,lambda checked=False,k=kind:self.begin_hosted_fill(k))
         self.opening_toolbar_menu.addAction(
             "Vão poligonal",lambda checked=False:self.begin_wall_polygon_from_toolbar())
         self.opening_toolbar_button=QToolButton(self.app.window)
@@ -814,76 +786,13 @@ class WallController(QObject):
         self.app.viewport.setFocus()
 
     def begin_hosted_fill(self, kind, anchor="center"):
-        # Toolbar and main panel actions always use CURRENT selection, not
-        # a potentially stale reference stored by the last radial palette.
-        # With no selection, pick the intended wall in the viewport.
-        walls=selected_walls(self.app.scene)
-        wall=walls[0] if len(walls)==1 else None
-        point=path_world(wall)[0] if wall is not None else None
+        """Toolbar, menus and panel: place an opening, door or window."""
         self.hide_path_palette()
-        # No preselected wall? Keep the placement tool active and acquire
-        # the wall under the next viewport click, as requested for Abertura.
-        try:
-            self.opening_tool.prepare(wall,point,kind=kind,fill_anchor=anchor)
-            activate_wall_opening(self.app)
-            self.app.viewport.setFocus()
-        except WallError as exc:
-            self.message(str(exc),error=True)
-
-    def begin_wall_opening(self, preset="generic"):
-        wall, anchor = self._palette_target()
-        self.hide_path_palette()
-        if wall is None:
-            return
-        self.opening_tool.prepare(wall, anchor, void_preset=preset)
-        activate_wall_opening(self.app)
-        self.app.viewport.setFocus()
-
-    def begin_wall_polygon(self):
-        wall, anchor = self._palette_target()
-        self.hide_path_palette()
-        if wall is None:
-            return
-        self.polygon_tool.prepare(wall, anchor)
-        activate_wall_polygon(self.app)
-        self.app.viewport.setFocus()
+        self.openings.begin_place("rect" if kind == "opening" else kind, anchor)
 
     def begin_wall_polygon_from_toolbar(self):
-        """Toolbar polygon opening: pick the host in the viewport first."""
-        walls=selected_walls(self.app.scene)
-        wall=walls[0] if len(walls)==1 else None
-        anchor=path_world(wall)[0] if wall is not None else None
         self.hide_path_palette()
-        try:
-            self.polygon_tool.prepare(wall,anchor)
-            activate_wall_polygon(self.app)
-            self.app.viewport.setFocus()
-        except WallError as exc:
-            self.message(str(exc),error=True)
-
-    def edit_wall_polygon(self, operation="move_vertex", *, element_index=None,
-                          anchor=None):
-        if self.target is None or not self._active_opening_id:
-            return
-        try:
-            values = read_wall(self.target)
-            opening = next((x for x in values.get("openings", ())
-                            if x.get("id") == self._active_opening_id), None)
-            if not opening:
-                raise WallError("Selecione uma abertura livre para editar.")
-            convert_rect=(opening.get("kind")!="polygon" and
-                          not opening.get("source_id") and not opening.get("fill"))
-            if opening.get("kind")!="polygon" and not convert_rect:
-                raise WallError("A esquadria hospedada deve ser editada por seus parâmetros.")
-            origin = QVector3D(anchor) if anchor is not None else path_world(self.target)[0]
-            self.polygon_tool.prepare(self.target, origin,
-                                      opening_id=self._active_opening_id,
-                                      operation=operation,index=element_index,
-                                      convert_rect=convert_rect)
-            activate_wall_polygon(self.app)
-            self.app.viewport.setFocus()
-        except WallError as exc:
-            self.message(str(exc), error=True)
+        self.openings.begin_draw()
 
     def _load_opening_fields(self, openings):
         ops=list(openings or [])
@@ -912,7 +821,6 @@ class WallController(QObject):
             if label is not None:
                 label.setVisible(not polygon)
         self.polygon_label.setVisible(polygon)
-        self.polygon_tools.setVisible(polygon)
         linked=self._find_linked_fill(item)
         self.opening_fill.setEnabled(not polygon and linked is None)
         linked_spec=normalize_fill(_fill_record(linked)["params"]) if linked else None
@@ -992,335 +900,6 @@ class WallController(QObject):
             self._state_key=None
             self._load_opening_fields(read_wall(self.target).get("openings",[]))
             self.app.viewport.update()
-
-    def _pick_virtual_opening(self, viewport, px, py):
-        """Native Select-tool hit test, independent of wall selection.
-
-        No hidden scene Group is created: the stable identity is host UID +
-        opening ID. The host calls this before conventional geometry picking.
-        """
-        editing=viewport.scene.edit_group
-        # An IngeTrazo group-edit session edits raw mesh, not the authored
-        # parametric record. Only the wall ITSELF is eligible here; on pick,
-        # exit safely to root before invoking parametric EditWall commands.
-        if editing is not None and wall_record(editing) is None:
-            return None
-        candidates=[editing] if editing is not None else list(
-            getattr(viewport.scene, "groups", ()))
-        for wall in candidates:
-            rec=wall_record(wall)
-            if not rec or not rec.get("openings"):
-                continue
-            if (not viewport.scene.entity_visible(wall)
-                    or not viewport.scene.entity_selectable(wall)):
-                continue
-            wires=self._opening_wires_for(wall)
-            if not wires:
-                continue
-            convertible_ids={str(o.get("id")) for o in rec.get("openings",())
-                             if o.get("kind")!="polygon"
-                             and not o.get("source_id") and not o.get("fill")}
-            result=hit_test(viewport,wires,float(px),float(py),
-                            active_id=self._active_opening_id
-                            if wall is self._active_opening_wall else None,
-                            editable_rect_ids=convertible_ids)
-            if result is not None:
-                oid,handle=result
-                return (str(wall.uid),oid,handle)
-            # An empty hole can be selected by clicking its face INTERIOR.
-            # Never claim the filled interior of an actual door/window:
-            # native IngeTrazo picking must still reach its Group/leaf.
-            free_ids={str(o.get("id")) for o in rec.get("openings",())
-                      if not o.get("source_id")}
-            if free_ids:
-                free_wires=[wire for wire in wires if wire[0] in free_ids]
-                inside=hit_test(viewport,free_wires,float(px),float(py),
-                                allow_interior=True)
-                if inside is not None:
-                    return (str(wall.uid),inside[0],inside[1])
-        return None
-
-    def _select_virtual_opening(self, identity):
-        if identity is None:
-            # The host invalidates native extension_pick whenever EditWall
-            # changes scene.version. That does NOT delete/deselect the
-            # parametric opening while its owning wall remains selected.
-            wall=self._active_opening_wall
-            if wall not in getattr(self.app.scene,"selection",()):
-                self._active_opening_wall=None
-                self._active_opening_id=None
-            self._state_key=None
-            self.schedule_refresh()
-            return
-        wall_uid, oid, handle = identity
-        wall=next((w for w in self.app.scene.groups if getattr(w,"uid",None)==wall_uid
-                   and wall_record(w) is not None),None)
-        if wall is None:
-            return
-        # Make edits through the authored wall command at the root. The
-        # host handles exiting/restoring nested transforms and undo state.
-        if getattr(self.app.scene,"edit_group",None) is wall:
-            self.app.viewport.end_group_edit()
-        self._active_opening_wall=wall
-        self._active_opening_id=oid
-        self._loaded_key=None
-        self._state_key=None
-        self.schedule_refresh()
-        try:
-            is_polygon=next(o.get("kind")=="polygon"
-                            for o in read_wall(wall)["openings"] if o["id"]==oid)
-        except (WallError,StopIteration):
-            is_polygon=False
-        from PySide6.QtGui import QCursor
-        pos=QCursor.pos()
-        if is_polygon or (handle and handle.startswith(("vertex-","edge-"))):
-            QTimer.singleShot(0,lambda o=oid,h=handle,p=pos:
-                              self._show_opening_edit_palette(o,h,p))
-        elif handle:
-            QTimer.singleShot(0,lambda o=oid,h=handle,p=pos:
-                              self._show_opening_handle_menu(o,h,p))
-        else:
-            QTimer.singleShot(0,lambda o=oid,p=pos:
-                              self._show_opening_edit_palette(o,None,p))
-
-    def _delete_virtual_opening(self, identity):
-        if identity is None:
-            return
-        wall_uid,oid,_handle=identity
-        wall=next((w for w in self.app.scene.groups if getattr(w,"uid",None)==wall_uid
-                   and wall_record(w) is not None),None)
-        if wall is None:return
-        self._active_opening_wall=wall
-        self.target=wall
-        self.target_scene=self.app.scene
-        self._active_opening_id=oid
-        self.delete_wall_opening()
-
-    def _opening_wires_for(self,wall):
-        # A native pick is asked for every Select click, even when no wall
-        # is selected. Cache ALL hosts for the document version, not just the
-        # last wall: otherwise N walls recut N preview outlines each click.
-        key=(id(self.app.scene),self.app.scene.version)
-        if self._opening_wire_key!=key:
-            self._opening_wire_cache={}
-            self._opening_wire_key=key
-        cache=self._opening_wire_cache
-        ident=id(wall)
-        if ident not in cache:
-            try:
-                cache[ident]=all_opening_wires(wall,read_wall(wall))
-            except (WallError,ValueError,TypeError):
-                cache[ident]=[]
-        return cache[ident]
-
-    def _change_opening_handle(self,oid,handle_id,action):
-        if self.target is None:
-            return
-        try:
-            values=read_wall(self.target)
-            opening=next(o for o in values["openings"] if o["id"]==oid)
-            if opening.get("kind")=="polygon":
-                self.edit_wall_polygon("move_vertex")
-                return
-            linked=self._find_linked_fill(opening)
-            old_spec=normalize_fill(_fill_record(linked)["params"]) if linked else None
-            nominal=float(opening.get(action,0))
-            side=handle_id.split("-")[-1]
-            if action=="position":
-                if old_spec:
-                    from .door_window_core import station_span
-                    s0,s1=station_span(old_spec)
-                else:
-                    s0=float(opening["position"])-float(opening["width"])/2
-                    s1=float(opening["position"])+float(opening["width"])/2
-                nominal={"left":s0,"center":(s0+s1)/2,"right":s1}[side]
-            label={"width":"Largura livre (m)","height":"Altura da abertura (m)",
-                   "position":"Posição do ponto de controle (m)"}[action]
-            value,ok=QInputDialog.getDouble(self.app.window,label,label,nominal,
-                                           0.0 if action=="position" else MIN_DIM,
-                                           MAX_DIM,4)
-            if not ok or abs(value-nominal)<1.e-8:
-                return
-            if linked:
-                edited=edit_from_hotspot(old_spec,handle_id,action,value)
-                changes={k:edited[k] for k in ("position","width","height")
-                         if edited[k]!=old_spec[k]}
-                cmd=EditHostedFill(self.app.scene,self.target,linked,changes)
-            else:
-                if action=="position":
-                    opening["position"]+=value-nominal
-                else:
-                    opening[action]=value
-                cmd=EditWall(self.app.scene,self.target,values)
-            self.app.viewport.history.execute(cmd)
-            if self.app.viewport.history.last_error:
-                raise WallError(self.app.viewport.history.last_error)
-            self.app.viewport.notify_scene_changed()
-            self._state_key=None
-            self.refresh()
-        except (WallError,ValueError,StopIteration) as exc:
-            self.message(str(exc),error=True)
-
-    def _start_opening_handle_drag(self,oid,handle_id,action):
-        try:
-            if self.target is None:
-                raise WallError("Selecione o vão primeiro.")
-            self.opening_drag_tool.prepare(self.target,oid,handle_id,action)
-            activate_opening_handle_drag(self.app)
-            self.app.viewport.setFocus()
-        except (WallError,ValueError) as exc:
-            self.message(str(exc),error=True)
-
-    def _make_opening_edit_palette(self):
-        """Same reference-edge/vertex palette pattern used by the slab."""
-        self.opening_edit_palette=RadialPalette(self.app.window,popup=False,role="edit")
-        self.opening_edit_palette.setObjectName("ap_wall_opening_edit_palette")
-        self._opening_edit_wall=None
-        self._opening_edit_id=None
-        self._opening_edit_handle=None
-        self._opening_edit_anchor=None
-        row=self.opening_edit_palette.row
-        self.opening_edit_buttons={}
-        definitions=(
-            ("move_vertex","✥","Mover vértice selecionado"),
-            ("insert_vertex","＋","Inserir vértice nesta aresta"),
-            ("move_edge","↔","Mover aresta da abertura"),
-            ("stretch_edge","⇱","Estender/extrudar esta aresta"),
-            ("delete_vertex","⌫","Excluir vértice selecionado"),
-            ("move_opening","✥","Mover abertura inteira"),
-            ("delete_opening","⊘","Excluir abertura inteira"),
-        )
-        for key,symbol,tooltip in definitions:
-            btn=QToolButton(self.opening_edit_palette)
-            set_symbol_icon(btn,symbol)
-            btn.setToolTip(tooltip)
-            btn.setAutoRaise(True)
-            btn.setFixedSize(34,34)
-            btn.clicked.connect(lambda checked=False,op=key:
-                                self._run_opening_edit_action(op))
-            row.addWidget(btn)
-            self.opening_edit_buttons[key]=btn
-        self.opening_edit_palette.hide()
-
-    def _show_opening_edit_palette(self,oid,handle_id,global_pos):
-        wall=self._active_opening_wall
-        if wall is None or wall not in self.app.scene.groups:
-            return
-        try:
-            opening=next(o for o in read_wall(wall)["openings"]
-                         if o["id"]==oid)
-        except (WallError,StopIteration):
-            return
-        self._opening_edit_wall=wall
-        self._opening_edit_id=oid
-        self._opening_edit_handle=handle_id
-        self.target=wall
-        self.target_scene=self.app.scene
-        anchor=None
-        for key,lines,grips in self._opening_wires_for(wall):
-            if key!=oid:
-                continue
-            if handle_id is not None:
-                for grip_name,p in grips:
-                    if grip_name==handle_id:
-                        anchor=QVector3D(p)
-                        break
-                if anchor is None and handle_id.startswith("edge-"):
-                    index=int(handle_id.split("-",1)[1])
-                    if index<len(lines):
-                        a,b=lines[index]
-                        anchor=(QVector3D(a)+QVector3D(b))*.5
-            if anchor is None and opening.get("kind")!="polygon" and len(lines)>=12 and handle_id:
-                if handle_id.startswith("vertex-"):
-                    n=int(handle_id.split("-",1)[1])
-                    corners=(lines[0][0],lines[0][1],lines[4][1],lines[4][0])
-                    anchor=QVector3D(corners[n%4])
-                elif handle_id.startswith("edge-"):
-                    n=int(handle_id.split("-",1)[1])
-                    a,b=lines[(0,9,4,8)[n%4]]
-                    anchor=(QVector3D(a)+QVector3D(b))*.5
-            if anchor is None and lines:
-                a,b=lines[0]
-                anchor=(QVector3D(a)+QVector3D(b))*.5
-            break
-        self._opening_edit_anchor=anchor
-        polygon=opening.get("kind")=="polygon"
-        editable=polygon or (not opening.get("source_id") and not opening.get("fill"))
-        vertex=editable and bool(handle_id and handle_id.startswith("vertex-"))
-        edge=editable and bool(handle_id and handle_id.startswith("edge-"))
-        for op,btn in self.opening_edit_buttons.items():
-            btn.setVisible((op in ("move_vertex","delete_vertex") and vertex)
-                or (op in ("insert_vertex","move_edge","stretch_edge") and edge)
-                or op in ("move_opening","delete_opening"))
-        self.opening_edit_palette.show_at(global_pos)
-
-    def _run_opening_edit_action(self,operation):
-        self.opening_edit_palette.hide()
-        wall=self._opening_edit_wall
-        oid=self._opening_edit_id
-        handle=self._opening_edit_handle
-        anchor=self._opening_edit_anchor
-        if wall is None or oid is None:
-            return
-        self.target=wall
-        self.target_scene=self.app.scene
-        self._active_opening_wall=wall
-        self._active_opening_id=oid
-        try:
-            opening=next(o for o in read_wall(wall)["openings"]
-                         if o["id"]==oid)
-            if operation=="delete_opening":
-                self.delete_wall_opening()
-                return
-            if operation=="move_opening" and opening.get("kind")!="polygon":
-                self._start_opening_handle_drag(oid,"bottom-center","move")
-                return
-            if opening.get("kind")!="polygon" and (
-                    opening.get("source_id") or opening.get("fill")):
-                raise WallError("Esquadrias hospedadas mantêm edição paramétrica.")
-            index=int(handle.split("-",1)[1]) if handle is not None else None
-            if operation=="delete_vertex":
-                if index is None or not handle.startswith("vertex-"):
-                    raise WallError("Selecione o vértice que deseja excluir.")
-                from .wall_polygon import delete_vertex, rectangle_to_polygon
-                values=read_wall(wall)
-                item=next(x for x in values["openings"] if x["id"]==oid)
-                original=(item["polygon"] if item.get("kind")=="polygon"
-                          else rectangle_to_polygon(item,values["length"]))
-                updated=delete_vertex(original,index,values["length"],
-                                      allow_outside=True)
-                item["kind"]="polygon"
-                item["polygon"]=updated
-                item["edges"]=[{"type":"line"} for _ in updated]
-                self.app.viewport.history.execute(EditWall(self.app.scene,wall,values))
-                if self.app.viewport.history.last_error:
-                    raise WallError(self.app.viewport.history.last_error)
-                self.app.viewport.notify_scene_changed()
-                self._state_key=None
-                self.schedule_refresh()
-                self.message("Vértice da abertura excluído.")
-                return
-            self.edit_wall_polygon(operation,element_index=index,anchor=anchor)
-        except (WallError,ValueError,StopIteration,TypeError) as exc:
-            self.message(str(exc),error=True)
-
-    def _show_opening_handle_menu(self,oid,handle_id,point):
-        menu=QMenu(self.app.window)
-        if handle_id.startswith("vertex-"):
-            for title,operation in (("Mover vértice","move_vertex"),
-                                    ("Inserir vértice","insert_vertex"),
-                                    ("Mover aresta","move_edge"),
-                                    ("Excluir vértice","delete_vertex")):
-                menu.addAction(title,lambda checked=False,op=operation:self.edit_wall_polygon(op))
-        else:
-            actions=("width","position") if handle_id.startswith("bottom-") else ("width","height")
-            for action in actions:
-                title={"width":"Largura","position":"Posição","height":"Altura"}[action]
-                menu.addAction("Puxar: "+title,lambda checked=False,a=action:
-                               self._start_opening_handle_drag(oid,handle_id,a))
-                menu.addAction("Digitar: "+title,lambda checked=False,a=action:
-                               self._change_opening_handle(oid,handle_id,a))
-        menu.popup(point)
 
     def opening_changed(self,*_):
         """Apply only the parameter whose Qt widget actually changed.
@@ -1408,41 +987,8 @@ class WallController(QObject):
             self.schedule_refresh()
 
     def delete_wall_opening(self):
-        """Delete only after the host history confirms the change.
-
-        Failed or rejected deletion must not discard the selected opening ID:
-        its virtual controls and the newly bound contextual Info Box should
-        still point to the same opening for correction/retry.
-        """
-        if self.target is None or not self._active_opening_id:
-            return
-        target_id = self._active_opening_id
-        try:
-            vals = read_wall(self.target)
-            item = next((x for x in vals["openings"]
-                         if x.get("id") == target_id), None)
-            if item is None:
-                return
-            linked = self._find_linked_fill(item)
-            vals["openings"] = [x for x in vals["openings"]
-                                if x.get("id") != target_id]
-            cmd = (DeleteHostedOpening(self.app.scene, self.target, target_id)
-                   if linked else EditWall(self.app.scene, self.target, vals))
-            self.app.viewport.history.execute(cmd)
-            if self.app.viewport.history.last_error:
-                raise WallError(self.app.viewport.history.last_error)
-            self._active_opening_id = None
-            self._fields_opening_id = None
-            self.app.viewport.notify_scene_changed()
-            self._state_key = None
-            self.refresh()
-            self.message("Abertura excluída.")
-        except (WallError, ValueError, KeyError) as exc:
-            self._active_opening_id = target_id
-            self._loaded_key = None
-            self._state_key = None
-            self.schedule_refresh()
-            self.message(str(exc), error=True)
+        if self.target is not None and self._active_opening_id:
+            self.openings.delete_opening(self.target, self._active_opening_id)
 
     def begin_curve_arc(self):
         wall, anchor = self._palette_target()
@@ -1531,45 +1077,6 @@ class WallController(QObject):
         return None if best is None else ("segment", QVector3D(best[1]))
 
     def eventFilter(self, obj, event):
-        vp=self.app.viewport
-        # Direct press / pull / release on an already-selected virtual grip.
-        # A stationary click still opens the radial operation menu. No host
-        # mesh mutation happens until release, so one gesture = one Undo.
-        if obj is vp and self._pointer_opening_grip is not None:
-            pending=self._pointer_opening_grip
-            if event.type()==QEvent.MouseMove:
-                if not (event.buttons() & Qt.LeftButton):
-                    self._pointer_opening_grip=None
-                    return True
-                if (not self._pointer_opening_drag
-                        and (event.position()-pending[3]).manhattanLength()>=5):
-                    oid,handle,wall,_start=pending
-                    action=("height" if handle=="top-center" else
-                            "position" if handle=="bottom-center" else "width")
-                    self.target=wall
-                    self._start_opening_handle_drag(oid,handle,action)
-                    self._pointer_opening_drag=(vp.active_tool is self.opening_drag_tool)
-                if self._pointer_opening_drag:
-                    ctx=vp._build_ctx(event)
-                    if ctx is not None:
-                        self.opening_drag_tool.on_hover(ctx)
-                return True
-            if event.type()==QEvent.MouseButtonRelease and event.button()==Qt.LeftButton:
-                self._pointer_opening_grip=None
-                dragging=self._pointer_opening_drag
-                self._pointer_opening_drag=False
-                if dragging:
-                    ctx=vp._build_ctx(event)
-                    if ctx is not None:
-                        self.opening_drag_tool.on_hover(ctx)
-                        self.opening_drag_tool.on_click(ctx)
-                    else:
-                        self.opening_drag_tool.on_cancel(vp)
-                else:
-                    _oid,_handle,_wall,_start=pending
-                    QTimer.singleShot(0,lambda o=_oid,h=_handle,p=event.globalPosition().toPoint():
-                                      self._show_opening_handle_menu(o,h,p))
-                return True
         if obj is getattr(self, "toolbar", None) and event.type() in (QEvent.Resize, QEvent.Show, QEvent.Move):
             QTimer.singleShot(0, self._position_toolbar_grip)
             return False
@@ -1583,39 +1090,8 @@ class WallController(QObject):
                 vp = self.app.viewport
                 select_tool = host_tool(self.app, "select")
                 walls = selected_walls(self.app.scene)
-                if (getattr(vp,"extension_pick",None) is not None
-                        and self._active_opening_wall in self.app.scene.groups
-                        and self._active_opening_wall not in walls):
-                    walls=[self._active_opening_wall]
                 if (vp.active_tool is select_tool and len(walls) == 1
                         and event.modifiers() == Qt.NoModifier):
-                    # Leave opening hits to the host's native extension
-                    # selection pipeline. Intercepting MouseButtonPress here
-                    # stole the click before SelectTool could commit its pick.
-                    virtual=self._pick_virtual_opening(vp,event.position().x(),
-                                                        event.position().y())
-                    if virtual is not None:
-                        wall_uid,oid,handle=virtual
-                        # First click selects the void natively. Once selected,
-                        # the second press can pull one of its six grips.
-                        if (oid==self._active_opening_id
-                                and self._active_opening_wall is walls[0]):
-                            if handle and handle.startswith(("top-","bottom-")):
-                                self._pointer_opening_grip=(oid,handle,walls[0],
-                                                           event.position())
-                                self._pointer_opening_drag=False
-                                return True
-                            # A first edit/Undo rebuilds the host mesh and
-                            # invalidates its native extension pick version.
-                            # Like the slab editor, re-open the active
-                            # opening context directly rather than requiring
-                            # the user to re-select the wall or hole.
-                            global_point=event.globalPosition().toPoint()
-                            QTimer.singleShot(0,
-                                lambda o=oid,h=handle,p=global_point:
-                                    self._show_opening_edit_palette(o,h,p))
-                            return True
-                        return False
                     hit = self._reference_context(
                         event.position().x(), event.position().y(), walls[0])
                     if hit is not None:
@@ -1737,48 +1213,6 @@ class WallController(QObject):
                 painter.drawEllipse(QRectF(pt[0] - 4.0, pt[1] - 4.0, 8.0, 8.0))
                 pixel_line((pt[0]-5.5,pt[1]),(pt[0]+5.5,pt[1]))
 
-            # Virtual controllers are overlays, never editable hidden solids.
-            if wall is self.target:
-                for oid,segments,grips in self._opening_wires_for(wall):
-                    active=(oid==self._active_opening_id)
-                    painter.setPen(QPen(QColor("#e78b24") if active else QColor("#6997b0"),
-                                        2.0 if active else 1.0,
-                                        Qt.SolidLine if active else Qt.DashLine))
-                    for a,b in segments:
-                        line(a,b)
-                    if active:
-                        painter.setPen(QPen(QColor("#e78b24"),1.5))
-                        painter.setBrush(QColor("white"))
-                        for handle_id,p in grips:
-                            px=dot(p)
-                            if px is not None:
-                                painter.drawRect(QRectF(px[0]-4,px[1]-4,8,8))
-                        # Slab-style logical edge handles: orange circle
-                        # at each midpoint, distinct from square vertices.
-                        # Depth/thickness edges are not editing handles.
-                        is_polygon=bool(grips and grips[0][0].startswith("vertex-"))
-                        rect_free=False
-                        if not is_polygon:
-                            try:
-                                op=next(o for o in wall_cache.values(scene, wall)["openings"]
-                                        if str(o.get("id"))==oid)
-                                rect_free=not op.get("source_id") and not op.get("fill")
-                            except (WallError,StopIteration):
-                                pass
-                        if is_polygon:
-                            edge_indices=range(len(grips))
-                        elif rect_free and len(segments)>=12:
-                            edge_indices=(0,9,4,8)
-                        else:
-                            edge_indices=()
-                        painter.setPen(QPen(QColor("#cf651c"),1.6))
-                        painter.setBrush(QColor("#fff0d5"))
-                        for i in edge_indices:
-                            a,b=segments[i]
-                            q=dot((a+b)*.5)
-                            if q is not None:
-                                painter.drawEllipse(QRectF(q[0]-4.4,q[1]-4.4,8.8,8.8))
-
             # ArchiCAD-like hotspot at the mathematical centre of a selected arc.
             try:
                 centre = wall_cache.arc_center(scene, wall)
@@ -1890,7 +1324,6 @@ class WallController(QObject):
             self._loaded_key = None
             self._junction_key = None
             self._fill_sync_key = None
-            self._opening_wire_key = None
 
         # Tops intentionally linked to the Níveis extension are derived from
         # that level + offset.  Regenerate them before junction cleanup so a

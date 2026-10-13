@@ -56,6 +56,31 @@ class WallError(ValueError):
     pass
 
 
+def _normalize_opening_edges(raw, count):
+    """Straight or circular (sagitta) edges of a free wall opening."""
+    if raw is None:
+        return [{"type": "line"} for _ in range(count)]
+    if not isinstance(raw, (list, tuple)) or len(raw) != count:
+        raise WallError("As arestas da abertura não correspondem aos vértices.")
+    out = []
+    for edge in raw:
+        kind = edge.get("type", "line") if isinstance(edge, dict) else None
+        if kind == "line":
+            out.append({"type": "line"})
+        elif kind == "arc":
+            try:
+                sagitta = float(edge.get("sagitta", 0.0))
+            except (TypeError, ValueError) as exc:
+                raise WallError("Curvatura inválida na abertura.") from exc
+            if not math.isfinite(sagitta):
+                raise WallError("Curvatura inválida na abertura.")
+            out.append({"type": "arc", "sagitta": sagitta} if abs(sagitta) > 1e-9
+                       else {"type": "line"})
+        else:
+            raise WallError("Tipo de aresta desconhecido na abertura.")
+    return out
+
+
 def normalize_wall_openings(raw, length, height):
     """Normalize hosted openings.
 
@@ -71,24 +96,27 @@ def normalize_wall_openings(raw, length, height):
         if not isinstance(item,dict):
             continue
         if item.get("kind") in ("polygon", "embedded") or item.get("shape") == "polygon":
-            from .wall_polygon import normalize_polygon
-            edges = item.get("edges")
+            from .wall_polygon import normalize_polygon, sample_outline
             pts_raw = item.get("polygon")
-            if edges is not None and (not isinstance(edges, (list, tuple)) or
-                    len(edges) != len(pts_raw or ()) or
-                    any(not isinstance(e, dict) or e.get("type", "line") != "line"
-                        for e in edges)):
-                raise WallError("Arestas curvas da abertura poligonal ainda não são suportadas.")
+            edges = _normalize_opening_edges(item.get("edges"), len(pts_raw or ()))
             try:
-                polygon = normalize_polygon(pts_raw, length, allow_outside=True)
+                if any(e["type"] == "arc" for e in edges):
+                    # Control points of curved edges are not a simple polygon on
+                    # their own; validate the outline the cut will actually use.
+                    normalize_polygon(sample_outline(pts_raw, edges), length,
+                                      allow_outside=True)
+                    polygon = [[float(x), float(z)] for x, z in pts_raw]
+                else:
+                    polygon = normalize_polygon(pts_raw, length, allow_outside=True)
             except (ValueError, TypeError, OverflowError) as exc:
                 raise WallError(str(exc)) from exc
+            if len(polygon) != len(edges):
+                edges = [{"type": "line"} for _ in polygon]
             # Wall clearance may be sloped. Test actual base/top profiles
             # when resolving the hosted span, never against the min height.
             item_copy = {
                 "id": str(item.get("id") or f"wall-opening-{i+1}"),
-                "kind": "polygon", "polygon": polygon,
-                "edges": [{"type": "line"} for _ in polygon],
+                "kind": "polygon", "polygon": polygon, "edges": edges,
                 "source_id": item.get("source_id"),
                 "ifc_global_id": item.get("ifc_global_id"),
             }
@@ -702,8 +730,9 @@ def wall_opening_intervals(values, path):
     result=[]
     for o in ops:
         if o.get("kind") == "polygon":
-            from .wall_polygon import clip_polygon_stations, clip_to_wall
-            polygon=clip_polygon_stations(o["polygon"],L)
+            from .wall_polygon import clip_polygon_stations, sample_outline
+            outline=sample_outline(o["polygon"],o.get("edges"))
+            polygon=clip_polygon_stations(outline,L)
             if not polygon:
                 continue
             # A head-above-wall cutter is still a valid logical opening but
@@ -715,10 +744,10 @@ def wall_opening_intervals(values, path):
             # Keep IFC/source identity and ORIGINAL polygon untouched.
             result.append(dict(o,s0=s0,s1=s1,reference_span=s1-s0,
                                cut_polygon=polygon,
-                               cut_clipped=len(polygon)!=len(o["polygon"]) or
+                               cut_clipped=len(polygon)!=len(outline) or
                                any(abs(float(a[0])-float(b[0]))>1e-7 or
                                    abs(float(a[1])-float(b[1]))>1e-7
-                                   for a,b in zip(polygon,o["polygon"]))))
+                                   for a,b in zip(polygon,outline))))
             continue
         pos=float(o["position"]);width=float(o["width"])
         # The logical cutter exists independently of the wall ends.

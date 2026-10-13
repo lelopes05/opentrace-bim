@@ -322,7 +322,9 @@ class ContextualBar(QWidget):
             if kind == "opening":
                 self._section(p, "Mét. construtivos")
                 self._method(p, "▱", "Vão retangular", lambda: wall.begin_hosted_fill("opening"))
-                self._method(p, "⬡", "Vão poligonal", wall.begin_wall_polygon_from_toolbar)
+                self._method(p, "□", "Vão quadrado", lambda: wall.begin_hosted_fill("square"))
+                self._method(p, "⊙", "Vão circular", lambda: wall.begin_hosted_fill("circle"))
+                self._method(p, "⬡", "Vão livre: desenhar os cantos", wall.begin_wall_polygon_from_toolbar)
             else:
                 self._section(p, "Ancoragem")
                 for symbol, anchor, label in (
@@ -387,9 +389,10 @@ class ContextualBar(QWidget):
             return "wall"
         if active is wall.curve_create_tool:
             return "wall_curve"
-        if active is wall.opening_tool:
-            return wall.opening_tool.kind
-        if active is wall.polygon_tool:
+        place = wall.openings.place_tool
+        if active is place:
+            return place.kind if place.kind in ("door", "window") else "opening"
+        if active is wall.openings.draw_tool:
             return "opening"
         for key in ("slab", "column", "beam"):
             ctrl = self.controllers.get(key)

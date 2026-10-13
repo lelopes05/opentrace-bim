@@ -79,3 +79,8 @@ def junction_aliases(scene, base=None):
     from .junctions import junction_snap_aliases
     return _memo.get(scene, ("junction_aliases", base),
                      lambda: tuple(junction_snap_aliases(scene, base)))
+
+
+def memo(scene, key, compute):
+    """Any other derived value that only changes with the document."""
+    return _memo.get(scene, key, compute)
