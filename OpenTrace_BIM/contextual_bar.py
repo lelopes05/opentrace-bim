@@ -156,6 +156,7 @@ class ContextualBar(QWidget):
 
     def _run(self, callback):
         callback()
+        self.app.viewport.setFocus()
         QTimer.singleShot(0, self.refresh)
 
     def _field(self, layout, text, source, *, width=90):

@@ -307,6 +307,24 @@ class ToolRowTests(unittest.TestCase):
         self.assertTrue(viewport.hasFocus(), "Tool-row button stole viewport focus")
         QTest.keyClick(viewport, Qt.Key_Space)
         APP.processEvents()
+        if viewport.active_tool is not host_tool(self.app, "select"):
+            action = self.window._tool_actions["select"]
+            focus = APP.focusWidget()
+            active_window = APP.activeWindow()
+            self.fail(str({
+                "viewport_focus": viewport.hasFocus(),
+                "focus_widget": focus.objectName() if focus else None,
+                "active_window": active_window.objectName() if active_window else None,
+                "window_active": self.window.isActiveWindow(),
+                "action_enabled": action.isEnabled(),
+                "action_visible": action.isVisible(),
+                "shortcut_context": str(action.shortcutContext()),
+                "value_buffer": repr(viewport._value_buffer),
+                "tool_claims_space": viewport._tool_claims_key(
+                    __import__("PySide6.QtGui", fromlist=["QKeyEvent"]).QKeyEvent(
+                        __import__("PySide6.QtCore", fromlist=["QEvent"]).QEvent.KeyPress,
+                        Qt.Key_Space, Qt.NoModifier)),
+            }))
         self.assertIs(viewport.active_tool, host_tool(self.app, "select"))
 
     def test_contextual_buttons_and_fields_focus_contract(self):
