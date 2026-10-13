@@ -222,4 +222,10 @@ def _create_watcher():
     return ThemeWatcher
 
 
-ThemeWatcher = _create_watcher()
+def __getattr__(name):
+    # Pure WCAG helpers must import without PySide6 installed.
+    if name == "ThemeWatcher":
+        watcher_type = _create_watcher()
+        globals()[name] = watcher_type
+        return watcher_type
+    raise AttributeError(name)
