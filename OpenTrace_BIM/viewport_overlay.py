@@ -67,6 +67,13 @@ class OverlayDock(_BlockViewportInput, QWidget):
         suite.context_bar = self.bar
         options_layout.addWidget(self.bar)
 
+        # Qt can send LayoutRequest to the resized child rather than its
+        # parent. Observe all size-hint owners to catch those requests too.
+        self._layout_sources = (
+            self.row, self.row.toolbar, self.options_frame, self.bar, self.bar.stack,
+        )
+        for widget in self._layout_sources:
+            widget.installEventFilter(self)
         viewport.installEventFilter(self)
         self.reposition()
         self.show()
@@ -81,8 +88,12 @@ class OverlayDock(_BlockViewportInput, QWidget):
         return result
 
     def eventFilter(self, watched, event):
-        if watched is self.parentWidget() and event.type() in (QEvent.Resize, QEvent.Show):
-            self.reposition()
+        if watched is self.parentWidget():
+            if event.type() in (QEvent.Resize, QEvent.Show):
+                self.reposition()
+        elif watched in self._layout_sources:
+            if event.type() in (QEvent.LayoutRequest, QEvent.Show, QEvent.Hide):
+                self.reposition()
         return False
 
     def reposition(self):
@@ -95,6 +106,10 @@ class OverlayDock(_BlockViewportInput, QWidget):
             self.setMaximumWidth(available)
             self.row.setMaximumWidth(available)
             self.options_frame.setMaximumWidth(available)
+            # Reconcile nested Qt size hints before measuring the dock.
+            self.row.layout().activate()
+            self.bar.layout().activate()
+            self.options_frame.layout().activate()
             self.layout().activate()
             self.adjustSize()
             preferred = max(
