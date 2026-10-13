@@ -623,6 +623,29 @@ class StickyWallOpeningTests(unittest.TestCase):
         self.assertIs(self.editor.sticky.tool, tool)
         self.assertTrue(self.editor.sticky.waiting)
 
+    def test_host_pick_version_stays_in_sync_after_edit(self):
+        """A selected opening must have a current host pick after editing."""
+        viewport = self.window.viewport
+        self.editor.active = None
+        self.app.release_pick()
+        self.window.show()
+        APP.processEvents()
+
+        point = viewport._world_to_pixel(self.shape["mids"][1])
+        self.assertIsNotNone(point)
+        self._click_viewport(QPoint(round(point[0]), round(point[1])))
+        self.assertIsNotNone(viewport.extension_pick)
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+        self._commit_first_edge()
+        self.assertEqual(self.editor.active, (self.wall, "a"))
+        self.assertIsNotNone(
+            viewport.extension_pick,
+            "The host should still know which opening the plugin highlights.")
+        self.assertEqual(
+            viewport.extension_pick[2], self.scene.version,
+            "After the edit the host's opening pick is stale; no public "
+            "API exists to refresh its version while retaining selection.")
+
     def test_host_pick_is_released_by_select_after_edit_and_empty_click(self):
         """A real host pick must not leave the opening highlighted after Space/blank."""
         from OpenTrace_BIM.host import host_tool
