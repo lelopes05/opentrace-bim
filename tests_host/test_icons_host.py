@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QPainter, QPixmap, QPixmapCache
 from PySide6.QtWidgets import QApplication
 from views.theme import dark_palette, light_palette
 
@@ -21,6 +21,10 @@ def tearDownModule():
     # Native Qt wrappers freed by interpreter GC can crash Shiboken offscreen.
     from OpenTrace_BIM.icons import _parts
     _parts.cache_clear()
+    # Avoid leaving native palette / image references until interpreter shutdown.
+    IconHostTests.dark = None
+    IconHostTests.light = None
+    QPixmapCache.clear()
     gc.collect()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     APP.processEvents()
