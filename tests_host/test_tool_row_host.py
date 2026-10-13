@@ -282,6 +282,28 @@ class ToolRowTests(unittest.TestCase):
             tool.on_click = original
             activate_select(self.app)
 
+    def test_tool_button_keeps_viewport_focus_and_space_selects(self):
+        """A toolbar click must leave the host's Space shortcut operative."""
+        from OpenTrace_BIM.host import activate_select, host_tool
+        self.show_window()
+        viewport = self.window.viewport
+        self.window.activateWindow()
+        activate_select(self.app)
+        viewport.setFocus()
+        APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Test requires an active viewport")
+
+        slab = self.window._arquitetura_parametrica_slab_controller
+        button = self.row.toolbar.widgetForAction(slab.action)
+        self.assertIsInstance(button, QToolButton)
+        QTest.mouseClick(button, Qt.LeftButton)
+        APP.processEvents()
+        self.assertIs(viewport.active_tool, slab.tool)
+        self.assertTrue(viewport.hasFocus(), "Tool-row button stole viewport focus")
+        QTest.keyClick(viewport, Qt.Key_Space)
+        APP.processEvents()
+        self.assertIs(viewport.active_tool, host_tool(self.app, "select"))
+
     def test_tool_row_actions_activate_tools(self):
         from OpenTrace_BIM.host import activate_select
         w = self.window
