@@ -28,6 +28,7 @@ from .door_window_core import FillError, normalize_fill
 from .model import WallError, path_world, read_wall, wall_opening_intervals
 from .slab_edit import _preview_lines
 from .slab_model import SlabError, line_edge, normalize_edge_specs, sample_boundary
+from .step_guide import show_step, step_text
 from .slab_opening_edit import (
     _OpeningEditBase, ChamferOpeningVertexTool, CurveOpeningEdgeTool, FilletOpeningVertexTool,
     InsertOpeningVertexTool, MoveOpeningVertexTool, OffsetOpeningTool,
@@ -341,6 +342,7 @@ class MoveWallOpeningTool(AxisMagnet, Tool):
 
     def __init__(self, controller):
         self.controller = controller
+        self.step_id = "wall_opening.edit.move"
         self.reset()
 
     def reset(self):
@@ -366,13 +368,17 @@ class MoveWallOpeningTool(AxisMagnet, Tool):
         return self._plane
 
     def on_activate(self, viewport):
-        self.controller.message("Mova o vão pela parede e clique para confirmar; "
-                                "digite um deslocamento ao longo da parede. Esc cancela.")
+        show_step(self, viewport, "wall_opening.edit.move")
 
     def on_deactivate(self, viewport):
         self.reset()
         self.controller.clear_sticky()
+        self.controller.app.window.statusBar().clearMessage()
         viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def _delta(self, sheet_point):
         return QVector3D(sheet_point.x() - self.origin.x(), sheet_point.y() - self.origin.y(), 0)
