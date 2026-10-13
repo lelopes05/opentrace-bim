@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The options bar follows the active tool and never chooses a tool."""
+import gc
 import os
 import tempfile
 import unittest
@@ -45,6 +46,9 @@ def tearDownModule():
     if window is not None:
         window.deleteLater()
         APP.processEvents()
+    # Release PySide wrappers while QApplication is alive, not at interpreter
+    # shutdown (which can trigger a Qt reference-count crash offscreen).
+    gc.collect()
 
 
 class BarTests(unittest.TestCase):
