@@ -660,14 +660,14 @@ class ContextualBar(QWidget):
             # hidden because the native suite switched pages, not because the
             # model became read-only. Respect source.enabled but not visibility.
             self._sync_field(mirror, source)
-        if key in ("slab", "slab_edit"):
-            slab = self.controllers["slab"]
+        slab = self.controllers.get("slab")
+        if slab is not None:
             hint = t("Relativa ao nível") if slab.level.currentData() else t("Cota absoluta")
             for mirror, source in self._mirrors:
                 if source is slab.offset:
                     mirror.setToolTip(hint)
-        if key == "column":
-            column = self.controllers["column"]
+        column = self.controllers.get("column")
+        if column is not None:
             stations = column.defaults.get("stations") or ()
             tapered = bool(stations and (
                 float(stations[-1]["width"]) != float(stations[0]["width"])
