@@ -11,7 +11,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PySide6.QtWidgets import (
-    QButtonGroup, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
+    QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
 )
 
@@ -176,38 +176,26 @@ class ContextualBar(QWidget):
             vertical.addWidget(label)
         else:
             label = self._section(layout, text)
-        if isinstance(source, QComboBox):
-            mirror = QComboBox(self)
-            mirror.activated.connect(lambda _index: self.app.viewport.setFocus())
-            mirror.setMinimumWidth(width)
-            mirror.setMaximumWidth(max(width, 145))
-            mirror.currentIndexChanged.connect(
-                lambda _=0, a=mirror, b=source: self._apply_combo(a, b))
-            source.currentIndexChanged.connect(self.suite.schedule_sync_context)
-        else:
-            mirror = QDoubleSpinBox(self)
-            mirror.editingFinished.connect(self.app.viewport.setFocus)
-            mirror.setLocale(source.locale())
-            mirror.setDecimals(source.decimals())
-            mirror.setRange(source.minimum(), source.maximum())
-            mirror.setSingleStep(source.singleStep())
-            mirror.setSuffix(source.suffix())
-            mirror.setKeyboardTracking(False)
-            mirror.setMinimumWidth(width)
-            mirror.setMaximumWidth(width + 12)
-            # A direct QObject-to-QObject Qt connection avoids referencing
-            # destroyed mirrors from Python signal closures during teardown.
-            mirror.valueChanged.connect(source.setValue)
-            source.valueChanged.connect(self.suite.schedule_sync_context)
+        mirror = QDoubleSpinBox(self)
+        mirror.editingFinished.connect(self.app.viewport.setFocus)
+        mirror.setLocale(source.locale())
+        mirror.setDecimals(source.decimals())
+        mirror.setRange(source.minimum(), source.maximum())
+        mirror.setSingleStep(source.singleStep())
+        mirror.setSuffix(source.suffix())
+        mirror.setKeyboardTracking(False)
+        mirror.setMinimumWidth(width)
+        mirror.setMaximumWidth(width + 12)
+        # A direct QObject-to-QObject Qt connection avoids referencing
+        # destroyed mirrors from Python signal closures during teardown.
+        mirror.valueChanged.connect(source.setValue)
+        source.valueChanged.connect(self.suite.schedule_sync_context)
         mirror.setToolTip(source.toolTip() or t(text))
         mirror.setAccessibleName(t(text))
         if name is not None:
             mirror.setObjectName("opentrace_field_" + name)
         mirror.installEventFilter(self._focus_return)
-        if isinstance(mirror, QDoubleSpinBox):
-            mirror.lineEdit().installEventFilter(self._focus_return)
-        elif mirror.isEditable():
-            mirror.lineEdit().installEventFilter(self._focus_return)
+        mirror.lineEdit().installEventFilter(self._focus_return)
         self._mirrors.append((mirror, source))
         if grouped:
             vertical.addWidget(mirror)
@@ -315,38 +303,13 @@ class ContextualBar(QWidget):
         if height.isEnabled() and not height.isReadOnly():
             height.setValue(desired - base.value())
 
-    @staticmethod
-    def _apply_value(mirror, source):
-        if source.isEnabled():
-            source.setValue(mirror.value())
-
-    @staticmethod
-    def _apply_combo(mirror, source):
-        if source.isEnabled():
-            index = source.findData(mirror.currentData())
-            if index >= 0 and index != source.currentIndex():
-                source.setCurrentIndex(index)
-
     def _sync_field(self, mirror, source):
         old = mirror.blockSignals(True)
         try:
             mirror.setEnabled(source.isEnabled())
-            if isinstance(mirror, QComboBox):
-                current = source.currentData()
-                options = [(source.itemText(i), source.itemData(i))
-                           for i in range(source.count())]
-                previous = [(mirror.itemText(i), mirror.itemData(i))
-                            for i in range(mirror.count())]
-                if options != previous:
-                    mirror.clear()
-                    for title, data in options:
-                        mirror.addItem(title, data)
-                index = mirror.findData(current)
-                mirror.setCurrentIndex(index if index >= 0 else -1)
-            else:
-                mirror.setRange(source.minimum(), source.maximum())
-                mirror.setValue(source.value())
-                mirror.setReadOnly(source.isReadOnly())
+            mirror.setRange(source.minimum(), source.maximum())
+            mirror.setValue(source.value())
+            mirror.setReadOnly(source.isReadOnly())
         finally:
             mirror.blockSignals(old)
 
