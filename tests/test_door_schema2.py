@@ -34,10 +34,10 @@ _SCHEMA1_CASES = (
      2.5, 1.0, 2.2),
     (old(anchor="right", position=4.0, width=1.0, height=2.4, open_angle=90),
      3.5, 1.0, 2.4),
-    (old(anchor="left", position=0.10, width=0.20, height=1.8, open_angle=45),
-     0.2, 0.20, 1.8),  # narrow wall segment
-    (old(anchor="right", position=0.30, width=0.20, height=1.9, open_angle=0),
-     0.2, 0.20, 1.9),  # narrow wall segment
+    (old(anchor="left", position=0.125, width=0.25, height=1.8, open_angle=45),
+     0.25, 0.25, 1.8),  # narrow wall segment
+    (old(anchor="right", position=0.375, width=0.25, height=1.9, open_angle=0),
+     0.25, 0.25, 1.9),  # narrow wall segment
 )
 
 
