@@ -321,6 +321,9 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - `test_choosing_another_function_replaces_the_sticky_one`.
 - Os mesmos testes para a abertura da laje.
 
+### Para o IngeTrazo
+- **13/10 — solicitação ao Marco:** documentar `viewport.set_extension_pick(hit)` para extensões, ou disponibilizar `app.select_pick(item)` na `ExtensionApp`. Depois que um comando de edição altera `scene.version`, a seleção de vão da parede continua visível no plugin, mas a versão guardada no `extension_pick` do host fica antiga. Até existir API pública, foi **autorizado explicitamente por Leandro em 13/10** o uso de `viewport.set_extension_pick` no OpenTrace BIM para atualizar essa seleção; `add_pickable` não retorna a entrada registrada, de modo que o plugin precisa conservar a referência da entrada interna. O comportamento deve permitir selecionar novamente sem clique e manter `on_select(None)` quando o Selecionar é usado em área vazia. As aberturas de laje derivam sua seleção da seleção nativa da laje (`scene.selection`), sem duplicá-la como `extension_pick`.
+
 ### Fora deste bloco
 - O segundo clique de porta e janela (lado e giro) e o desenho da folha ficam no bloco seguinte, "Portas e janelas".
 - A barra personalizável pelo usuário está adiada (DECISIONS).
