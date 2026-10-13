@@ -8,6 +8,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 
+from .step_guide import show_step, step_text
 from .membrane_model import (
     CreateMembrane, EditMembrane, MembraneError, chamfer_boundary,
     insert_boundary_vertex, make_membrane, read_membrane, boundary_edge_polyline, surface_uv,
@@ -36,6 +37,7 @@ class MembraneDrawTool(AxisMagnet, Tool):
     def __init__(self, controller):
         self.controller = controller
         self.mode = "polygon"
+        self.step_id = "membrane.polygon.start"
         self.reset()
 
     def reset(self):
@@ -47,18 +49,35 @@ class MembraneDrawTool(AxisMagnet, Tool):
     def set_mode(self, mode):
         self.mode = mode if mode in ("polygon", "rectangle", "ellipse") else "polygon"
         self.reset()
+        viewport = self.controller.app.viewport
+        if viewport.active_tool is self:
+            self._show_start(viewport)
 
     def on_activate(self, viewport):
         self.reset()
-        self.controller.message({
-            "polygon": "Polígono: clique os vértices e clique no primeiro para fechar.",
-            "rectangle": "Retângulo: clique dois cantos opostos.",
-            "ellipse": "Elipse: clique o centro e depois um canto da caixa envolvente.",
-        }[self.mode])
+        self._show_start(viewport)
         viewport.update()
 
     def on_deactivate(self, viewport):
-        self.reset(); viewport.update()
+        self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def _show_start(self, viewport):
+        if self.mode == "rectangle":
+            show_step(self, viewport, "membrane.rect.start")
+        elif self.mode == "ellipse":
+            show_step(self, viewport, "membrane.ellipse.start")
+        else:
+            show_step(self, viewport, "membrane.polygon.start")
+
+    def _warn(self, viewport, message):
+        self.controller.message(message, True)
+        show_step(self, viewport, self.step_id)
 
     def drag_plane(self, viewport):
         z = self.controller.reference_z()
@@ -106,7 +125,12 @@ class MembraneDrawTool(AxisMagnet, Tool):
                 self.points = [p]
                 self.start_point = QVector3D(p)
                 self.hover = p
-                self.controller.message("Defina o próximo ponto.")
+                if self.mode == "rectangle":
+                    show_step(self, ctx.viewport, "membrane.rect.end")
+                elif self.mode == "ellipse":
+                    show_step(self, ctx.viewport, "membrane.ellipse.end")
+                else:
+                    show_step(self, ctx.viewport, "membrane.polygon.second")
                 ctx.viewport.update(); return
             if self.mode in ("rectangle", "ellipse"):
                 shape = self._shape(p)
@@ -121,9 +145,9 @@ class MembraneDrawTool(AxisMagnet, Tool):
             self.points.append(p)
             self.start_point = QVector3D(p)
             self.chain_first_point = QVector3D(self.points[0])
-            self.controller.message("Continue o polígono ou clique no primeiro vértice para fechar.")
+            show_step(self, ctx.viewport, "membrane.polygon.next")
         except Exception as exc:
-            self.controller.message(str(exc), True)
+            self._warn(ctx.viewport, str(exc))
         ctx.viewport.update()
 
     def _commit(self, viewport, boundary):
@@ -135,12 +159,12 @@ class MembraneDrawTool(AxisMagnet, Tool):
             raise MembraneError(viewport.history.last_error)
         viewport.scene.clear_selection(); viewport.scene.selection.add(group)
         viewport.notify_scene_changed(); self.reset()
-        self.controller.message("Membrana criada. Clique para iniciar outra ou Esc para sair.")
+        show_step(self, viewport, "membrane.created")
 
     def on_cancel(self, viewport):
         if self.points:
             self.reset(); viewport.update()
-            self.controller.message("Desenho cancelado. Clique para iniciar outra membrana.")
+            show_step(self, viewport, "membrane.cancel")
         else:
             self.controller.return_to_select()
 
@@ -172,6 +196,7 @@ class MembraneEditTool(AxisMagnet, Tool):
 
     def __init__(self, controller):
         self.controller = controller
+        self.step_id = "membrane.edit.select"
         self.reset()
 
     def reset(self):
@@ -206,14 +231,20 @@ class MembraneEditTool(AxisMagnet, Tool):
             QTimer.singleShot(0, self.controller.return_to_select); return
         try:
             self.boundary, self.values = read_membrane(self.group)
-            self.controller.message("Clique em um vértice, aresta, ponto interno ou na pele para abrir a paleta contextual.")
+            show_step(self, viewport, "membrane.edit.select")
         except Exception as exc:
             self.controller.message(str(exc), True)
             QTimer.singleShot(0, self.controller.return_to_select)
         viewport.update()
 
     def on_deactivate(self, viewport):
-        self._show_original(); self.controller.hide_context_palette(); self.reset(); viewport.update()
+        self._show_original(); self.controller.hide_context_palette(); self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def _show_original(self):
         if self.group is not None and self._preview_hidden is not None:
@@ -385,7 +416,7 @@ class MembraneEditTool(AxisMagnet, Tool):
         self.action = self.kind = self.index = self.anchor = self.start_point = None
         self.edge_t = None
         self._candidate_boundary = self._candidate_values = None
-        self.controller.message("Membrana atualizada. Clique em outro controle.")
+        show_step(self, viewport, "membrane.edit.after")
         viewport.update()
 
     def toggle_edge_state(self):
