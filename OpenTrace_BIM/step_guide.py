@@ -121,6 +121,20 @@ STEPS = {
     "slab.edit.move_xy_end": "Clique no ponto de destino da laje.",
     "slab.edit.move_z": "Clique no ponto de referência e depois na nova cota.",
     "slab.edit.thickness": "Mova o topo em Z e clique, ou digite a espessura e pressione Enter.",
+    "wall.edit.insert.choose": "Clique na linha de referência onde quer inserir um vértice.",
+    "wall.edit.insert.position": "Mova o novo vértice e clique; clique sem mover para só dividir a parede.",
+    "wall.edit.insert.arc": "Arco dividido. Selecione um dos trechos para continuar.",
+    "wall.edit.curve": "Mova para definir a flecha e clique; digite 0 para voltar à reta.",
+    "wall.edit.move_vertex.free": "Mova o vértice até a posição desejada e clique; Shift trava a inferência.",
+    "wall.edit.move_vertex.continue": "Arraste pela trajetória do arco e clique para confirmar.",
+    "wall.edit.move_vertex.continue_line": "Arraste o vértice pelo alinhamento e clique para prolongar ou encurtar.",
+    "wall.edit.move.xy.start": "Clique no ponto de referência da parede.",
+    "wall.edit.move.xy.end": "Clique no ponto de destino da parede.",
+    "wall.edit.move.z.start": "Clique no ponto de referência da parede; depois escolha a nova cota.",
+    "wall.edit.height.end": "Mova o topo e clique ou digite a altura local e pressione Enter.",
+    "wall.edit.height.total": "Mova o topo e clique; digite a altura para preservar a inclinação.",
+    "wall.edit.base.station": "Mova a base e clique ou digite a cota absoluta e pressione Enter.",
+    "wall.edit.lean.top": "Mova o topo no plano horizontal e clique; Shift trava a inferência.",
 }
 
 

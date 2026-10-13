@@ -15,6 +15,7 @@ from core.history import MoveGroupCommand
 from .commands import EditWall, ReplaceWallWithSegments, ReplaceArcWallWithArcs, ReshapeWall, SetWallArc
 from .host import activate_select
 from .levels import level_by_name
+from .step_guide import show_step, step_text
 from .model import (ARC_EPS, MAX_DIM, MIN_DIM, WallError, arc_points,
                     arc_center_world, arc_sagitta_from_record, build_body, build_children, make_arc_wall,
                     make_wall_segment, path_world, read_wall, reference_vertices_world,
@@ -149,15 +150,20 @@ class InsertVertexTool(AxisMagnet, Tool):
             restore_original_after_preview(self.group, self._preview_hidden)
         self._preview_hidden = None
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None:
             QTimer.singleShot(0, lambda: activate_select(self.controller.app))
             return
-        self.controller.message("Clique no ponto da linha de referência onde deseja inserir o vértice.")
+        show_step(self, viewport, "wall.edit.insert.choose")
         viewport.update()
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self._show_original()
         self.insert_index = None
         self.anchor_world = None
@@ -327,6 +333,10 @@ class ArcWallTool(Tool):
         if wall_path_kind(self.group) not in ("line", "arc"):
             raise WallError("Curvar em arco aceita, por enquanto, uma parede reta ou um arco existente.")
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None:
@@ -341,15 +351,14 @@ class ArcWallTool(Tool):
             self.start_world, self.end_world = QVector3D(refs[0]), QVector3D(refs[1])
             rec = wall_record(self.group)
             self.sagitta = float(arc_sagitta_from_record(rec) or 0.0)
-            self.controller.message(
-                "Mova o mouse para um lado da linha e clique para definir a flecha do arco. "
-                "Digite uma medida para precisão; flecha zero volta a parede para reta.")
+            show_step(self, viewport, "wall.edit.curve")
         except WallError as exc:
             self.controller.message(str(exc), error=True)
             QTimer.singleShot(0, lambda: activate_select(self.controller.app))
         viewport.update()
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self.reset()
         viewport.update()
 
@@ -529,6 +538,10 @@ class MoveWallVertexTool(AxisMagnet, Tool):
         if wall_path_kind(self.group) not in ("line", "arc"):
             raise WallError("Mover vértice aceita, por enquanto, paredes retas ou curvas simples.")
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None or self.anchor is None:
@@ -563,18 +576,14 @@ class MoveWallVertexTool(AxisMagnet, Tool):
                 self.start_point = QVector3D(self.refs[self.endpoint])
                 from .preview_utils import hide_original_for_preview
                 self._preview_hidden = hide_original_for_preview(self.group)
-                self.controller.message(
-                    "Mova o mouse: o vértice acompanha o cursor. Clique para confirmar; "
-                    "Shift trava a inferência ativa. Em arcos, a proporção da curvatura é preservada.")
+                show_step(self, viewport, "wall.edit.move_vertex.free")
                 from .preview_utils import pointer_world_on_plane
                 q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
                 if q is not None:self.hover=self._candidate(q)
             elif self.kind == "arc":
-                self.controller.message(
-                    "Mova o vértice ao longo do mesmo arco e clique para prolongar ou encurtar a parede.")
+                show_step(self, viewport, "wall.edit.move_vertex.continue")
             else:
-                self.controller.message(
-                    "Mova o vértice ao longo da mesma direção e clique para prolongar ou encurtar a parede.")
+                show_step(self, viewport, "wall.edit.move_vertex.continue_line")
         except WallError as exc:
             self.controller.message(str(exc), error=True)
             QTimer.singleShot(0, lambda: activate_select(self.controller.app))
@@ -587,6 +596,7 @@ class MoveWallVertexTool(AxisMagnet, Tool):
         self._preview_hidden=None
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self._show_original()
         self.reset()
         viewport.update()
@@ -798,6 +808,10 @@ class ConstrainedMoveWallTool(AxisMagnet, Tool):
                 or self.group not in viewport.scene.groups):
             raise WallError("A parede não está mais disponível. Selecione-a novamente.")
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None or self.anchor is None:
@@ -808,14 +822,15 @@ class ConstrainedMoveWallTool(AxisMagnet, Tool):
             viewport.begin_groups_preview([self.group])
             self._previewing = True
             if self.mode == "xy":
-                self.controller.message("Clique no ponto de referência para mover a parede no plano horizontal.")
+                show_step(self, viewport, "wall.edit.move.xy.start")
             else:
-                self.controller.message("Clique no ponto de referência para mover a parede na vertical.")
+                show_step(self, viewport, "wall.edit.move.z.start")
         except WallError as exc:
             self.controller.message(str(exc), error=True)
             QTimer.singleShot(0, lambda: activate_select(self.controller.app))
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         if self._previewing:
             viewport.end_groups_preview()
         self.reset()
@@ -854,7 +869,7 @@ class ConstrainedMoveWallTool(AxisMagnet, Tool):
             if self.cursor_origin is None:
                 self.cursor_origin = QVector3D(ctx.world)
                 self.start_point = QVector3D(ctx.world)
-                self.controller.message("Agora clique no ponto de destino da parede.")
+                show_step(self, ctx.viewport, "wall.edit.move.xy.end" if self.mode == "xy" else "wall.edit.move.z.start")
                 ctx.viewport.update()
                 return
             self.delta = self._delta_from(ctx.world)
@@ -924,6 +939,10 @@ class ChangeWallHeightTool(Tool):
         if self.group is None or self.scene is not viewport.scene or self.group not in viewport.scene.groups:
             raise WallError("A parede não está mais disponível. Selecione-a novamente.")
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None or self.anchor is None:
@@ -940,7 +959,7 @@ class ChangeWallHeightTool(Tool):
             self.cursor_origin_z=None
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: este topo acompanha a cota indicada. Clique para confirmar; digitando, informe a altura local deste extremo.")
+            show_step(self, viewport, "wall.edit.height.end")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:
@@ -951,6 +970,7 @@ class ChangeWallHeightTool(Tool):
         viewport.update()
 
     def on_deactivate(self,viewport):
+        self.controller.app.window.statusBar().clearMessage()
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview
             restore_original_after_preview(self.group,self._preview_hidden)
@@ -1046,7 +1066,11 @@ class ChangeWholeWallHeightTool(Tool):
         self.top_refs=None;self.original_anchor_z=None;self.new_delta=0.0;self.start_point=None;self._preview_hidden=None
     def _valid(self,viewport):
         if self.group is None or self.scene is not viewport.scene or self.group not in viewport.scene.groups:raise WallError("A parede não está mais disponível. Selecione-a novamente.")
-    def on_activate(self,viewport):
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def on_activate(self, viewport):
         self.controller.hide_path_palette()
         try:
             self._valid(viewport);self.values=read_wall(self.group);self.top_refs=top_reference_vertices_world(self.group)
@@ -1056,7 +1080,7 @@ class ChangeWholeWallHeightTool(Tool):
             self.anchor=QVector3D(self.top_refs[self.endpoint]);self.start_point=QVector3D(self.anchor);self.original_anchor_z=float(self.anchor.z());self.new_delta=0.0
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: os dois topos sobem ou descem juntos, mantendo a inclinação atual. Clique para confirmar; digite a altura local deste extremo para valor exato.")
+            show_step(self, viewport, "wall.edit.height.total")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:self.new_delta=self._clamp_delta(float(q.z())-self.original_anchor_z)
@@ -1066,7 +1090,7 @@ class ChangeWholeWallHeightTool(Tool):
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview;restore_original_after_preview(self.group,self._preview_hidden)
         self._preview_hidden=None
-    def on_deactivate(self,viewport):self._show_original();self.reset();viewport.update()
+    def on_deactivate(self,viewport):self.controller.app.window.statusBar().clearMessage();self._show_original();self.reset();viewport.update()
     def drag_plane(self,viewport):return _vertical_view_plane(viewport,self.anchor) if self.anchor is not None else None
     def _clamp_delta(self,delta):
         tops=list(self.values.get("top_profile",[self.values.get("height",3.0)]*2));bases=list(self.values.get("base_profile",[0.0,0.0]))
@@ -1132,7 +1156,11 @@ class MoveWallStationZTool(Tool):
     def reset(self):self.group=self.scene=self.anchor=self.start_point=None;self.values=None;self.endpoint=None;self.original_base=None;self.original_top=None;self.new_base=None;self.cursor_origin_z=None;self._preview_hidden=None
     def _valid(self,viewport):
         if self.group is None or self.scene is not viewport.scene or self.group not in viewport.scene.groups:raise WallError("A parede não está mais disponível. Selecione-a novamente.")
-    def on_activate(self,viewport):
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None or self.anchor is None:QTimer.singleShot(0,lambda:activate_select(self.controller.app));return
         try:
@@ -1141,13 +1169,14 @@ class MoveWallStationZTool(Tool):
             self.original_base=float(self.values["base_profile"][self.endpoint]);self.original_top=float(self.values["top_profile"][self.endpoint]);self.new_base=self.original_base;self.cursor_origin_z=0.0;self.start_point=QVector3D(self.anchor)
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: esta extremidade da base acompanha a cota indicada. Clique para confirmar; também pode digitar a cota absoluta.")
+            show_step(self, viewport, "wall.edit.base.station")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:self.new_base=float(q.z())-float(self.values["base"])
         except WallError as exc:self.controller.message(str(exc),error=True);QTimer.singleShot(0,lambda:activate_select(self.controller.app))
         viewport.update()
     def on_deactivate(self,viewport):
+        self.controller.app.window.statusBar().clearMessage()
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview
             restore_original_after_preview(self.group,self._preview_hidden)
@@ -1213,7 +1242,11 @@ class LeanWallTopTool(AxisMagnet, Tool):
     def reset(self):self.group=self.scene=self.anchor=self.start_point=None;self.values=None;self.endpoint=None;self.base_ref=None;self.top_ref=None;self.hover=None;self.last_dir=None;self._preview_hidden=None
     def _valid(self,viewport):
         if self.group is None or self.scene is not viewport.scene or self.group not in viewport.scene.groups:raise WallError("A parede não está mais disponível. Selecione-a novamente.")
-    def on_activate(self,viewport):
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def on_activate(self, viewport):
         self.controller.hide_path_palette()
         if self.group is None or self.anchor is None:QTimer.singleShot(0,lambda:activate_select(self.controller.app));return
         try:
@@ -1223,13 +1256,14 @@ class LeanWallTopTool(AxisMagnet, Tool):
             if off.length()>1e-8:self.last_dir=off.normalized()
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: o topo acompanha o cursor no plano horizontal. Clique para confirmar; Shift trava a inferência ativa.")
+            show_step(self, viewport, "wall.edit.lean.top")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:self.hover=self._candidate(q)
         except WallError as exc:self.controller.message(str(exc),error=True);QTimer.singleShot(0,lambda:activate_select(self.controller.app))
         viewport.update()
     def on_deactivate(self,viewport):
+        self.controller.app.window.statusBar().clearMessage()
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview
             restore_original_after_preview(self.group,self._preview_hidden)
