@@ -10,7 +10,7 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QPointF, QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QSettings, Qt
 from PySide6.QtGui import QAction, QVector3D
 from PySide6.QtWidgets import QApplication, QDoubleSpinBox, QToolButton
 
@@ -44,7 +44,9 @@ def tearDownModule():
     window = _SHARED.pop("window", None)
     _SHARED.clear()
     if window is not None:
+        window.close()
         window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
     # Release PySide wrappers while QApplication is alive, not at interpreter
     # shutdown (which can trigger a Qt reference-count crash offscreen).
