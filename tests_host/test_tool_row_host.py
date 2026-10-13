@@ -96,9 +96,17 @@ class ToolRowTests(unittest.TestCase):
         self.assertIs(overlay.parentWidget(), w.viewport)
         self.assertIs(strip.parentWidget(), self.row)
         self.assertEqual(w.toolBarArea(strip), Qt.NoToolBarArea)
-        for tb in w.findChildren(QToolBar):
-            if tb is not strip and tb.objectName() == "layerCombinationsBottomBar":
-                self.assertEqual(w.toolBarArea(tb), Qt.BottomToolBarArea)
+        plugin_strips = [tb for tb in w.findChildren(QToolBar)
+                         if tb.objectName().startswith("opentrace_")]
+        self.assertEqual(plugin_strips, [strip])
+        for tb in plugin_strips:
+            self.assertEqual(w.toolBarArea(tb), Qt.NoToolBarArea)
+        layer_strip = w.findChild(QToolBar, "layerCombinationsBottomBar")
+        self.assertIsNotNone(layer_strip)
+        self.assertEqual(w.toolBarArea(layer_strip), Qt.BottomToolBarArea)
+        names = [tb.objectName() for tb in w.findChildren(QToolBar)]
+        self.assertNotIn("opentrace_options_toolbar", names)
+        self.assertNotIn("opentrace_tools_toolbar", names)
         self.assertNotIn(b"opentrace_", bytes(w.saveState()))
 
     def test_panels_stacked_top_left_inside_viewport(self):
@@ -127,7 +135,6 @@ class ToolRowTests(unittest.TestCase):
         # Force the native toolbar overflow, without modifying its actions.
         w.resize(630, 900)
         APP.processEvents()
-        overlay.reposition()
         self.assertEqual(overlay.x(), 8)
         self.assertLessEqual(overlay.x() + overlay.width(), w.viewport.width())
         self.assertLessEqual(overlay.options_frame.width(), w.viewport.width() - 16)
