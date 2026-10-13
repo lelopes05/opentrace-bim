@@ -348,5 +348,28 @@ Nenhuma.
 
 ---
 
+
+## Para o IngeTrazo
+
+### Incompatibilidade: layouts antigos comprimem as toolbars do OpenTrace BIM (13/10/2026)
+
+**Status:** reproduzida pelo teste de integração com o host; **não corrigida**. Bloqueia o aceite da **Etapa 2** e, por consequência, o início da Etapa 3. O plugin não deve tentar corrigir a ordem de partida com `QTimer` nem reposicionar toolbars após a inicialização.
+
+**Passo a passo para reproduzir (IngeTrazo 0.5.8 / Qt offscreen):**
+1. Registrar em `QSettings`, chave `ui/window_state`, o resultado de `saveState()` de uma janela com as toolbars do host (`main`, `draw`, `modify`, `annotate`, `sections`, `solids`, `walkthrough`) e uma toolbar antiga chamada `arquitetura_parametrica_toolbar`, sem quebra própria, na mesma linha.
+2. Criar `MainWindow(defer_extensions=True)`; chamar `show()` e `QApplication.processEvents()`.
+3. Carregar o OpenTrace BIM com `load_extensions()` e processar os eventos. Na reprodução automatizada, a descoberta da extensão é injetada no teste e o diálogo inicial de templates de layers é isolado para não bloquear o ciclo Qt.
+4. Obter `window._arquitetura_parametrica_tool_row` (objeto `opentrace_tools_toolbar`) e `window._arquitetura_parametrica_controller.toolbar` (objeto `opentrace_options_toolbar`).
+5. Conferir `window.toolBarBreak(fileira)`, `window.toolBarBreak(barra)` e a posição vertical das duas em relação às toolbars nativas.
+
+**Esperado:** fileira e barra de opções em linhas próprias, nessa ordem e abaixo das toolbars do host, preservadas após a restauração do layout salvo.
+
+**Obtido:** `window.toolBarBreak(fileira)` é **False**; o teste `test_old_saved_layout_does_not_squeeze_the_bars` falha nessa asserção. O novo `objectName` de ambas não basta para preservar a quebra.
+
+**Ponto de investigação no host:** `views/main_window.py`, `MainWindow.load_extensions()`, no ramo `defer_extensions`: após carregar uma extensão que acrescenta `QToolBar`, o host executa `restoreState(state)` e `_pack_toolbars()`. Verificar a preservação de quebras e ordem das toolbars novas, desconhecidas pelo estado antigo. A correção é assunto do host; não acrescentar contorno no plugin sem nova decisão.
+
+**Evidências:** `tests_host/test_old_toolbar_layout_host.py` da branch `gpt/interface-etapa-2-3`; [execução CI com a falha](https://github.com/lelopes05/opentrace-bim/actions/runs/38402898985). O teste separado `tests_host/test_startup_tabs_host.py` não confirmou abas duplicadas dentro da área visível da janela no Qt offscreen; isso não comprova ausência do problema relatado no Windows.
+
+
 ## Depois
 - Portas e janelas: segundo clique para lado e giro, folha e marco, tamanhos editáveis na barra (já preparados na etapa 3).
