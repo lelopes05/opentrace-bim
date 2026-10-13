@@ -10,8 +10,8 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     timeout-minutes: 25
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -41,21 +41,27 @@ jobs:
         # Failures are also emitted as annotations, readable without log access.
         run: |
           set +e
-          # One process per file: several MainWindows in one Qt process
-          # crash PySide (none_dealloc), which says nothing about the plugin.
+          # Each host-test file gets its own process AND its own failure report.
+          # Never hide an earlier failure behind a later successful file's tail.
           status=0
           : > host.txt
           for f in tests_host/test_*.py; do
-            python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2>> host.txt || status=1
-          done
-          if [ $status -ne 0 ]; then
-            python - <<'PY'
-          text = open("host.txt").read()
-          blocks = text.split("=" * 70)[1:] or [text[-3000:]]  # a crash leaves no report: show the tail
-          for block in blocks:
-              print("::error title=host test::" + block.strip()[-3000:].replace("%", "%25").replace("\n", "%0A"))
+            python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2> host_case.txt
+            result=$?
+            cat host_case.txt >> host.txt
+            if [ $result -ne 0 ]; then
+              status=1
+              echo "::group::Failed $f"
+              cat host_case.txt
+              echo "::endgroup::"
+              python - "$f" <<'PY'
+          import sys
+          content = open("host_case.txt").read()[-3000:]
+          message = content.replace("%", "%25").replace("\n", "%0A")
+          print("::error title=host test " + sys.argv[1] + "::" + message)
           PY
-          fi
+            fi
+          done
           tail -5 host.txt
           exit $status
       - name: Benchmark against the base revision

@@ -174,6 +174,17 @@ def setup(app):
         startup_errors.append(f"Contexto: {type(exc).__name__}: {exc}")
     app.window._arquitetura_parametrica_context_guard = context_guard
 
+    app.window._arquitetura_parametrica_tool_row = None
+    tool_row = None
+    try:
+        from .tool_row import ToolRow
+        tool_row = ToolRow(app.viewport, controller, slab_controller, column_controller,
+                           beam_controller, profile_controller)
+        app.window._arquitetura_parametrica_tool_row = tool_row
+    except Exception as exc:
+        log.exception("parametric tool row setup failed")
+        startup_errors.append(f"Fileira: {type(exc).__name__}: {exc}")
+
     # The master dock already exists and is known to the host before
     # restoreState().  Populate it now; no post-show QTimer, addDockWidget,
     # removeDockWidget or focus-changing raise is needed.
@@ -185,6 +196,7 @@ def setup(app):
             beam_controller, profile_controller, bim_controller, membrane_controller, master_dock=_master_dock,
         )
         app.window._arquitetura_parametrica_suite_panel = suite_panel
+        profile_controller.suite_panel = suite_panel
         # English is applied once to the finished OpenTrace widget tree.
         # 0.12.8 used a QApplication-wide event filter here; translating on
         # Show/Polish/LayoutRequest could recursively retrigger Qt layouts and
@@ -195,6 +207,20 @@ def setup(app):
         log.exception("parametric unified sidebar setup failed")
         startup_errors.append(f"Painel: {type(exc).__name__}: {exc}")
         controller.message(f"Painel: {type(exc).__name__}: {exc}", error=True)
+
+    # Both controls are viewport children. They are intentionally absent from
+    # QMainWindow.saveState() and never enter the host toolbar packing logic.
+    app.window._arquitetura_parametrica_overlay_dock = None
+    if tool_row is not None and getattr(app.window, "_arquitetura_parametrica_suite_panel", None) is not None:
+        try:
+            from .viewport_overlay import OverlayDock
+            overlay = OverlayDock(app.viewport, tool_row, suite_panel)
+            app.window._arquitetura_parametrica_overlay_dock = overlay
+            tool_row.help_button.clicked.connect(
+                lambda: suite_panel.open_help(suite_panel.context_bar._context_key()))
+        except Exception as exc:
+            log.exception("parametric viewport overlay setup failed")
+            startup_errors.append(f"Painéis: {type(exc).__name__}: {exc}")
 
     app.window._arquitetura_parametrica_startup_errors = startup_errors
     if startup_errors:

@@ -31,8 +31,8 @@ Leia este arquivo primeiro. Ele substitui a leitura do projeto inteiro.
 - CI: `.github/workflows/claude-branches.yml` (branches `claude/**` e `gpt/**`), inclui benchmark e zip de teste.
 - Falhas aparecem como anotações do check (sem precisar abrir o log).
 
-## Decisões vigentes (12/10/2026)
-- Topo: fileira de ferramentas (recolhível) + barra de opções da ferramenta ativa (como o Info Box do Archicad). A barra não troca ferramenta.
+## Decisões vigentes (13/10/2026)
+- Vista 3D: fileira de ferramentas e, logo abaixo, barra de opções da ferramenta ativa em painéis flutuantes escuros no canto superior esquerdo do viewport (estilo ArchXQ); não são toolbars do host. A barra não troca ferramenta.
 - Paleta lateral: plantas, vistas, BIM/IFC, Projeto; por enquanto também as configurações completas da ferramenta/objeto.
 - Vãos: contorno na face da parede, editado com o motor da abertura da laje; ficam presos à parede onde nasceram.
 - Pontos de controle: só nos vértices; arestas são linhas (sem bolinha no meio).

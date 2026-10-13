@@ -142,7 +142,7 @@ class HelpDialog(QDialog):
 
     def show_for_context(self,context=None):
         context={
-            "wall_curve":"wall","wall_edit":"wall",
+            "wall_edit":"wall",
             "slab_edit":"slab","opening_edit":"opening",
             "polygon_edit":"opening","door":"opening","window":"opening",
             "beam":"column","bim":"project",

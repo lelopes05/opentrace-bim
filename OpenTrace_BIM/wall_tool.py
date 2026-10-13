@@ -34,7 +34,6 @@ class WallTool(AxisMagnet, Tool):
         self.scene_at_start = None
 
     def reset(self):
-        self.mode = self.MODE_SINGLE
         self.start_point = self.second_point = self.hover_point = self.scene_at_start = None
         if hasattr(self.controller, "hide_straight_mode_palette"):
             self.controller.hide_straight_mode_palette()
@@ -121,7 +120,6 @@ class WallTool(AxisMagnet, Tool):
                 self.start_point = point
                 self.hover_point = point
                 self.scene_at_start = ctx.viewport.scene
-                self.mode = self.MODE_SINGLE
                 self.controller.preview_length(0.0)
                 if hasattr(self.controller, "show_straight_mode_palette"):
                     self.controller.show_straight_mode_palette(ctx.screen)
@@ -319,7 +317,6 @@ class CurvedWallTool(WallTool):
     def reset(self):
         self.first_point = self.second_point = self.hover_point = None
         self.scene_at_start = None
-        self.mode = self.MODE_NORMAL
         if hasattr(self.controller, "hide_curve_mode_palette"):
             self.controller.hide_curve_mode_palette()
         if hasattr(self.controller, "fields"):
@@ -458,7 +455,6 @@ class CurvedWallTool(WallTool):
             if self.first_point is None:
                 self.first_point = self.hover_point = point
                 self.scene_at_start = ctx.viewport.scene
-                self.mode = self.MODE_NORMAL
                 self.controller.show_curve_mode_palette(ctx.screen)
                 self.controller.message(
                     "Arco padrão ativo. Indique o segundo extremo ou escolha outro método na paleta flutuante.")
@@ -600,3 +596,130 @@ class CurvedWallTool(WallTool):
             f"flecha {spec[2]:.4f} m".replace(".", ","),
             QVector3D(self.hover_point),
         )
+
+
+class WallDrawTool(Tool):
+    """The Wall tool: straight walls, rectangular blocks and curved walls.
+
+    The host sees one tool. ``geometry`` picks the inner tool that does the work,
+    and changing it never changes the host tool. The last geometry of the session
+    is kept in the inner tools' ``mode``, which only ``set_geometry`` changes.
+    """
+
+    name = "Parede paramétrica"
+    description = "Desenhar parede reta, bloco retangular ou parede curva."
+    STRAIGHT = {
+        "single": WallTool.MODE_SINGLE,
+        "rect_diagonal": WallTool.MODE_RECT_DIAGONAL,
+        "rect_base_width": WallTool.MODE_RECT_BASE_WIDTH,
+    }
+    ARCS = {
+        "arc_normal": CurvedWallTool.MODE_NORMAL,
+        "arc_center": CurvedWallTool.MODE_CENTER,
+        "arc_three": CurvedWallTool.MODE_THREE,
+    }
+
+    def __init__(self, straight, curved):
+        self.straight = straight
+        self.curved = curved
+        self.geometry = "single"
+        self.viewport = None
+
+    @property
+    def current(self):
+        return self.curved if self.geometry in self.ARCS else self.straight
+
+    def set_geometry(self, geometry):
+        if geometry not in self.STRAIGHT and geometry not in self.ARCS:
+            raise WallError("Geometria de parede desconhecida.")
+        before = self.current
+        self.geometry = geometry
+        after = self.current
+        after.set_mode(self.ARCS.get(geometry) or self.STRAIGHT[geometry])
+        if after is not before and self.viewport is not None:
+            before.on_deactivate(self.viewport)
+            after.on_activate(self.viewport)
+
+    def on_activate(self, viewport):
+        self.viewport = viewport
+        self.current.on_activate(viewport)
+
+    def on_deactivate(self, viewport):
+        self.current.on_deactivate(viewport)
+        self.viewport = None
+
+    @property
+    def uses_snap(self):
+        return self.current.uses_snap
+
+    @property
+    def wireframe_color(self):
+        return self.current.wireframe_color
+
+    @property
+    def vcb_label(self):
+        return self.current.vcb_label
+
+    @property
+    def architecture_angle_snap(self):
+        return self.current.architecture_angle_snap
+
+    @property
+    def magnetic_axis_deg(self):
+        return self.current.magnetic_axis_deg
+
+    @property
+    def screen_axis_px(self):
+        return self.current.screen_axis_px
+
+    @property
+    def start_point(self):
+        return self.current.start_point
+
+    def value_label(self):
+        return self.current.value_label()
+
+    def drag_plane(self, viewport):
+        return self.current.drag_plane(viewport)
+
+    def on_click(self, ctx):
+        self.current.on_click(ctx)
+
+    def on_hover(self, ctx):
+        self.current.on_hover(ctx)
+
+    def on_double_click(self, ctx):
+        self.current.on_double_click(ctx)
+
+    def on_triple_click(self, ctx):
+        self.current.on_triple_click(ctx)
+
+    def on_box_select(self, viewport, rect, crossing, additive=False, mode=None):
+        self.current.on_box_select(viewport, rect, crossing, additive, mode)
+
+    def on_cancel(self, viewport):
+        self.current.on_cancel(viewport)
+
+    def on_release(self, viewport):
+        self.current.on_release(viewport)
+
+    def on_key(self, viewport, key, modifiers):
+        return self.current.on_key(viewport, key, modifiers)
+
+    def on_value(self, viewport, value):
+        return self.current.on_value(viewport, value)
+
+    def status_clause(self):
+        return self.current.status_clause()
+
+    def rubber_band_lines(self):
+        return self.current.rubber_band_lines()
+
+    def guide_preview_lines(self):
+        return self.current.guide_preview_lines()
+
+    def inference_guide_lines(self):
+        return self.current.inference_guide_lines()
+
+    def preview_faces(self):
+        return self.current.preview_faces()

@@ -7,7 +7,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QVector3D
-from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QFormLayout, QLabel, QToolButton, QVBoxLayout, QWidget)
 from core.snap import SnapResult, COLOR_ENDPOINT, COLOR_ON_EDGE
 
 from . import __version__
@@ -160,18 +160,9 @@ class SlabController(QObject):
         self.action.triggered.connect(self.start_drawing)
         self.simple_action=QAction(slab_icon(),t("Laje simples"),self.app.window);self.simple_action.triggered.connect(lambda:self.start_structure("simple"))
         self.composite_action=QAction(composite_slab_icon(),t("Laje composta"),self.app.window);self.composite_action.triggered.connect(lambda:self.start_structure("composite"))
-        self.type_menu=QMenu(self.app.window);self.type_menu.addAction(self.simple_action);self.type_menu.addAction(self.composite_action)
-        self.menu_button=QToolButton(self.app.window);self.menu_button.setDefaultAction(self.action);self.menu_button.setMenu(self.type_menu);self.menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.menu_button.setToolTip(t("Laje — use a seta para escolher simples ou composta."))
-        if self.wall_controller is not None and hasattr(self.wall_controller, "toolbar"):
-            self.wall_controller.toolbar.addWidget(self.menu_button)
-            if hasattr(self.wall_controller,"fit_toolbar"): self.wall_controller.fit_toolbar()
-            menu = getattr(self.wall_controller, "arch_menu", None)
-            if menu is not None:
-                sub=menu.addMenu(t("Laje"));sub.addAction(self.simple_action);sub.addAction(self.composite_action)
-        else:
-            menu = self.app.add_menu(t("Ferramentas arquitetônicas"))
-            if menu is not None:
-                sub=menu.addMenu(t("Laje"));sub.addAction(self.simple_action);sub.addAction(self.composite_action)
+        menu = self.wall_controller.arch_menu if self.wall_controller is not None else self.app.add_menu(t("Ferramentas arquitetônicas"))
+        if menu is not None:
+            sub=menu.addMenu(t("Laje"));sub.addAction(self.simple_action);sub.addAction(self.composite_action)
 
     def _make_mode_palette(self):
         # Creation-method palette: now radial too, matching the edit palettes.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""A single dynamic Info Box in its OWN toolbar row below the host tools.
+"""A dynamic Info Box embedded in the floating viewport overlay.
 
 Never registers a second modelling tool, modifies the host menu bar, or stores
 a second copy of a BIM property. Quick edits proxy the controller's live Qt
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 )
 
 from .icons import set_symbol_icon
+from .i18n import t
+from .model import MIN_DIM
 
 
 class _CompactStack(QStackedWidget):
@@ -30,10 +32,11 @@ class _CompactStack(QStackedWidget):
 class ContextualBar(QWidget):
     """Compact, collapsible view onto the SAME actions and fields as the dock."""
 
-    def __init__(self, suite):
-        super().__init__(suite.app.window)
+    def __init__(self, suite, overlay_dock):
+        super().__init__(overlay_dock.options_frame)
         self.setObjectName("opentrace_contextual_bar")
         self.suite = suite
+        self.overlay_dock = overlay_dock
         self.app = suite.app
         self.controllers = suite.controllers
         self.wall = self.controllers["wall"]
@@ -46,11 +49,6 @@ class ContextualBar(QWidget):
         row = QHBoxLayout(self)
         row.setContentsMargins(8, 3, 8, 3)
         row.setSpacing(12)
-        self.brand = QLabel("OpenTrace BIM")
-        self.brand.setObjectName("opentrace_context_brand")
-        self.brand.setMinimumWidth(116)
-        self.brand.setStyleSheet("font-size:11pt; font-weight:700; padding-right:8px;")
-        row.addWidget(self.brand)
         self.stack = _CompactStack(self)
         row.addWidget(self.stack, 1)
         self.collapsed_label = QLabel("Contexto · abrir ▾")
@@ -62,38 +60,9 @@ class ContextualBar(QWidget):
         self.collapse_button.setText("▴")
         self.collapse_button.clicked.connect(self.toggle_collapsed)
         row.addWidget(self.collapse_button)
-        self.help_button=QToolButton(self)
-        self.help_button.setObjectName("opentrace_context_help")
-        self.help_button.setText("?")
-        self.help_button.setToolTip("Ajuda desta ferramenta")
-        self.help_button.setAccessibleName("Ajuda contextual")
-        self.help_button.setFixedSize(28,28)
-        self.help_button.clicked.connect(
-            lambda: self.suite.open_help(self._context_key()))
-        row.addWidget(self.help_button)
 
         self.pages = {}
         self._build_pages()
-        # Important: this MUST be a separate Qt toolbar ROW. The old design
-        # simply added a widget to the native row, compressing it out of view.
-        # Qt keeps native menus / native toolbars and their actions unchanged.
-        toolbar = self.wall.toolbar
-        self.hidden_legacy_actions = tuple(toolbar.actions())
-        for action in self.hidden_legacy_actions:
-            if isinstance(action, QWidgetAction):
-                action.setVisible(False)
-            else:
-                toolbar.removeAction(action)  # QAction stays alive in menus.
-        window = self.app.window
-        # QMainWindow manages full-width rows and persistence for toolbars.
-        # Insert one break BEFORE our toolbar; do not create Ribbon bars.
-        if not window.toolBarBreak(toolbar):
-            window.insertToolBarBreak(toolbar)
-        toolbar.addWidget(self)
-        toolbar.setWindowTitle("OpenTrace BIM · Barra contextual")
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
-        toolbar.setIconSize(QSize(24,24))
         self.refresh()
 
     def _page(self, key, title):
@@ -145,12 +114,12 @@ class ContextualBar(QWidget):
         button.setIconSize(QSize(22, 22))
         from .icons import icon as pa_icon
         names={
-            "／":"wall","▏":"wall","▱":"rect","□":"opening",
+            "／":"wall","▱":"rect",
             "⊥":"wall_base","⌒":"wall_curve","⊙":"center_arc",
             "∴":"three_points","⬡":"polygon","◧":"anchor_left",
             "⊕":"anchor_center","◨":"anchor_right",
             "↶":"swing","⊘":"delete","ⓘ":"bim"}
-        chosen=("slab" if title=="Criar laje" else names.get(symbol))
+        chosen=names.get(symbol)
         if chosen:
             button.setIcon(pa_icon(chosen,32))
             button.setText("")
@@ -244,41 +213,22 @@ class ContextualBar(QWidget):
         column = self.controllers.get("column")
         beam = self.controllers.get("beam")
 
-        p = self._page("idle", "Pronto para modelar")
-        self._section(p, "Ferramentas")
-        self._method(p, "▏", "Criar parede", wall.action.trigger)
-        if slab is not None:
-            self._method(p, "▱", "Criar laje", slab.action.trigger)
+        self._page("idle", "Pronto para modelar")
         p = self._page("wall", "Parede")
-        self._section(p, "Mét. construtivos")
-        for symbol, title, mode in (
+        self._section(p, t("Geometria"))
+        for symbol, title, geometry in (
             ("／", "Reta: início e fim", "single"),
             ("▱", "Retângulo por diagonal", "rect_diagonal"),
             ("⊥", "Retângulo por base e largura", "rect_base_width"),
+            ("⌒", "Arco normal", "arc_normal"),
+            ("⊙", "Arco pelo centro", "arc_center"),
+            ("∴", "Arco por 3 pontos", "arc_three"),
         ):
-            self._method(p, symbol, title,
-                         lambda m=mode: self._wall_mode(m),
-                         active=lambda m=mode: self.app.viewport.active_tool is wall.tool
-                         and wall.tool.mode == m)
-        self._method(p, "⌒", "Parede curva: arco", wall.curve_action.trigger)
+            self._method(p, symbol, t(title),
+                         lambda g=geometry: wall.choose_geometry(g),
+                         active=lambda g=geometry: wall.draw_tool.geometry == g)
         self._field(p, "Alinham.", wall.alignment)
         self._field(p, "Estrutura", wall.structure)
-        self._field(p, "Esp.", wall.fields["thickness"])
-        self._field(p, "Alt.", wall.fields["height"])
-        self._field(p, "Nível base", wall.base_level, width=135)
-        self._field(p, "Nível topo", wall.top_level, width=135)
-        p = self._page("wall_curve", "Parede curva")
-        self._section(p, "Mét. construtivos")
-        for symbol, title, mode in (
-            ("⌒", "Arco normal", "normal"),
-            ("⊙", "Arco pelo centro", "center"),
-            ("∴", "Arco por 3 pontos", "three"),
-        ):
-            self._method(p, symbol, title,
-                         lambda m=mode: self._curve_mode(m),
-                         active=lambda m=mode: self.app.viewport.active_tool is wall.curve_create_tool
-                         and wall.curve_create_tool.mode == m)
-        self._method(p, "／", "Voltar à parede reta", wall.action.trigger)
         self._field(p, "Esp.", wall.fields["thickness"])
         self._field(p, "Alt.", wall.fields["height"])
         self._field(p, "Nível base", wall.base_level, width=135)
@@ -316,8 +266,7 @@ class ContextualBar(QWidget):
                     ("width", "Larg."), ("height", "Alt."),
                 ):
                     self._field(p, label, getattr(ctrl, name, None))
-        for kind, title in (("opening", "Abertura"), ("door", "Porta"), ("window", "Janela")):
-            self._page(kind, title + " · criação")
+        self._build_opening_pages()
         # One set of live opening fields: variants use visibility, not
         # duplicate signal-connected spinboxes for the same source widgets.
         p = self._page("opening_edit", "Vão selecionado")
@@ -354,24 +303,99 @@ class ContextualBar(QWidget):
         if index >= 0:
             field.setCurrentIndex(index)
 
-    def _wall_mode(self, mode):
-        if self.app.viewport.active_tool is not self.wall.tool:
-            self.wall.action.trigger()
-        self.wall.choose_straight_mode(mode)
+    def _build_opening_pages(self):
+        """Options of the Opening, Door and Window tools; the values are ``tool.sizes``."""
+        openings = self.wall.openings
+        self._size_controls = []
+        p = self._page("opening", t("Abertura") + " · criação")
+        self._section(p, t("Forma"))
+        for symbol, title, shape in (
+            ("▭", "Retangular", "rect"), ("□", "Quadrada", "square"),
+            ("◯", "Circular", "circle"), ("⬡", "Livre", "free"),
+        ):
+            self._method(p, symbol, t(title),
+                         lambda s=shape: self._choose_shape(s),
+                         active=lambda s=shape: openings.opening_tool.shape == s)
+        self._size_fields(p, openings.opening_tool.place,
+                          lambda: None if openings.opening_tool.shape == "free"
+                          else openings.opening_tool.shape)
+        # Reuse the placement tool's existing anchor; free polygons have none.
+        self._section(p, t("Âncora"))
+        self._opening_anchor_buttons = []
+        for symbol, anchor, title in (
+            ("◧", "left", "Âncora esquerda"),
+            ("⊕", "center", "Âncora central"),
+            ("◨", "right", "Âncora direita"),
+        ):
+            self._opening_anchor_buttons.append(
+                self._method(p, symbol, t(title),
+                             lambda a=anchor: self._set_anchor(openings.opening_tool.place, a),
+                             active=lambda a=anchor: openings.opening_tool.place.anchor == a))
+        for key, tool, title in (("door", openings.door_tool, "Porta"),
+                                 ("window", openings.window_tool, "Janela")):
+            p = self._page(key, t(title) + " · criação")
+            self._size_fields(p, tool, lambda k=key: k)
+            self._section(p, t("Âncora"))
+            for symbol, anchor, label in (
+                ("◧", "left", "Âncora esquerda"), ("⊕", "center", "Âncora central"),
+                ("◨", "right", "Âncora direita"),
+            ):
+                self._method(p, symbol, t(label),
+                             lambda tl=tool, a=anchor: self._set_anchor(tl, a),
+                             active=lambda tl=tool, a=anchor: tl.anchor == a)
 
-    def _curve_mode(self, mode):
-        if self.app.viewport.active_tool is not self.wall.curve_create_tool:
-            self.wall.curve_action.trigger()
-        self.wall.choose_curve_mode(mode)
+    def _choose_shape(self, shape):
+        self.wall.openings.opening_tool.set_shape(shape)
+        self._sync_size_controls()
+
+    def _size_fields(self, layout, tool, kind_of):
+        """Width, height and sill spin boxes on ``tool.sizes[kind_of()]``."""
+        for key, label in (("width", "Largura"), ("height", "Altura"), ("sill", "Peitoril")):
+            title = self._section(layout, t(label))
+            spin = QDoubleSpinBox(self)
+            spin.setDecimals(2)
+            spin.setRange(0.0 if key == "sill" else MIN_DIM, 100.0)
+            spin.setSingleStep(0.05)
+            spin.setSuffix(" m")
+            spin.setKeyboardTracking(False)
+            spin.setAccessibleName(t(label))
+            spin.valueChanged.connect(
+                lambda value, tl=tool, k=key, f=kind_of: self._set_size(tl, f(), k, value))
+            self._target(layout).addWidget(spin)
+            self._size_controls.append((spin, title, tool, kind_of, key))
+
+    def _set_size(self, tool, kind, key, value):
+        sizes = tool.sizes[kind]
+        sizes[key] = value
+        if kind in ("square", "circle") and key == "width":
+            sizes["height"] = value
+        self.app.viewport.update()
+
+    def _set_anchor(self, tool, anchor):
+        tool.anchor = anchor
+        self.app.viewport.update()
+
+    def _sync_size_controls(self):
+        for button in self._opening_anchor_buttons:
+            button.setEnabled(self.wall.openings.opening_tool.shape != "free")
+        for spin, title, tool, kind_of, key in self._size_controls:
+            kind = kind_of()
+            spin.setEnabled(kind is not None
+                            and not (key == "height" and kind in ("square", "circle")))
+            if kind is None:
+                continue
+            old = spin.blockSignals(True)
+            spin.setValue(tool.sizes[kind][key])
+            spin.blockSignals(old)
+            if key == "width":
+                title.setText(t("Diâmetro") if kind == "circle" else t("Largura"))
 
     def _context_key(self):
         vp = self.app.viewport
         active = getattr(vp, "active_tool", None)
         wall = self.wall
-        if active is wall.tool:
+        if active is wall.draw_tool:
             return "wall"
-        if active is wall.curve_create_tool:
-            return "wall_curve"
         for key, tool in (("opening", wall.openings.opening_tool),
                           ("door", wall.openings.door_tool),
                           ("window", wall.openings.window_tool)):
@@ -423,7 +447,7 @@ class ContextualBar(QWidget):
         self.stack.setVisible(not self._collapsed)
         self.collapsed_label.setVisible(self._collapsed)
         # Collapsing is a true layout shrink, not simply painting over the UI.
-        self.wall.toolbar.updateGeometry()
+        self.updateGeometry()
         self.collapse_button.setText("▾" if self._collapsed else "▴")
         self.collapse_button.setToolTip(
             "Expandir a barra contextual" if self._collapsed
@@ -436,6 +460,7 @@ class ContextualBar(QWidget):
             self._key = key
             self.stack.setCurrentWidget(self.pages[key][0])
             self.updateGeometry()
+        self._sync_size_controls()
         for mirror, source in self._mirrors:
             # A binding may be on an inactive stacked page; its source can be
             # hidden because the native suite switched pages, not because the
@@ -454,3 +479,11 @@ class ContextualBar(QWidget):
             button.setChecked(checked)
             button.blockSignals(old)
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
+        # Options are methods of the active construction tool. Selection and
+        # native editing keep their properties in the sidebar / radial palette.
+        creating = key in {"wall", "slab", "column", "beam",
+                           "opening", "door", "window"}
+        frame = self.overlay_dock.options_frame
+        if frame.isHidden() == creating:
+            frame.setVisible(creating)
+        self.updateGeometry()

@@ -44,7 +44,7 @@ class InstallationSmokeTests(unittest.TestCase):
             setup(ExtensionApp(window,"OpenTrace_BIM"))
             ctl=getattr(window,"_arquitetura_parametrica_controller",None)
             self.assertIsNotNone(ctl,"setup did not create wall controller")
-            self.assertIsNotNone(getattr(ctl,"toolbar",None))
+            self.assertFalse(hasattr(ctl, "toolbar"))
             self.assertEqual(len(ctl.openings.tool_actions),3)  # opening, door, window
             # Openings are not created from the wall's radial palette.
             self.assertIsNone(getattr(ctl,"opening_btn",None))
@@ -81,6 +81,23 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertEqual(suite.project_info_button.accessibleName(),"Informações do Projeto")
             self.assertEqual(suite.arrange_button.accessibleName(),"Alinhar e distribuir objetos")
             self.assertEqual(suite.help_button.accessibleName(),"Ajuda OpenTrace BIM")
+            # The profile action must open the REAL library page in the
+            # unified dock, not merely show the dock's previously active page.
+            profile=window._arquitetura_parametrica_profile_controller
+            suite.show_page("home")
+            prior_tool=window.viewport.active_tool
+            profile.show_library()
+            self.assertIs(suite.stack.currentWidget(),suite.pages["profiles"])
+            self.assertIs(window.viewport.active_tool,prior_tool)
+            self.assertGreater(profile.list.topLevelItemCount(),0)
+            profile.search.setText("__no_matching_complex_profile__")
+            self.assertTrue(all(
+                profile.list.topLevelItem(i).isHidden()
+                for i in range(profile.list.topLevelItemCount())))
+            profile.search.clear()
+            self.assertTrue(any(
+                not profile.list.topLevelItem(i).isHidden()
+                for i in range(profile.list.topLevelItemCount())))
             suite.open_help()
             self.assertEqual(suite._help_dialog.chapters.currentRow(),0)
             self.assertIn("O que há de novo",suite._help_dialog.article.toPlainText())
@@ -121,28 +138,25 @@ class InstallationSmokeTests(unittest.TestCase):
             suite.show_page("wall")
             self.assertIs(suite.stack.currentWidget(),suite.pages["wall"])
             self.assertIs(window.viewport.active_tool,old_tool)
-            # B3b is not a static row of duplicated modelling actions:
-            # a single toolbar changes its real method controls per tool.
+            # The context-sensitive options widget lives in the viewport overlay.
             bar = suite.context_bar
             self.assertEqual(bar.objectName(),"opentrace_contextual_bar")
-            self.assertIs(bar.parent(),ctl.toolbar)
-            self.assertTrue(window.toolBarBreak(ctl.toolbar),
-                            "Context Info Box must have its OWN row below native tools")
+            overlay = window._arquitetura_parametrica_overlay_dock
+            self.assertIs(overlay.parentWidget(), window.viewport)
+            self.assertIs(bar.parentWidget(), overlay.options_frame)
             self.assertIn("wall",bar.pages)
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
             self.assertIn("polygon_edit",bar.pages)
             self.assertEqual(len([k for k in bar.pages if k.endswith("_edit") and k.startswith(("door","window"))]),0)
             self.assertEqual(bar._context_key(),"idle")
-            self.assertEqual(
-                [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
-                 if a.isVisible()],
-                [bar])
+            self.assertIs(overlay.bar, bar)
+            self.assertIs(overlay.row, window._arquitetura_parametrica_tool_row)
             ctl.action.trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"wall")
-            bar._wall_mode("rect_diagonal")
-            self.assertEqual(ctl.tool.mode,"rect_diagonal")
+            ctl.choose_geometry("rect_diagonal")
+            self.assertEqual(ctl.draw_tool.geometry,"rect_diagonal")
             bar.refresh()
             self.assertTrue(any(btn.isChecked() for btn,_ in bar._mode_controls))
             mirror=next(w for w,source in bar._mirrors

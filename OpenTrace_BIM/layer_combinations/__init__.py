@@ -18,7 +18,7 @@ import json
 import uuid
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -840,6 +840,8 @@ class InitialTemplateDialog(QDialog):
         self.controller = controller
         self.choice = None
         self.setWindowTitle("Escolher Template de Camadas")
+        self.setModal(False)
+        self.setWindowModality(Qt.WindowModal)
         self.resize(520, 330)
 
         root = QVBoxLayout(self)
@@ -1525,6 +1527,34 @@ class ManagerDialog(QDialog):
         self._refresh_layers()
 
 
+
+class _InitialPromptOnViewportPaint(QObject):
+    """One-shot host viewport event: do not prompt during extension setup."""
+
+    def __init__(self, controller):
+        super().__init__(controller.app.viewport)
+        self.controller = controller
+        self.armed = False
+
+    def arm(self):
+        if self.armed:
+            return
+        viewport = self.controller.app.viewport
+        viewport.installEventFilter(self)
+        self.armed = True
+        # A normal viewport paint is the readiness signal, not a timer.
+        viewport.update()
+
+    def eventFilter(self, obj, event):
+        viewport = self.controller.app.viewport
+        if (self.armed and obj is viewport and event.type() == QEvent.Paint
+                and self.controller.app.window.isVisible()):
+            viewport.removeEventFilter(self)
+            self.armed = False
+            self.controller._show_initial_template_prompt()
+        return False
+
+
 class Controller:
     def __init__(self, app):
         self.app = app
@@ -1534,7 +1564,7 @@ class Controller:
         self._saving = False
         self._initial_prompt_pending = False
         self._initial_prompt_running = False
-        self._initial_prompt_waiting = False
+        self._initial_template_dialog = None
         self.data = self._load_data()
         # IMPORTANT: when this is a brand-new document, do NOT persist the
         # temporary "Modelo 3D" placeholder before the template chooser runs.
@@ -1545,7 +1575,9 @@ class Controller:
         setattr(app.window, "_layer_combinations_service", self.service)
         self.bar = ViewportCombinationBar(self)
         app.on_document_changed(self._document_changed)
-        self._request_initial_prompt()
+        self._initial_prompt_event = _InitialPromptOnViewportPaint(self)
+        if self._initial_prompt_pending:
+            self._initial_prompt_event.arm()
 
     # --------------------------------------------------------------- document
     def _load_data(self):
@@ -1595,7 +1627,8 @@ class Controller:
         self.scene = self.app.scene
         self.data = self._load_data()
         self.sync_with_scene(save=False)
-        self._request_initial_prompt()
+        if self._initial_prompt_pending and not self._initial_prompt_running:
+            self._initial_prompt_event.arm()
         if self.dialog is not None:
             try:
                 self.dialog.refresh()
@@ -1823,44 +1856,31 @@ class Controller:
         self._touch_scene()
         self._refresh_native_layers()
 
-    def _request_initial_prompt(self):
-        """Ask for the template once the viewport can paint a scene.
-
-        The host emits ``glReady`` from ``initializeGL`` and sets ``gl_info``
-        just before; a plugin loaded after that moment opens the chooser
-        straight away. Nothing is scheduled by timer and nothing blocks.
-        """
-        if not self._initial_prompt_pending or self._initial_prompt_running:
-            return
-        viewport = self.app.viewport
-        if getattr(viewport, "gl_info", None) is not None:
-            self._show_initial_template_prompt()
-        elif not self._initial_prompt_waiting:
-            self._initial_prompt_waiting = True
-            viewport.glReady.connect(self._viewport_ready, Qt.SingleShotConnection)
-
-    def _viewport_ready(self, _gl_info):
-        self._initial_prompt_waiting = False
-        self._show_initial_template_prompt()
-
     def _show_initial_template_prompt(self):
         if not self._initial_prompt_pending or self._initial_prompt_running:
             return
         self._initial_prompt_running = True
         dlg = InitialTemplateDialog(self)
-        dlg.finished.connect(lambda _result: self._finish_initial_prompt(dlg))
+        self._initial_template_dialog = dlg
+        dlg.finished.connect(self._initial_template_finished)
         dlg.open()
 
-    def _finish_initial_prompt(self, dlg):
-        self._initial_prompt_running = False
+    def _initial_template_finished(self, result):
+        dlg = self._initial_template_dialog
+        if dlg is None:
+            return
+        self._initial_template_dialog = None
+        # Clear the pending flag BEFORE writes emit document-change callbacks.
         self._initial_prompt_pending = False
-        if dlg.choice is not None:
-            self.apply_template(dlg.choice)
-        else:
-            # "Começar vazio" still writes the current simple setup into
-            # the document so we do not ask again on the next refresh.
-            self.save_data()
-        dlg.deleteLater()
+        try:
+            if dlg.choice is not None:
+                self.apply_template(dlg.choice)
+            else:
+                # Empty remains a real, persisted first-run decision.
+                self.save_data()
+        finally:
+            self._initial_prompt_running = False
+            dlg.deleteLater()
 
     # ------------------------------------------------------------- templates
     def personal_templates(self):
