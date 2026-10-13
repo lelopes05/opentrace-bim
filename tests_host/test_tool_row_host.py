@@ -387,8 +387,9 @@ class ToolRowTests(unittest.TestCase):
                         self.assertIs(viewport.active_tool, active, button.objectName())
                         self.assertTrue(viewport.hasFocus(), button.objectName())
                     fields = page.findChildren(QDoubleSpinBox)
-                    self.assertTrue(fields)
-                    field = fields[0]
+                    field = next((spin for spin in fields
+                                  if spin.isEnabled() and not spin.isReadOnly()), None)
+                    self.assertIsNotNone(field, "Expected an editable dimension field")
                     for key_code in (Qt.Key_Return, Qt.Key_Escape):
                         field.setFocus()
                         APP.processEvents()
