@@ -1427,11 +1427,13 @@ def language() -> str:
     return "en"
 
 
-def t(text: str, **kw) -> str:
-    """Translate a Portuguese source string with exact catalog matches."""
+def t(text: str, *, _locale: str | None = None, **kw) -> str:
+    """Translate Portuguese source text; accept an explicit locale for pure audits."""
     if not isinstance(text, str) or not text:
         return text
-    lang = language()
+    lang = language() if _locale is None else _locale
+    if lang not in ("en", "es", "pt-BR"):
+        raise ValueError(f"Unsupported OpenTrace locale: {lang}")
     if lang == "pt-BR":
         out = text
     else:
