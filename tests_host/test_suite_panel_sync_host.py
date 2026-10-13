@@ -101,6 +101,8 @@ class SuiteContextSyncTests(unittest.TestCase):
         self.assertFalse(project[1].isChecked())
         self.assertEqual(settings[0].objectName(),"opentrace_section_open")
         self.assertEqual(project[0].objectName(),"opentrace_home_section")
+        self.assertIs(self.suite.summary.parentWidget(),project[2])
+        self.assertTrue(project[2].isHidden())
         self.assertEqual(self.suite.home.findChildren(QToolButton, "opentrace_home_wall")[0].text(),t("Parede"))
         from PySide6.QtWidgets import QLabel
         labels=[x.text() for x in self.suite.home.findChildren(QLabel)]
