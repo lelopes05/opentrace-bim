@@ -230,11 +230,12 @@ class ArchitectureSuitePanel:
         self.summary=QLabel()
         self.summary.setWordWrap(True)
         self.summary.setStyleSheet("color:palette(mid);font-size:9pt;")
-        lay.addWidget(self.summary)
+        project_grid=self._home_sections["Projeto e organização"][2].layout()
+        project_grid.addWidget(self.summary,2,0,1,2)
         self.intersections=QLabel()
         self.intersections.setWordWrap(True)
         self.intersections.setStyleSheet("color:palette(mid);font-size:9pt;")
-        lay.addWidget(self.intersections)
+        project_grid.addWidget(self.intersections,3,0,1,2)
 
         update_box=QFrame();update_box.setFrameShape(QFrame.StyledPanel)
         update_lay=QVBoxLayout(update_box);update_lay.setContentsMargins(8,8,8,8);update_lay.setSpacing(6)
@@ -248,7 +249,7 @@ class ArchitectureSuitePanel:
         self.auto_update_check=QCheckBox("Verificar atualizações automaticamente")
         self.update_button=QPushButton("Verificar atualizações")
         update_lay.addWidget(self.auto_update_check);update_lay.addWidget(self.update_button)
-        lay.addWidget(update_box)
+        project_grid.addWidget(update_box,4,0,1,2)
 
         self.update_manager=None
         try:
