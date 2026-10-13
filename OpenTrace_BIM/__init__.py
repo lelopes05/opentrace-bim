@@ -175,11 +175,11 @@ def setup(app):
     app.window._arquitetura_parametrica_context_guard = context_guard
 
     app.window._arquitetura_parametrica_tool_row = None
+    tool_row = None
     try:
         from .tool_row import ToolRow
-        tool_row = ToolRow(app.window, controller, slab_controller, column_controller,
+        tool_row = ToolRow(app.viewport, controller, slab_controller, column_controller,
                            beam_controller, profile_controller)
-        tool_row.place_above(app.window, controller.toolbar)
         app.window._arquitetura_parametrica_tool_row = tool_row
     except Exception as exc:
         log.exception("parametric tool row setup failed")
@@ -206,6 +206,18 @@ def setup(app):
         log.exception("parametric unified sidebar setup failed")
         startup_errors.append(f"Painel: {type(exc).__name__}: {exc}")
         controller.message(f"Painel: {type(exc).__name__}: {exc}", error=True)
+
+    # Both controls are viewport children. They are intentionally absent from
+    # QMainWindow.saveState() and never enter the host toolbar packing logic.
+    app.window._arquitetura_parametrica_overlay_dock = None
+    if tool_row is not None and getattr(app.window, "_arquitetura_parametrica_suite_panel", None) is not None:
+        try:
+            from .viewport_overlay import OverlayDock
+            overlay = OverlayDock(app.viewport, tool_row, suite_panel.context_bar)
+            app.window._arquitetura_parametrica_overlay_dock = overlay
+        except Exception as exc:
+            log.exception("parametric viewport overlay setup failed")
+            startup_errors.append(f"Painéis: {type(exc).__name__}: {exc}")
 
     app.window._arquitetura_parametrica_startup_errors = startup_errors
     if startup_errors:
