@@ -488,7 +488,7 @@ class OpeningToolTests(unittest.TestCase):
             self.assertFalse(hasattr(self.editor, name), name)
         actions = set(self.editor.tool_actions)
         suite = self.window._arquitetura_parametrica_suite_panel
-        for root in (self.ctl.toolbar, suite.panel):
+        for root in (suite.context_bar, suite.panel):
             for button in root.findChildren(QToolButton):
                 self.assertNotIn(button.defaultAction(), actions)
 
