@@ -592,9 +592,11 @@ def _offset_path(points, distance):
         b = pts[i] + normals[i] * distance
         u, v = segs[i - 1], segs[i]
         # Stations inserted on one straight piece leave consecutive segments
-        # collinear up to rounding; intersecting those offset lines is
-        # ill-conditioned and scattered the points (folded, duplicated faces).
-        if abs(u.x() * v.y() - u.y() * v.x()) < 1e-7:
+        # collinear up to rounding. Qt vectors are single precision, so a
+        # millimetre segment's direction carries ~1e-4 of noise; intersecting
+        # such offset lines scattered the points (folded, duplicated faces).
+        # Real path corners are degrees apart (cross > 1e-2).
+        if abs(u.x() * v.y() - u.y() * v.x()) < 1e-3:
             out.append(a if QVector3D.dotProduct(u, v) > 0 else pts[i] + normals[i] * distance)
             continue
         hit = _line_intersection(a, segs[i - 1], b, segs[i])
@@ -1197,9 +1199,17 @@ def _build_body_with_polygon_openings(values, previous, path, caps, offsets, bod
                 ss[-1] = s
             continue
         ss.append(s)
-    points = [_point_on_path_distance(original, cumul, s) for s in ss]
-    low_b, high_b, low_t, high_t, base_z, top_z, _ = _profiled_sides(
-        p, points, offsets=offsets, caps=caps)
+    # Offset the wall's own path once and read every cut station off those
+    # sides. Re-offsetting a path cut into millimetre pieces folded it: Qt's
+    # single-precision vectors leave such short pieces with noisy directions.
+    sides = _profiled_sides(p, original, offsets=offsets, caps=caps)
+    low_b, high_b, low_t, high_t = (
+        [_side_point_at_reference_distance(side, cumul, s) for s in ss] for side in sides[:4])
+    base_z, top_z = [], []
+    for s in ss:
+        bz, tz, _off = _profile_z_at(p, s, L)
+        base_z.append(bz)
+        top_z.append(tz)
     mesh = Mesh()
     def add(points, key):
         compact = []
