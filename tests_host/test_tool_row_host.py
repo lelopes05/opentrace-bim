@@ -322,8 +322,10 @@ class ToolRowTests(unittest.TestCase):
         self.assertTrue(all(b.focusPolicy() == Qt.NoFocus for b in buttons))
         self.assertEqual(bar.collapse_button.focusPolicy(), Qt.NoFocus)
 
+        self.window.activateWindow()
         viewport.setFocus()
         APP.processEvents()
+        self.assertTrue(viewport.hasFocus(), "Test requires an active viewport")
         QTest.mouseClick(buttons[0], Qt.LeftButton)
         APP.processEvents()
         self.assertTrue(viewport.hasFocus(), "Contextual method stole focus")

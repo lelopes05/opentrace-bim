@@ -100,8 +100,11 @@ class DeferredOverlayTests(unittest.TestCase):
         viewport = w.viewport
         # The first-run layer template chooser may be visible, but cannot
         # block the host's keyboard shortcuts with WindowModal.
-        chooser = w._layer_combinations_service._initial_template_dialog
-        if chooser is not None:
+        choosers = [
+            dialog for dialog in QApplication.topLevelWidgets()
+            if dialog.windowTitle() == "Escolher Template de Camadas"
+        ]
+        for chooser in choosers:
             self.assertEqual(chooser.windowModality(), Qt.NonModal)
             self.assertFalse(chooser.isModal())
         self.assertIsNone(APP.activeModalWidget())
