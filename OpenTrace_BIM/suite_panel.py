@@ -479,6 +479,19 @@ class ArchitectureSuitePanel:
             if self._mode_buttons.get(key):self._set_mode_button(key,0)
 
     def sync_context(self):
+        """Follow a NEW tool or selection; never undo the user's page choice.
+
+        This runs on every document change. Re-applying the page each time
+        threw the user back to the wall page whenever a wall was selected,
+        so Home, Profiles and the other tabs looked dead.
+        """
+        active=getattr(self.app.viewport,"active_tool",None)
+        signature=(id(active),)+tuple(
+            id(getattr(self.controllers.get(k),"target",None))
+            for k in ("wall","slab","column","beam"))
+        if signature==getattr(self,"_context_signature",None):
+            return
+        self._context_signature=signature
         # BIM is an inspector/export workspace. Keep it open while selection or
         # metadata changes; otherwise selecting a wall would immediately throw
         # the user back to the modelling page.
@@ -486,7 +499,6 @@ class ArchitectureSuitePanel:
                self.stack.currentWidget() is self.pages[key]
                for key in ("bim", "project", "arrange")):
             return
-        active=getattr(self.app.viewport,"active_tool",None)
         for key in ("wall","slab","column","beam"):
             ctrl=self.controllers.get(key)
             if ctrl is None:continue

@@ -574,18 +574,14 @@ def _line_intersection(p, r, q, s):
     return p + r * t
 
 
-def _offset_path(points, distance, min_segment=MIN_DIM):
-    """Mitered open-polyline offset in XY; endpoints stay square.
-
-    ``min_segment`` guards user-authored paths. Resampled paths (cut stations
-    of curved openings) may legitimately contain shorter collinear pieces.
-    """
+def _offset_path(points, distance):
+    """Mitered open-polyline offset in XY; endpoints stay square."""
     pts = [QVector3D(p.x(), p.y(), 0.0) for p in points]
     segs, normals = [], []
     for a, b in zip(pts, pts[1:]):
         d = b - a
         length = math.hypot(d.x(), d.y())
-        if length < min_segment:
+        if length < MIN_DIM:
             raise WallError("A trajetória contém um trecho menor que 1 mm.")
         u = QVector3D(d.x() / length, d.y() / length, 0)
         segs.append(u)
@@ -838,7 +834,7 @@ def nearest_path_distance_world(group, world):
 
 
 
-def _profiled_sides(values, path, offsets=None, caps=None, min_segment=MIN_DIM):
+def _profiled_sides(values, path, offsets=None, caps=None):
     """Create bottom/top low/high side samples for a possibly sloped/leaning wall."""
     p = validate(values)
     ref = [QVector3D(v.x(), v.y(), 0.0) for v in path]
@@ -858,10 +854,10 @@ def _profiled_sides(values, path, offsets=None, caps=None, min_segment=MIN_DIM):
         base_z.append(bz); top_z.append(tz)
         top_ref.append(QVector3D(q.x() + off.x(), q.y() + off.y(), 0.0))
 
-    low_bottom = _offset_path(ref_pts, low_off, min_segment)
-    high_bottom = _offset_path(ref_pts, high_off, min_segment)
-    low_top = _offset_path(top_ref, low_off, min_segment)
-    high_top = _offset_path(top_ref, high_off, min_segment)
+    low_bottom = _offset_path(ref_pts, low_off)
+    high_bottom = _offset_path(ref_pts, high_off)
+    low_top = _offset_path(top_ref, low_off)
+    high_top = _offset_path(top_ref, high_off)
 
     if caps:
         start = caps.get("start")
@@ -1172,18 +1168,31 @@ def _build_body_with_polygon_openings(values, previous, path, caps, offsets, bod
             polygons.append([[s0, z0], [s1, z0], [s1, z1], [s0, z1]])
     original, cumul = _path_cumulative(path)
     L = cumul[-1]
-    cuts = {0.0, L, *cumul}
+    # Strips thinner than 1 mm break the side offsets and leave cracks. The
+    # wall's own path samples are kept exactly; an outline vertex (a curved
+    # outline has many) closer than that to one is moved onto it.
+    fixed = sorted({0.0, L, *cumul})
+
+    def onto_path(x):
+        j = bisect.bisect_left(fixed, x)
+        near = min((fixed[k] for k in (j - 1, j) if 0 <= k < len(fixed)),
+                   key=lambda f: abs(f - x))
+        return near if abs(near - x) < MIN_DIM else x
+    polygons = [[[onto_path(float(x)), float(z)] for x, z in poly] for poly in polygons]
+    cuts = set(fixed)
     for poly in polygons:
         cuts.update(cut_stations(poly, L, p["base_profile"], p["top_profile"]))
+    fixed_set = set(fixed)
     ss = []
     for s in sorted(max(0.0, min(L, float(x))) for x in cuts):
-        if not ss or s-ss[-1] > 1.0e-9:
-            ss.append(s)
+        if ss and s - ss[-1] < MIN_DIM:
+            if s in fixed_set and ss[-1] not in fixed_set:
+                ss[-1] = s
+            continue
+        ss.append(s)
     points = [_point_on_path_distance(original, cumul, s) for s in ss]
-    # Cut stations of curved outlines can sit a fraction of a millimetre from
-    # a path sample; those collinear slivers are valid here.
     low_b, high_b, low_t, high_t, base_z, top_z, _ = _profiled_sides(
-        p, points, offsets=offsets, caps=caps, min_segment=1.0e-7)
+        p, points, offsets=offsets, caps=caps)
     mesh = Mesh()
     def add(points, key):
         compact = []
@@ -1211,9 +1220,9 @@ def _build_body_with_polygon_openings(values, previous, path, caps, offsets, bod
         return any(contains(poly, s, z) for poly in polygons)
 
     def index_at(s):
-        for i, x in enumerate(ss):
-            if abs(x-s) <= 1.0e-7:
-                return i
+        i = min(range(len(ss)), key=lambda k: abs(ss[k] - s))
+        if abs(ss[i] - s) < MIN_DIM:
+            return i
         raise WallError("Não foi possível associar o contorno à trajetória da parede.")
 
     # When a polygon reaches a trimmed wall endpoint its cut must OPEN to
