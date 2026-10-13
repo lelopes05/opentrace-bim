@@ -132,8 +132,8 @@ class ArchitectureSuitePanel:
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
         from .workspace_menu import install_workspace_menu
         self.workspace_menus = install_workspace_menu(self)
-        # Stage B3b: the EXISTING architecture toolbar now contains one
-        # context-sensitive Info Box instead of an always-visible tool pile.
+        # The context-sensitive Info Box is parented into the viewport overlay
+        # after the unified sidebar has been constructed.
         from .contextual_bar import ContextualBar
         self.context_bar = ContextualBar(self)
         self._auto_check_timer.start(1800)
