@@ -330,11 +330,9 @@ class ToolRowTests(unittest.TestCase):
         APP.processEvents()
         self.assertTrue(viewport.hasFocus(), "Contextual method stole focus")
 
-        from PySide6.QtWidgets import QDoubleSpinBox, QComboBox
+        from PySide6.QtWidgets import QDoubleSpinBox
         fields = bar.pages["wall"][0].findChildren(QDoubleSpinBox)
-        combos = bar.pages["wall"][0].findChildren(QComboBox)
         self.assertTrue(fields)
-        self.assertTrue(combos)
         spin = fields[0]
         spin.setFocus()
         APP.processEvents()
@@ -347,12 +345,64 @@ class ToolRowTests(unittest.TestCase):
         QTest.keyClick(spin, Qt.Key_Escape)
         APP.processEvents()
         self.assertTrue(viewport.hasFocus(), "Esc must restore viewport focus")
-        combo = combos[0]
-        combo.setFocus()
-        APP.processEvents()
-        QTest.keyClick(combo, Qt.Key_Escape)
-        APP.processEvents()
-        self.assertTrue(viewport.hasFocus(), "Esc from combo must restore focus")
+
+    def test_segmented_options_preserve_viewport_focus(self):
+        """Every segment is NoFocus and returns keyboard input to the viewport."""
+        self.show_window()
+        from PySide6.QtWidgets import QDoubleSpinBox
+        bar = self.window._arquitetura_parametrica_overlay_dock.bar
+        viewport = self.window.viewport
+        slab = self.window._arquitetura_parametrica_slab_controller
+        beam = self.window._arquitetura_parametrica_beam_controller
+        old_wall_ref = self.wall.alignment.currentData()
+        old_wall_type = self.wall.structure.currentData()
+        old_slab_type = slab.structure.currentData()
+        old_beam_anchor = beam.defaults["anchor"]
+        try:
+            for key, action in (
+                ("wall", self.wall.action),
+                ("slab", slab.action),
+                ("beam", beam.action),
+            ):
+                with self.subTest(tool=key):
+                    self.window._activate_tool("select")
+                    action.trigger()
+                    bar.refresh()
+                    self.assertIs(bar.stack.currentWidget(), bar.pages[key][0])
+                    active = viewport.active_tool
+                    page = bar.pages[key][0]
+                    segments = [
+                        b for b in page.findChildren(QToolButton)
+                        if b.objectName().startswith("opentrace_opt_")
+                        and "_geometry_" not in b.objectName()
+                    ]
+                    self.assertTrue(segments)
+                    self.assertTrue(all(b.focusPolicy() == Qt.NoFocus for b in segments))
+                    for button in segments:
+                        viewport.setFocus()
+                        APP.processEvents()
+                        self.assertTrue(viewport.hasFocus())
+                        QTest.mouseClick(button, Qt.LeftButton)
+                        APP.processEvents()
+                        self.assertIs(viewport.active_tool, active, button.objectName())
+                        self.assertTrue(viewport.hasFocus(), button.objectName())
+                    fields = page.findChildren(QDoubleSpinBox)
+                    field = next((spin for spin in fields
+                                  if spin.isEnabled() and not spin.isReadOnly()), None)
+                    self.assertIsNotNone(field, "Expected an editable dimension field")
+                    for key_code in (Qt.Key_Return, Qt.Key_Escape):
+                        field.setFocus()
+                        APP.processEvents()
+                        self.assertTrue(field.hasFocus())
+                        QTest.keyClick(field, key_code)
+                        APP.processEvents()
+                        self.assertTrue(viewport.hasFocus(), f"{key}: {key_code}")
+        finally:
+            self.wall.alignment.setCurrentIndex(self.wall.alignment.findData(old_wall_ref))
+            self.wall.structure.setCurrentIndex(self.wall.structure.findData(old_wall_type))
+            slab.structure.setCurrentIndex(slab.structure.findData(old_slab_type))
+            beam.anchor_changed(old_beam_anchor)
+            self.window._activate_tool("select")
 
     def test_tool_row_actions_activate_tools(self):
         from OpenTrace_BIM.host import activate_select

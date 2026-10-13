@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The options bar follows the active tool and never chooses a tool."""
+import gc
 import os
 import tempfile
 import unittest
@@ -9,7 +10,7 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QPointF, QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QSettings, Qt
 from PySide6.QtGui import QAction, QVector3D
 from PySide6.QtWidgets import QApplication, QDoubleSpinBox, QToolButton
 
@@ -44,7 +45,11 @@ def tearDownModule():
     _SHARED.clear()
     if window is not None:
         window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
+    # Release PySide wrappers while QApplication is alive, not at interpreter
+    # shutdown (which can trigger a Qt reference-count crash offscreen).
+    gc.collect()
 
 
 class BarTests(unittest.TestCase):
@@ -77,6 +82,237 @@ class BarTests(unittest.TestCase):
 
     def size_controls(self, tool, key):
         return next(c for c in self.bar._size_controls if c[2] is tool and c[4] == key)
+
+    def group_labels(self, page_key):
+        from PySide6.QtWidgets import QFrame, QLabel
+        page = self.bar.pages[page_key][0]
+        return [
+            [label.text() for label in frame.findChildren(QLabel)]
+            for frame in page.findChildren(QFrame)
+            if frame.objectName() == "opentrace_context_section"
+        ]
+
+    def test_bar_groups_follow_mockups(self):
+        from OpenTrace_BIM.i18n import t
+        expected = {
+            "wall": [
+                (t("Geometria"),),
+                (t("Referência"),),
+                (t("Tipo"),),
+                (t("Medidas"), t("Espessura"), t("Altura"), t("Base"), t("Topo")),
+            ],
+            "slab": [
+                (t("Tipo"),),
+                (t("Medidas"), t("Espessura"), t("Base")),
+            ],
+            "column": [
+                (t("Medidas"), t("Largura"), t("Profundidade"), t("Altura"), t("Base")),
+            ],
+            "beam": [
+                (t("Referência"),),
+                (t("Medidas"), t("Largura"), t("Altura"), t("Topo")),
+            ],
+        }
+        for page, groups in expected.items():
+            with self.subTest(page=page):
+                self.assertEqual([tuple(row) for row in self.group_labels(page)], groups)
+                labels = sum((list(row) for row in self.group_labels(page)), [])
+                self.assertNotIn("Alinham.", labels)
+                self.assertNotIn(t("Nível base"), labels)
+                self.assertNotIn(t("Nível topo"), labels)
+
+    def test_bar_fields_are_controller_fields(self):
+        controllers = self.suite.controllers
+        pairs = (
+            ("wall", "wall_espessura", self.wall.fields["thickness"]),
+            ("wall", "wall_altura", self.wall.fields["height"]),
+            ("wall", "wall_base", self.wall.fields["base"]),
+            ("slab", "slab_thickness", controllers["slab"].thickness),
+            ("slab", "slab_base", controllers["slab"].offset),
+            ("column", "column_largura", controllers["column"].width),
+            ("column", "column_profundidade", controllers["column"].depth),
+            ("column", "column_altura", controllers["column"].height),
+            ("column", "column_base", controllers["column"].base_offset),
+            ("beam", "beam_width", controllers["beam"].width),
+            ("beam", "beam_height", controllers["beam"].height),
+        )
+        for page, name, source in pairs:
+            with self.subTest(field=name):
+                mirror = self.bar.pages[page][0].findChild(
+                    QDoubleSpinBox, "opentrace_field_" + name)
+                self.assertIsNotNone(mirror)
+                self.assertEqual(mirror.suffix(), " m")
+                self.assertTrue(source.isEnabled(), name)
+                initial = source.value()
+                try:
+                    self.bar.refresh()
+                    value = min(source.maximum(), initial + 0.07)
+                    mirror.setValue(value)
+                    self.assertAlmostEqual(source.value(), value, places=4)
+                    source.setValue(value + 0.09)
+                    self.bar.refresh()
+                    self.assertAlmostEqual(mirror.value(), source.value(), places=4)
+                finally:
+                    source.setValue(initial)
+        self.bar.refresh()
+
+    def test_wall_top_edits_height(self):
+        from OpenTrace_BIM.i18n import t
+        base = self.wall.fields["base"]
+        height = self.wall.fields["height"]
+        top = self.bar.pages["wall"][0].findChild(
+            QDoubleSpinBox, "opentrace_field_wall_top")
+        self.assertIsNotNone(top)
+        old_base, old_height, old_readonly = (
+            base.value(), height.value(), height.isReadOnly())
+        try:
+            height.setReadOnly(False)
+            base.setValue(0)
+            height.setValue(2.80)
+            self.bar.refresh()
+            self.assertAlmostEqual(top.value(), 2.80, places=4)
+            top.setValue(3.00)
+            self.assertAlmostEqual(height.value(), 3.00, places=4)
+            height.setReadOnly(True)
+            self.bar.refresh()
+            self.assertTrue(top.isReadOnly())
+            self.assertEqual(top.toolTip(), t("Calculado: Base + Altura"))
+        finally:
+            height.setReadOnly(old_readonly)
+            height.setValue(old_height)
+            base.setValue(old_base)
+            self.bar.refresh()
+
+    def test_segmented_groups_mirror_controller(self):
+        wall = self.wall
+        slab = self.suite.controllers["slab"]
+        beam = self.suite.controllers["beam"]
+        old_align = wall.alignment.currentData()
+        old_wall_type = wall.structure.currentData()
+        old_slab_type = slab.structure.currentData()
+        old_anchor = beam.defaults["anchor"]
+        try:
+            self.wall.action.trigger()
+            current = self.window.viewport.active_tool
+            wall.alignment.setCurrentIndex(wall.alignment.findData("center"))
+            self.bar.refresh()
+            center = self.bar.findChild(QToolButton, "opentrace_opt_wall_reference_center")
+            self.assertTrue(center.isChecked())
+            right = self.bar.findChild(QToolButton, "opentrace_opt_wall_reference_right")
+            right.click()
+            self.assertEqual(wall.alignment.currentData(), "right")
+            self.assertIs(self.window.viewport.active_tool, current)
+
+            simple = self.bar.findChild(QToolButton, "opentrace_opt_wall_type_simple")
+            simple.click()
+            self.assertEqual(wall.structure.currentData(), "simple")
+            self.assertIs(self.window.viewport.active_tool, current)
+            slab.structure.setCurrentIndex(slab.structure.findData("simple"))
+            self.bar.refresh()
+            self.assertTrue(self.bar.findChild(
+                QToolButton, "opentrace_opt_slab_type_simple").isChecked())
+
+            beam.anchor_changed("bl")
+            self.bar.refresh()
+            beam_right = self.bar.findChild(
+                QToolButton, "opentrace_opt_beam_reference_r")
+            beam_right.click()
+            self.assertEqual(beam.defaults["anchor"], "br")
+            self.assertIs(self.window.viewport.active_tool, current)
+            self.assertTrue(beam_right.isChecked())
+        finally:
+            wall.alignment.setCurrentIndex(wall.alignment.findData(old_align))
+            wall.structure.setCurrentIndex(wall.structure.findData(old_wall_type))
+            slab.structure.setCurrentIndex(slab.structure.findData(old_slab_type))
+            beam.anchor_changed(old_anchor)
+            self.bar.refresh()
+
+    def test_beam_top_tracks_anchor_and_slope(self):
+        beam = self.suite.controllers["beam"]
+        top = self.bar.pages["beam"][0].findChild(
+            QDoubleSpinBox, "opentrace_field_beam_top")
+        self.assertIsNotNone(top)
+        old = (beam.defaults["anchor"], beam.height.value(), beam.offset.value(),
+               beam.inclination.value(), beam.curvature.value(),
+               beam.vertical_curvature.value())
+        try:
+            beam.anchor_changed("bc")
+            beam.inclination.setValue(0.0)
+            beam.curvature.setValue(0.0)
+            beam.vertical_curvature.setValue(0.0)
+            beam.height.setValue(0.40)
+            beam.offset.setValue(2.40)
+            self.bar.refresh()
+            self.assertAlmostEqual(top.value(), 2.80, places=3)
+            top.setValue(3.00)
+            self.assertAlmostEqual(beam.offset.value(), 2.60, places=3)
+            self.bar.refresh()
+            self.assertAlmostEqual(top.value(), 3.00, places=3)
+            beam.anchor_changed("tc")
+            self.bar.refresh()
+            self.assertAlmostEqual(top.value(), 2.60, places=3)
+            beam.anchor_changed("mc")
+            self.bar.refresh()
+            self.assertAlmostEqual(top.value(), 2.80, places=3)
+            beam.inclination.setValue(12.0)
+            self.bar.refresh()
+            self.assertTrue(top.isReadOnly())
+            from OpenTrace_BIM.i18n import t
+            self.assertEqual(top.toolTip(), t("Viga inclinada: edite na paleta"))
+        finally:
+            anchor, height, offset, inclination, curvature, vertical_curvature = old
+            beam.inclination.setValue(inclination)
+            beam.curvature.setValue(curvature)
+            beam.vertical_curvature.setValue(vertical_curvature)
+            beam.height.setValue(height)
+            beam.offset.setValue(offset)
+            beam.anchor_changed(anchor)
+            self.bar.refresh()
+
+    def test_slab_base_hint_follows_level(self):
+        from OpenTrace_BIM.i18n import t
+        slab = self.suite.controllers["slab"]
+        mirror = self.bar.pages["slab"][0].findChild(
+            QDoubleSpinBox, "opentrace_field_slab_base")
+        old = slab.level.currentData()
+        self.bar.refresh()
+        self.assertEqual(mirror.toolTip(), t("Cota absoluta"))
+        try:
+            slab.level.blockSignals(True)
+            slab.level.addItem("Test level", "__contextual_test__")
+            slab.level.setCurrentIndex(slab.level.findData("__contextual_test__"))
+            self.bar.refresh()
+            self.assertEqual(mirror.toolTip(), t("Relativa ao nível"))
+        finally:
+            slab.level.setCurrentIndex(slab.level.findData(old))
+            slab.level.removeItem(slab.level.findData("__contextual_test__"))
+            slab.level.blockSignals(False)
+            self.bar.refresh()
+
+    def test_column_taper_uses_start_and_hints(self):
+        from OpenTrace_BIM.i18n import t
+        column = self.suite.controllers["column"]
+        width = self.bar.pages["column"][0].findChild(
+            QDoubleSpinBox, "opentrace_field_column_largura")
+        previous = column.defaults.get("stations")
+        original = column.width.value()
+        try:
+            column.defaults["stations"] = [
+                {"t": 0.0, "width": 0.30, "depth": 0.35, "diameter": 0.30},
+                {"t": 1.0, "width": 0.20, "depth": 0.25, "diameter": 0.30},
+            ]
+            column._load_fields(column.defaults)
+            self.bar.refresh()
+            self.assertEqual(width.toolTip(),
+                             t("Pilar afunilado: o fim se edita na paleta"))
+            width.setValue(0.42)
+            self.assertAlmostEqual(column.defaults["stations"][0]["width"], 0.42)
+            self.assertAlmostEqual(column.defaults["stations"][-1]["width"], 0.20)
+        finally:
+            column.defaults["stations"] = previous
+            column._load_fields(column.defaults)
+            column.width.setValue(original)
+            self.bar.refresh()
 
     def test_bar_page_follows_active_tool(self):
         from OpenTrace_BIM.host import activate_select

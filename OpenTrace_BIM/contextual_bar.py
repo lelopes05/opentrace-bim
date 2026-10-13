@@ -7,9 +7,11 @@ fields, so existing validation, history, and Undo/Redo remain authoritative.
 """
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PySide6.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
+    QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
 )
 
@@ -56,6 +58,8 @@ class ContextualBar(QWidget):
         self.wall = self.controllers["wall"]
         self._mirrors = []
         self._mode_controls = []
+        self._segment_controls = []
+        self._derived_controls = []
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
@@ -159,76 +163,153 @@ class ContextualBar(QWidget):
         self.app.viewport.setFocus()
         QTimer.singleShot(0, self.refresh)
 
-    def _field(self, layout, text, source, *, width=90):
+    def _field(self, layout, text, source, *, width=90, grouped=False, name=None):
         if source is None:
             return
-        label = self._section(layout, text)
-        if isinstance(source, QComboBox):
-            mirror = QComboBox(self)
-            mirror.activated.connect(lambda _index: self.app.viewport.setFocus())
-            mirror.setMinimumWidth(width)
-            mirror.setMaximumWidth(max(width, 145))
-            mirror.currentIndexChanged.connect(
-                lambda _=0, a=mirror, b=source: self._apply_combo(a, b))
-            source.currentIndexChanged.connect(self.suite.schedule_sync_context)
+        if grouped:
+            container = QWidget(self)
+            vertical = QVBoxLayout(container)
+            vertical.setContentsMargins(0, 0, 0, 0)
+            vertical.setSpacing(2)
+            label = QLabel(t(text), container)
+            label.setObjectName("opentrace_label_" + name)
+            vertical.addWidget(label)
         else:
-            mirror = QDoubleSpinBox(self)
-            mirror.editingFinished.connect(self.app.viewport.setFocus)
-            mirror.setLocale(source.locale())
-            mirror.setDecimals(source.decimals())
-            mirror.setRange(source.minimum(), source.maximum())
-            mirror.setSingleStep(source.singleStep())
-            mirror.setSuffix(source.suffix())
-            mirror.setKeyboardTracking(False)
-            mirror.setMinimumWidth(width)
-            mirror.setMaximumWidth(width + 12)
-            # A direct QObject-to-QObject Qt connection avoids referencing
-            # destroyed mirrors from Python signal closures during teardown.
-            mirror.valueChanged.connect(source.setValue)
-            source.valueChanged.connect(self.suite.schedule_sync_context)
-        mirror.setToolTip(source.toolTip() or text)
-        mirror.setAccessibleName(text)
+            label = self._section(layout, text)
+        mirror = QDoubleSpinBox(self)
+        mirror.editingFinished.connect(self.app.viewport.setFocus)
+        mirror.setLocale(source.locale())
+        mirror.setDecimals(source.decimals())
+        mirror.setRange(source.minimum(), source.maximum())
+        mirror.setSingleStep(source.singleStep())
+        mirror.setSuffix(source.suffix())
+        mirror.setKeyboardTracking(False)
+        mirror.setMinimumWidth(width)
+        mirror.setMaximumWidth(width + 12)
+        # A direct QObject-to-QObject Qt connection avoids referencing
+        # destroyed mirrors from Python signal closures during teardown.
+        mirror.valueChanged.connect(source.setValue)
+        source.valueChanged.connect(self.suite.schedule_sync_context)
+        mirror.setToolTip(source.toolTip() or t(text))
+        mirror.setAccessibleName(t(text))
+        if name is not None:
+            mirror.setObjectName("opentrace_field_" + name)
         mirror.installEventFilter(self._focus_return)
-        if isinstance(mirror, QDoubleSpinBox):
-            mirror.lineEdit().installEventFilter(self._focus_return)
-        elif mirror.isEditable():
-            mirror.lineEdit().installEventFilter(self._focus_return)
+        mirror.lineEdit().installEventFilter(self._focus_return)
         self._mirrors.append((mirror, source))
-        self._target(layout).addWidget(mirror)
+        if grouped:
+            vertical.addWidget(mirror)
+            self._target(layout).addWidget(container)
+        else:
+            self._target(layout).addWidget(mirror)
         return label, mirror
 
-    @staticmethod
-    def _apply_value(mirror, source):
-        if source.isEnabled():
-            source.setValue(mirror.value())
+    def _segment(self, layout, group_name, source_values, read_value, write_value):
+        """An exclusive control mirroring a controller option, never a tool action."""
+        buttons = QButtonGroup(self)
+        buttons.setExclusive(True)
+        for caption, value in source_values:
+            button = QToolButton(self)
+            button.setFocusPolicy(Qt.NoFocus)
+            button.setObjectName(f"opentrace_opt_{group_name}_{value}")
+            button.setText(t(caption))
+            button.setAccessibleName(t(caption))
+            button.setToolTip(t(caption))
+            button.setCheckable(True)
+            button.setAutoRaise(True)
+            buttons.addButton(button)
+            button.clicked.connect(
+                lambda _checked=False, v=value, cb=write_value: self._choose_option(cb, v))
+            self._target(layout).addWidget(button)
+            self._segment_controls.append((button, read_value, value))
+
+    def _choose_option(self, setter, value):
+        setter(value)
+        self.app.viewport.setFocus()
+        self.refresh()
 
     @staticmethod
-    def _apply_combo(mirror, source):
-        if source.isEnabled():
-            index = source.findData(mirror.currentData())
-            if index >= 0 and index != source.currentIndex():
-                source.setCurrentIndex(index)
+    def _select_combo(source, value):
+        index = source.findData(value)
+        if index >= 0:
+            source.setCurrentIndex(index)
+
+    def _calculated(self, layout, label, name, source, getter, setter,
+                    read_only, tooltip):
+        """A derived view: no stored property, edits write to the source controller."""
+        container = QWidget(self)
+        vertical = QVBoxLayout(container)
+        vertical.setContentsMargins(0, 0, 0, 0)
+        vertical.setSpacing(2)
+        heading = QLabel(t(label), container)
+        heading.setObjectName("opentrace_label_" + name)
+        vertical.addWidget(heading)
+        spin = QDoubleSpinBox(self)
+        spin.setObjectName("opentrace_field_" + name)
+        spin.setAccessibleName(t(label))
+        spin.setLocale(source.locale())
+        spin.setDecimals(source.decimals())
+        spin.setRange(-10000.0, 10000.0)
+        spin.setSingleStep(source.singleStep())
+        spin.setSuffix(" m")
+        spin.setKeyboardTracking(False)
+        spin.setMinimumWidth(90)
+        spin.editingFinished.connect(self.app.viewport.setFocus)
+        spin.valueChanged.connect(setter)
+        spin.installEventFilter(self._focus_return)
+        spin.lineEdit().installEventFilter(self._focus_return)
+        vertical.addWidget(spin)
+        self._target(layout).addWidget(container)
+        self._derived_controls.append((spin, getter, read_only, tooltip))
+        return spin
+
+    def _beam_anchor_horizontal(self, horizontal):
+        beam = self.controllers["beam"]
+        current = beam.defaults["anchor"]
+        beam.anchor_changed(current[0] + horizontal)
+
+    def _beam_top(self):
+        """Section's highest world Z at the first centerline station."""
+        from .beam_model import (_centerline_local, _complex_profile_loops_yz,
+                                 _profile_yz, _ring_frames)
+        beam = self.controllers["beam"]
+        p = beam.resolved_defaults()
+        chord = p.get("chord", p["length"] * abs(math.cos(math.radians(p["inclination"]))))
+        centers, _length, _plan = _centerline_local(chord, p)
+        center, lateral, vertical = _ring_frames(centers)[0]
+        if p["section_type"] == "complex":
+            sections = (point for loop in _complex_profile_loops_yz(p)
+                        for point in loop["points"])
+        else:
+            sections = iter(_profile_yz(p))
+        return p["base_z"] + max(
+            (center + lateral * y + vertical * z).z() for y, z in sections)
+
+    def _set_beam_top(self, desired):
+        beam = self.controllers["beam"]
+        if not self._beam_top_locked():
+            beam.offset.setValue(beam.offset.value() + desired - self._beam_top())
+
+    def _beam_top_locked(self):
+        beam = self.controllers["beam"]
+        p = beam.resolved_defaults()
+        return (abs(p["inclination"]) > 1e-8 or abs(p["curvature"]) > 1e-8
+                or abs(p["vertical_curvature"]) > 1e-8
+                or not beam.offset.isEnabled() or beam.offset.isReadOnly())
+
+    def _set_wall_top(self, desired):
+        base = self.wall.fields["base"]
+        height = self.wall.fields["height"]
+        if height.isEnabled() and not height.isReadOnly():
+            height.setValue(desired - base.value())
 
     def _sync_field(self, mirror, source):
         old = mirror.blockSignals(True)
         try:
             mirror.setEnabled(source.isEnabled())
-            if isinstance(mirror, QComboBox):
-                current = source.currentData()
-                options = [(source.itemText(i), source.itemData(i))
-                           for i in range(source.count())]
-                previous = [(mirror.itemText(i), mirror.itemData(i))
-                            for i in range(mirror.count())]
-                if options != previous:
-                    mirror.clear()
-                    for title, data in options:
-                        mirror.addItem(title, data)
-                index = mirror.findData(current)
-                mirror.setCurrentIndex(index if index >= 0 else -1)
-            else:
-                mirror.setRange(source.minimum(), source.maximum())
-                mirror.setValue(source.value())
-                mirror.setReadOnly(source.isReadOnly())
+            mirror.setRange(source.minimum(), source.maximum())
+            mirror.setValue(source.value())
+            mirror.setReadOnly(source.isReadOnly())
         finally:
             mirror.blockSignals(old)
 
@@ -238,9 +319,11 @@ class ContextualBar(QWidget):
         column = self.controllers.get("column")
         beam = self.controllers.get("beam")
 
-        self._page("idle", "Pronto para modelar")
-        p = self._page("wall", "Parede")
+        self._page("idle", t("Pronto para modelar"))
+        p = self._page("wall", t("Parede"))
         self._section(p, t("Geometria"))
+        geometry_group = QButtonGroup(self)
+        geometry_group.setExclusive(True)
         for symbol, title, geometry in (
             ("／", "Reta: início e fim", "single"),
             ("▱", "Retângulo por diagonal", "rect_diagonal"),
@@ -249,58 +332,57 @@ class ContextualBar(QWidget):
             ("⊙", "Arco pelo centro", "arc_center"),
             ("∴", "Arco por 3 pontos", "arc_three"),
         ):
-            self._method(p, symbol, t(title),
-                         lambda g=geometry: wall.choose_geometry(g),
-                         active=lambda g=geometry: wall.draw_tool.geometry == g)
-        self._field(p, "Alinham.", wall.alignment)
-        self._field(p, "Estrutura", wall.structure)
-        self._field(p, "Esp.", wall.fields["thickness"])
-        self._field(p, "Alt.", wall.fields["height"])
-        self._field(p, "Nível base", wall.base_level, width=135)
-        self._field(p, "Nível topo", wall.top_level, width=135)
-        p = self._page("wall_edit", "Parede selecionada")
-        self._field(p, "Esp.", wall.fields["thickness"])
-        self._field(p, "Alt.", wall.fields["height"])
-        self._field(p, "Alinham.", wall.alignment)
-        self._method(p, "ⓘ", "Informações do Projeto",
-                     lambda: self.suite.show_page("project"))
-        p = self._page("slab", "Laje")
+            button = self._method(
+                p, symbol, t(title), lambda g=geometry: wall.choose_geometry(g),
+                active=lambda g=geometry: wall.draw_tool.geometry == g)
+            button.setObjectName("opentrace_opt_wall_geometry_" + geometry)
+            geometry_group.addButton(button)
+        self._wall_options(p, "wall")
+        p = self._page("wall_edit", t("Parede selecionada"))
+        self._wall_options(p, "wall_edit")
+
+        p = self._page("slab", t("Laje"))
         if slab is not None:
-            self._section(p, "Mét. construtivos")
-            for symbol, title, mode in (
-                ("▱", "Retângulo por diagonal", "diagonal"),
-                ("⊥", "Retângulo por base e largura", "base_width"),
-                ("⬡", "Polígono livre", "polygon"),
+            self._slab_options(p, slab, "slab")
+        p = self._page("slab_edit", t("Laje selecionada"))
+        if slab is not None:
+            self._slab_options(p, slab, "slab_edit")
+
+        p = self._page("column", t("Pilar"))
+        if column is not None:
+            self._section(p, t("Medidas"))
+            for label, field in (
+                ("Largura", column.width), ("Profundidade", column.depth),
+                ("Altura", column.height), ("Base", column.base_offset),
             ):
-                self._method(p, symbol, title, lambda m=mode: slab.choose_mode(m),
-                             active=lambda m=mode: slab.tool.mode == m)
-            self._field(p, "Estrutura", slab.structure)
-            self._field(p, "Esp.", slab.thickness)
-            self._field(p, "Nível", slab.level)
-            self._field(p, "Cota", slab.offset)
-        p = self._page("slab_edit", "Laje selecionada")
-        if slab is not None:
-            self._field(p, "Esp.", slab.thickness)
-            self._field(p, "Cota", slab.offset)
-        for key, ctrl in (("column", column), ("beam", beam)):
-            p = self._page(key, "Pilar" if key == "column" else "Viga")
-            if ctrl is not None:
-                self._section(p, "Seção")
-                for name, label in (
-                    ("section_type", "Tipo"), ("profile", "Forma"),
-                    ("width", "Larg."), ("height", "Alt."),
-                ):
-                    self._field(p, label, getattr(ctrl, name, None))
+                self._field(p, label, field, grouped=True,
+                            name="column_" + label.lower())
+
+        p = self._page("beam", t("Viga"))
+        if beam is not None:
+            self._section(p, t("Referência"))
+            self._segment(
+                p, "beam_reference",
+                (("Esquerdo", "l"), ("Centro", "c"), ("Direito", "r")),
+                lambda: beam.defaults["anchor"][-1],
+                self._beam_anchor_horizontal)
+            self._section(p, t("Medidas"))
+            self._field(p, "Largura", beam.width, grouped=True, name="beam_width")
+            self._field(p, "Altura", beam.height, grouped=True, name="beam_height")
+            self._calculated(
+                p, "Topo", "beam_top", beam.offset, self._beam_top,
+                self._set_beam_top, self._beam_top_locked,
+                lambda: (t("Viga inclinada: edite na paleta")
+                         if self._beam_top_locked() else t("Cota do topo no início da viga")))
+
         self._build_opening_pages()
-        # One set of live opening fields: variants use visibility, not
-        # duplicate signal-connected spinboxes for the same source widgets.
-        p = self._page("opening_edit", "Vão selecionado")
+        p = self._page("opening_edit", t("Vão selecionado"))
         for key, label in (
-            ("width", "Larg."), ("height", "Alt."),
-            ("sill", "Peitoril"), ("position", "Pos."),
+            ("width", "Largura"), ("height", "Altura"),
+            ("sill", "Peitoril"), ("position", "Posição"),
         ):
             self._field(p, label, wall.opening_fields[key])
-        self._anchor_label = self._section(p, "Âncora")
+        self._anchor_label = self._section(p, t("Âncora"))
         self._anchor_buttons = []
         for symbol, name, title in (
             ("◧", "left", "Âncora esquerda"),
@@ -308,17 +390,59 @@ class ContextualBar(QWidget):
             ("◨", "right", "Âncora direita"),
         ):
             self._anchor_buttons.append(
-                self._method(p, symbol, title,
+                self._method(p, symbol, t(title),
                              lambda value=name: self._edit_fill_anchor(value)))
         self._swing_button = self._method(
-            p, "↶", "Inverter giro da porta", wall.reverse_swing_btn.click)
-        self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
-        p = self._page("polygon_edit", "Abertura poligonal")
-        self._section(p, "Edição da geometria")
-        p.addWidget(QLabel("Vértices e arestas: paleta lateral / radial"))
-        self._method(p, "⬡", "Abrir editor da abertura na paleta lateral",
+            p, "↶", t("Inverter giro da porta"), wall.reverse_swing_btn.click)
+        self._method(p, "⊘", t("Excluir abertura selecionada"), wall.delete_wall_opening)
+        p = self._page("polygon_edit", t("Abertura poligonal"))
+        self._section(p, t("Edição da geometria"))
+        p.addWidget(QLabel(t("Vértices e arestas: paleta lateral / radial")))
+        self._method(p, "⬡", t("Abrir editor da abertura na paleta lateral"),
                      lambda: self.suite.show_page("wall"))
-        self._method(p, "⊘", "Excluir abertura selecionada", wall.delete_wall_opening)
+        self._method(p, "⊘", t("Excluir abertura selecionada"), wall.delete_wall_opening)
+
+    def _wall_options(self, layout, page_name):
+        wall = self.wall
+        self._section(layout, t("Referência"))
+        self._segment(
+            layout, page_name + "_reference",
+            (("Esquerdo", "left"), ("Centro", "center"), ("Direito", "right")),
+            wall.alignment.currentData,
+            lambda v: self._select_combo(wall.alignment, v))
+        self._section(layout, t("Tipo"))
+        self._segment(
+            layout, page_name + "_type",
+            (("Simples", "simple"), ("Composta", "composite")),
+            wall.structure.currentData,
+            lambda v: self._select_combo(wall.structure, v))
+        self._section(layout, t("Medidas"))
+        for label, field in (
+            ("Espessura", wall.fields["thickness"]), ("Altura", wall.fields["height"]),
+            ("Base", wall.fields["base"]),
+        ):
+            self._field(layout, label, field, grouped=True,
+                        name=page_name + "_" + label.lower())
+        self._calculated(
+            layout, "Topo", page_name + "_top", wall.fields["height"],
+            lambda: wall.fields["base"].value() + wall.fields["height"].value(),
+            self._set_wall_top,
+            lambda: (wall.fields["height"].isReadOnly()
+                     or not wall.fields["height"].isEnabled()),
+            lambda: t("Calculado: Base + Altura"))
+
+    def _slab_options(self, layout, slab, page_name):
+        self._section(layout, t("Tipo"))
+        self._segment(
+            layout, page_name + "_type",
+            (("Simples", "simple"), ("Composta", "composite")),
+            slab.structure.currentData,
+            lambda v: self._select_combo(slab.structure, v))
+        self._section(layout, t("Medidas"))
+        self._field(layout, "Espessura", slab.thickness, grouped=True,
+                    name=page_name + "_thickness")
+        self._field(layout, "Base", slab.offset, grouped=True,
+                    name=page_name + "_base")
 
     def _edit_fill_anchor(self, anchor):
         # Use the EXISTING hosted-fill combobox, hence its EditHostedFill
@@ -489,11 +613,44 @@ class ContextualBar(QWidget):
             self.stack.setCurrentWidget(self.pages[key][0])
             self.updateGeometry()
         self._sync_size_controls()
+        if key == "column":
+            column = self.controllers["column"]
+            first = column.segment.findData(0)
+            if first >= 0 and column.segment.currentIndex() != first:
+                column.segment.setCurrentIndex(first)
         for mirror, source in self._mirrors:
             # A binding may be on an inactive stacked page; its source can be
             # hidden because the native suite switched pages, not because the
             # model became read-only. Respect source.enabled but not visibility.
             self._sync_field(mirror, source)
+        slab = self.controllers.get("slab")
+        if slab is not None:
+            hint = t("Relativa ao nível") if slab.level.currentData() else t("Cota absoluta")
+            for mirror, source in self._mirrors:
+                if source is slab.offset:
+                    mirror.setToolTip(hint)
+        column = self.controllers.get("column")
+        if column is not None:
+            stations = column.defaults.get("stations") or ()
+            tapered = bool(stations and (
+                float(stations[-1]["width"]) != float(stations[0]["width"])
+                or float(stations[-1]["depth"]) != float(stations[0]["depth"])))
+            for mirror, source in self._mirrors:
+                if source in (column.width, column.depth):
+                    mirror.setToolTip(t("Pilar afunilado: o fim se edita na paleta")
+                                      if tapered else t("Medida no início do pilar"))
+        for spin, getter, locked, hint in self._derived_controls:
+            old = spin.blockSignals(True)
+            try:
+                spin.setValue(getter())
+                spin.setReadOnly(bool(locked()))
+                spin.setToolTip(hint())
+            finally:
+                spin.blockSignals(old)
+        for button, getter, value in self._segment_controls:
+            blocked = button.blockSignals(True)
+            button.setChecked(getter() == value)
+            button.blockSignals(blocked)
         # Do not display inapplicable buttons: only hosted doors can swing,
         # and only hosted elements have an anchor.
         show_anchor = self._opening_kind in ("door", "window")
