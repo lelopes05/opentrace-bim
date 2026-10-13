@@ -8,7 +8,6 @@ class SuiteContextSyncTests(unittest.TestCase):
     def test_home_and_profiles_stay_open_while_a_wall_stays_selected(self):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtGui import QVector3D
-        from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QApplication
         from views.extension_api import ExtensionApp
         from views.main_window import MainWindow
@@ -33,11 +32,14 @@ class SuiteContextSyncTests(unittest.TestCase):
                 self.assertIs(ctl.target, wall)
 
             def sync_like_the_document_does():
-                """Every document change queues one sync; run it for real."""
+                """Every document change queues one sync; run it in place.
+
+                No event loop here: spinning it paints the GL viewport, which
+                the offscreen platform cannot do (segfault on CI).
+                """
                 scene.version += 1
                 suite.schedule_sync_context()
-                QTest.qWait(30)
-                self.assertFalse(suite._sync_queued)
+                suite._run_sync_context()
 
             def new_wall(y):
                 wall = make_wall_segment(QVector3D(0, y, 0), QVector3D(5, y, 0),
@@ -49,7 +51,7 @@ class SuiteContextSyncTests(unittest.TestCase):
 
             # A new selection is followed once: the wall page opens.
             select(wall_a)
-            QTest.qWait(30)
+            suite._run_sync_context()
             self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
 
             # Home and Profiles are the user's choice; the wall stays selected
@@ -66,11 +68,10 @@ class SuiteContextSyncTests(unittest.TestCase):
 
             # A different selection is a new context and is still followed.
             select(wall_b)
-            QTest.qWait(30)
+            suite._run_sync_context()
             self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
         finally:
             window.deleteLater()
-            qt.processEvents()
 
 
 if __name__ == "__main__":
