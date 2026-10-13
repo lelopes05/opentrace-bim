@@ -114,9 +114,7 @@ class _OpeningEditBase(AxisMagnet, Tool):
     def on_activate(self, viewport): viewport.update()
     def on_deactivate(self, viewport):
         self.reset()
-        clear = getattr(self.controller, "clear_sticky", None)
-        if clear is not None:
-            clear()
+        self.controller.clear_sticky()
         viewport.update()
 
     def on_cancel(self, viewport): self.reset(); QTimer.singleShot(0, self.controller.return_to_select)
@@ -136,11 +134,7 @@ class _OpeningEditBase(AxisMagnet, Tool):
         viewport.notify_scene_changed(); self.controller.message(message)
         slab, opening_index = self.slab, self.opening_index
         self.reset()
-        finished = getattr(self.controller, "edit_finished", None)
-        if finished is None:
-            QTimer.singleShot(0, self.controller.return_to_select)
-        else:
-            QTimer.singleShot(0, lambda: finished(slab, opening_index))
+        QTimer.singleShot(0, lambda: self.controller.edit_finished(slab, opening_index))
 
 
 class InsertOpeningVertexTool(_OpeningEditBase):
@@ -346,9 +340,7 @@ class MoveOpeningTool(AxisMagnet, Tool):
         else:self.controller.message("Clique no ponto de referência para mover a abertura.")
     def on_deactivate(self,viewport):
         self.reset()
-        clear = getattr(self.controller, "clear_sticky", None)
-        if clear is not None:
-            clear()
+        self.controller.clear_sticky()
         viewport.update()
     def _delta(self,p):
         if self.origin is None:return QVector3D(0,0,0)
@@ -368,11 +360,7 @@ class MoveOpeningTool(AxisMagnet, Tool):
             ctx.viewport.notify_scene_changed();self.controller.message("Abertura movida.")
             slab, oi = self.slab, self.opening_index
             self.reset()
-            finished = getattr(self.controller, "edit_finished", None)
-            if finished is None:
-                self.controller.return_to_select()
-            else:
-                finished(slab, oi)
+            self.controller.edit_finished(slab, oi)
         except SlabError as exc:self.controller.message(str(exc),error=True)
         ctx.viewport.update()
     def on_cancel(self,viewport):self.reset();self.controller.return_to_select();viewport.update()
