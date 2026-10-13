@@ -15,7 +15,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QPen
-from PySide6.QtWidgets import QMenu, QToolButton
+from PySide6.QtWidgets import QApplication, QMenu, QToolButton, QWidget
 
 from . import wall_cache
 from .commands import EditWall
@@ -148,6 +148,8 @@ class WallOpeningEditor(QObject):
         app.add_pickable(self._pick, self._on_pick, self._delete_pick)
         app.add_overlay(self._draw)
         app.viewport.installEventFilter(self)
+        # Native viewport surfaces can receive the mouse event on a child widget.
+        QApplication.instance().installEventFilter(self)
 
     # -- what the rest of the plugin calls -----------------------------------
     def _make_tool_action(self, key, tool, title, tip):
@@ -368,17 +370,23 @@ class WallOpeningEditor(QObject):
         return None if not hits else min(hits, key=lambda hit: hit[0])[1:]
 
     def eventFilter(self, obj, event):
-        if obj is not self.app.viewport:
+        viewport = self.app.viewport
+        on_viewport = obj is viewport
+        child_press = (event.type() == QEvent.MouseButtonPress
+                       and isinstance(obj, QWidget) and viewport.isAncestorOf(obj))
+        if not on_viewport and not child_press:
             return False
-        active_tool = self.app.viewport.active_tool
-        if (event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
+        active_tool = viewport.active_tool
+        if (on_viewport and event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape
                 and active_tool is self.sticky.tool and self.sticky.tool is not None):
             self.return_to_select()
             return True
         if (event.type() == QEvent.MouseButtonPress
                 and event.button() in (Qt.LeftButton, Qt.RightButton)
                 and self.sticky.waiting and active_tool is self.sticky.tool):
-            hit = self._hit_sticky_wall(event.position().x(), event.position().y())
+            pixel = (event.position().toPoint() if on_viewport
+                     else viewport.mapFrom(obj, event.position().toPoint()))
+            hit = self._hit_sticky_wall(pixel.x(), pixel.y())
             if hit is None:
                 if event.button() == Qt.LeftButton:
                     self.return_to_select()
@@ -397,6 +405,8 @@ class WallOpeningEditor(QObject):
             self.sticky.armed()
             self.app.viewport.update()
             return True
+        if not on_viewport:
+            return False
         if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
             if (self.active is not None and event.modifiers() == Qt.NoModifier
                     and self.app.viewport.active_tool is host_tool(self.app, "select")):
