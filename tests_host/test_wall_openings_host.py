@@ -520,6 +520,7 @@ class StickyWallOpeningTests(unittest.TestCase):
 
     def _cleanup(self):
         self.editor.return_to_select()
+        self.app.release_pick()
         self.editor.active = None
         if self.wall in self.scene.groups:
             self.scene.groups.remove(self.wall)
@@ -643,8 +644,22 @@ class StickyWallOpeningTests(unittest.TestCase):
             "The host should still know which opening the plugin highlights.")
         self.assertEqual(
             viewport.extension_pick[2], self.scene.version,
-            "After the edit the host's opening pick is stale; no public "
-            "API exists to refresh its version while retaining selection.")
+            "The host pick must use the edited document version.")
+        self.assertEqual(viewport.extension_pick[1], (str(self.wall.uid), "a"))
+
+    def test_reselecting_after_another_edit_refreshes_host_pick(self):
+        viewport = self.window.viewport
+        self._commit_first_edge()
+        previous_version = viewport.extension_pick[2]
+        self.assertEqual(previous_version, self.scene.version)
+        next_edge = self.face.world(QVector3D(2, 1.5, 0))
+        self.assertTrue(self.editor.eventFilter(viewport, self._event(next_edge)))
+        self.editor.tools["push_edge"].on_click(
+            ctx(viewport, self.face.world(QVector3D(1.9, 1.5, 0))))
+        APP.processEvents()
+        self.assertGreater(self.scene.version, previous_version)
+        self.assertEqual(viewport.extension_pick[2], self.scene.version)
+        self.assertEqual(self.editor.active, (self.wall, "a"))
 
     def test_host_pick_is_released_by_select_after_edit_and_empty_click(self):
         """A real host pick must not leave the opening highlighted after Space/blank."""
