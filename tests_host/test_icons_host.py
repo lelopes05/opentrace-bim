@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Rendered icons under real Qt and IngeTrazo palettes, not mocked imports."""
+import gc
 import os
 from pathlib import Path
 import unittest
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication
 from views.theme import dark_palette, light_palette
@@ -13,6 +14,17 @@ from OpenTrace_BIM.icons import _NAMES, icon, pixmap
 from OpenTrace_BIM.style import contrast, tokens
 
 APP = QApplication.instance() or QApplication([])
+
+
+def tearDownModule():
+    # Explicitly release cached C++ painter paths before Python shuts down.
+    # Native Qt wrappers freed by interpreter GC can crash Shiboken offscreen.
+    from OpenTrace_BIM.icons import _parts
+    _parts.cache_clear()
+    gc.collect()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    APP.processEvents()
+    gc.collect()
 
 
 def rgba_key(pm):
