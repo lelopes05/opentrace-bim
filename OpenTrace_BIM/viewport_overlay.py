@@ -101,8 +101,10 @@ class OverlayDock(_BlockViewportInput, QWidget):
         viewport.installEventFilter(self)
         # The single application watcher dispatches all visual reapplication.
         app = QApplication.instance()
-        existing_watcher = app.findChild(ThemeWatcher)
-        self._theme_watcher = existing_watcher if existing_watcher is not None else ThemeWatcher()
+        if hasattr(app, "_opentrace_theme_watcher") and app._opentrace_theme_watcher is not None:
+            self._theme_watcher = app._opentrace_theme_watcher
+        else:
+            self._theme_watcher = ThemeWatcher()
         self._theme_watcher.changed.connect(self.apply_theme)
         self.apply_theme()
         self.reposition()
