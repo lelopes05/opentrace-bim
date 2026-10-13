@@ -177,9 +177,8 @@ def setup(app):
     app.window._arquitetura_parametrica_tool_row = None
     try:
         from .tool_row import ToolRow
-        tool_row = ToolRow(app.window, controller, slab_controller, column_controller,
+        tool_row = ToolRow(controller, slab_controller, column_controller,
                            beam_controller, profile_controller)
-        tool_row.place_above(app.window, controller.toolbar)
         app.window._arquitetura_parametrica_tool_row = tool_row
     except Exception as exc:
         log.exception("parametric tool row setup failed")
@@ -206,6 +205,18 @@ def setup(app):
         log.exception("parametric unified sidebar setup failed")
         startup_errors.append(f"Painel: {type(exc).__name__}: {exc}")
         controller.message(f"Painel: {type(exc).__name__}: {exc}", error=True)
+
+    app.window._arquitetura_parametrica_overlay = None
+    try:
+        from .viewport_overlay import OverlayDock
+        suite = app.window._arquitetura_parametrica_suite_panel
+        panels = (app.window._arquitetura_parametrica_tool_row,
+                  None if suite is None else suite.context_bar)
+        app.window._arquitetura_parametrica_overlay = OverlayDock(
+            app.viewport, [panel for panel in panels if panel is not None])
+    except Exception as exc:
+        log.exception("parametric viewport panels setup failed")
+        startup_errors.append(f"Painéis: {type(exc).__name__}: {exc}")
 
     app.window._arquitetura_parametrica_startup_errors = startup_errors
     if startup_errors:

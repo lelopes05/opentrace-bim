@@ -145,7 +145,6 @@ _EN = {
     "Vértice da abertura": "Opening vertex",
     "Referência da laje": "Slab reference",
     "Referência da abertura": "Opening reference",
-    "Redimensionar a barra flutuante.": "Resize the floating toolbar.",
     "Viga horizontal paramétrica por dois pontos.": "Horizontal parametric beam by two points.",
     "Clique no início e no fim da viga.": "Click the beam start and end points.",
     "Arco padrão: início, fim e depois puxe a flecha para qualquer lado.": "Standard arc: start, end, then pull the sagitta to either side.",
@@ -370,7 +369,6 @@ _ES = {
     "Vértice da abertura": "Vértice de la abertura",
     "Referência da laje": "Referencia de la losa",
     "Referência da abertura": "Referencia de la abertura",
-    "Redimensionar a barra flutuante.": "Redimensionar la barra flotante.",
     "Viga horizontal paramétrica por dois pontos.": "Viga paramétrica horizontal por dos puntos.",
     "Clique no início e no fim da viga.": "Haga clic en el inicio y el final de la viga.",
 }

@@ -6,11 +6,11 @@ import logging
 import copy
 import uuid
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QVector3D
 from PySide6.QtWidgets import (
     QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QMenu,
-    QToolBar, QToolButton, QVBoxLayout, QWidget, QSizeGrip,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
 from . import __version__
@@ -380,21 +380,10 @@ class WallController(QObject):
         register_tool(self.app, self.move_vertex_free_tool, key=MOVE_VERTEX_FREE_TOOL_KEY)
         register_tool(self.app, self.move_vertex_continue_tool, key=MOVE_VERTEX_CONTINUE_TOOL_KEY)
         self.action.triggered.connect(self.start_drawing)
-        self.toolbar = QToolBar(t("Arquitetura"), self.app.window)
-        self.toolbar.setObjectName("opentrace_options_toolbar")
-        self._toolbar_grip = None
-        self.toolbar.setIconSize(QSize(24, 24))
-        self.toolbar.setMovable(True)
-        self.toolbar.setFloatable(True)
-        self.toolbar.setAllowedAreas(Qt.AllToolBarAreas)
-        self.toolbar.topLevelChanged.connect(lambda _floating: self.fit_toolbar())
-        self.toolbar.installEventFilter(self)
         self.simple_wall_action=QAction(wall_icon(),t("Parede simples"),self.app.window);self.simple_wall_action.triggered.connect(lambda:self.start_structure("simple"))
         self.composite_wall_action=QAction(composite_wall_icon(),t("Parede composta"),self.app.window);self.composite_wall_action.triggered.connect(lambda:self.start_structure("composite"))
         self.wall_type_menu=QMenu(self.app.window);self.wall_type_menu.addAction(self.simple_wall_action);self.wall_type_menu.addAction(self.composite_wall_action)
         self.wall_menu_button=QToolButton(self.app.window);self.wall_menu_button.setDefaultAction(self.action);self.wall_menu_button.setMenu(self.wall_type_menu);self.wall_menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.wall_menu_button.setToolTip(t("Parede — use a seta para escolher simples ou composta."))
-        self.app.window.addToolBar(Qt.TopToolBarArea, self.toolbar)
-        self.fit_toolbar()
         menu = self.app.add_menu(t("Ferramentas arquitetônicas"))
         self.arch_menu = menu
         self.arch_menu_end = None
@@ -402,49 +391,6 @@ class WallController(QObject):
             sub=menu.addMenu(t("Parede"));sub.addAction(self.simple_wall_action);sub.addAction(self.composite_wall_action)
             self.arch_menu_end = menu.addSeparator()
         self.app.add_context_menu(self.context_menu)
-
-    def _position_toolbar_grip(self):
-        if not hasattr(self, "toolbar"):
-            return
-        floating = self.toolbar.isFloating()
-        if self._toolbar_grip is None:
-            self._toolbar_grip = QSizeGrip(self.toolbar)
-            self._toolbar_grip.setToolTip(t("Redimensionar a barra flutuante."))
-            self._toolbar_grip.setFixedSize(16, 16)
-        self._toolbar_grip.setVisible(floating)
-        if floating:
-            self._toolbar_grip.move(max(0, self.toolbar.width()-self._toolbar_grip.width()-2),
-                                    max(0, self.toolbar.height()-self._toolbar_grip.height()-2))
-            self._toolbar_grip.raise_()
-
-    def fit_toolbar(self):
-        """Fit only a FLOATING toolbar.
-
-        When docked, QMainWindow owns its geometry. Scheduling adjustSize()
-        several times while the application is restoring its saved/maximized
-        window caused Windows to visibly re-layout the top-level window during
-        startup.
-        """
-        if not hasattr(self, "toolbar"):
-            return
-        if not self.toolbar.isFloating():
-            self._position_toolbar_grip()
-            return
-
-        def _fit():
-            try:
-                if not self.toolbar.isFloating():
-                    self._position_toolbar_grip()
-                    return
-                self.toolbar.adjustSize()
-                hint = self.toolbar.sizeHint()
-                self.toolbar.resize(max(self.toolbar.width(), hint.width()),
-                                    max(self.toolbar.height(), hint.height()))
-                self._position_toolbar_grip()
-            except RuntimeError:
-                pass
-
-        QTimer.singleShot(0, _fit)
 
     def _make_path_palette(self):
         self.path_palette = RadialPalette(self.app.window, popup=False, role="edit")
@@ -1000,9 +946,6 @@ class WallController(QObject):
         return None if best is None else ("segment", QVector3D(best[1]))
 
     def eventFilter(self, obj, event):
-        if obj is getattr(self, "toolbar", None) and event.type() in (QEvent.Resize, QEvent.Show, QEvent.Move):
-            QTimer.singleShot(0, self._position_toolbar_grip)
-            return False
         # The native Select tool uses press→release for box selection. Intercept
         # only hits on the visible parametric reference, leaving normal
         # selection untouched everywhere else.
