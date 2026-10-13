@@ -115,6 +115,12 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - O estado compacto fica em `QSettings`, chave `OpenTrace_BIM/tool_row_compact`, e é lido na partida.
 - A fileira nunca é escondida pelo plugin. Se o usuário fechar pelo menu Toolbars do host, o host lembra.
 
+*Layout salvo antigo (achado no print do Leandro, 13/10):*
+- No Windows, a barra aparece espremida na mesma linha das toolbars do IngeTrazo.
+- **Causa:** no 0.5.8 o host reaplica o `restoreState` salvo depois que as extensões carregam (`load_extensions` → `restoreState` → `_pack_toolbars`). O layout salvo de versões antigas tem `arquitetura_parametrica_toolbar` sem quebra de linha, e isso desfaz o `insertToolBarBreak` feito no `setup`.
+- **Correção:** a toolbar da barra ganha `objectName` novo, `opentrace_options_toolbar`, e a fileira já nasce com `opentrace_tools_toolbar`. O layout antigo não conhece esses nomes, então o host deixa as duas onde o plugin as pôs, cada uma em linha própria. O nome antigo some do código.
+- Não usar `QTimer` nem mover toolbars depois da partida.
+
 *Limpeza:*
 - `__init__.setup` cria a `ToolRow` depois dos controladores e antes do `ArchitectureSuitePanel`.
 - `ContextualBar` deixa de esconder ações antigas da `wall.toolbar` (`hidden_legacy_actions` sai), porque a etapa 1 já tirou o conteúdo antigo. A `wall.toolbar` passa a conter só a barra.
@@ -130,6 +136,10 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - O botão ▴ deixa a fileira compacta: os botões ficam com `Qt.ToolButtonIconOnly` e ícone de 16 px, e a altura da fileira diminui.
   - Um novo clique volta ao normal.
   - Uma nova `ToolRow` lê o estado salvo.
+- `test_old_saved_layout_does_not_squeeze_the_bars`:
+  - Grava um `ui/window_state` em que uma toolbar `arquitetura_parametrica_toolbar` está na mesma linha das do host.
+  - Abre `MainWindow(defer_extensions=True)`, `show()` e `load_extensions()`.
+  - A fileira e a barra ficam em linhas próprias, abaixo das do host.
 - `test_tool_row_survives_restore_state`: `saveState`, depois `restoreState`, mantém a fileira na mesma linha e na mesma ordem.
 
 ### Etapa 3 — Barra de opções da ferramenta ativa
