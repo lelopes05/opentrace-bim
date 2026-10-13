@@ -203,60 +203,33 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `test_sidebar_is_a_tab_next_to_host_panels`: `window.tabifiedDockWidgets(dock)` não é vazio, como no teste atual de 0.5.8.
 - `test_restart_keeps_layout`: `saveState` e `restoreState` mantêm o lado do dock; a fileira e a barra não pertencem ao estado salvo e ficam ancoradas ao viewport.
 
-### Etapa 6 — Tema legível no escuro e no claro
-**Arquivos:** `style.py` (novo), `suite_panel.py`, `contextual_bar.py`, `palette.py`, `ui.py` e os outros `*_ui.py` que tenham `setStyleSheet` com cor fixa, `tests/test_style_contrast.py` (novo, puro), `tests_host/test_theme_host.py` (novo).
+### Etapa 6a — Design tokens e contraste (módulo, sem mudar a interface)
+**Branch:** `gpt/tema-icones`. **Fonte única:** [DESIGN.md](DESIGN.md) (aprovado em 13/10).
+- `OpenTrace_BIM/style.py`: `luminance`, `contrast`, `ensure_contrast` (WCAG puro), `tokens(QPalette)`, `qss()`, `SIZES`, `TYPE` e `ThemeWatcher` com filtro único por `QApplication`.
+- `qss()` substitui somente `{token}` conhecido: chaves do próprio CSS são preservadas; token desconhecido gera `KeyError`.
+- Contraste: texto ≥ 4,5:1; ícones, bordas e foco ≥ 3:1, usando paletas reais escura e clara do IngeTrazo.
+- `tests/test_style_contrast.py` e `tests_host/test_theme_host.py` comprovam valores WCAG, tokens e evento de mudança de paleta; tema não é aplicado aos widgets nesta etapa.
+- Exceções legadas de cor fixa recalculadas sobre a base oficial `9ee98f4`: `architecture_contracts.py` (1), `beam_ui.py` (2), `column_ui.py` (3), `membrane_ui.py` (1), `profile_editor.py` (2), `slab_ui.py` (6), `ui.py` (10), `wall_opening_ui.py` (2). Total: **27**. `KNOWN_FIXED_COLOURS` é orçamento exato: nenhuma cor fixa nova pode entrar.
 
-**O que muda:**
+### Etapa 7a — Biblioteca de ícones vetoriais (módulo, sem mudar a interface)
+- `OpenTrace_BIM/icons.py`: os novos `icon(name, size, state, palette)` e `pixmap()` usam `QPainter`/`QPainterPath`, quadro 24×24, traço real de 1,5 px e estados normal/active/marked/disabled.
+- Famílias: ferramentas (Parede, Laje, Pilar, Viga, Perfil, Vão, Porta, Janela), formas de abertura, âncoras, geometrias e ajuda/colapso/overflow.
+- `tests_host/test_icons_host.py`: ícones não nulos a 16/20/24 px, imagens distintas, contraste nas duas paletas, estados diferenciados, traço mínimo a 16 px.
+- `docs/icons_sheet.png` é gerada **somente no CI**, enviada como artefato separado. Não entra no git, nem no ZIP instalável.
 
-*`style.py`:*
-- `tokens(palette)` deriva as cores da `QPalette` do app: texto, texto suave, fundo, fundo de campo, borda e erro. Usa `palette.color(...)` e não depende de `views.theme`, que não é API pública de plugin.
-- **Cores de destaque (resposta de 13/10, "mistura 1"):**
+### Etapa 6b — Aplicar tema nos widgets (posterior à integração dos painéis)
+- Substituir pelas cores de `style.tokens()` as **27 ocorrências legadas** de `#rrggbb` nos oito módulos listados na 6a, sem introduzir novas cores fixas.
+- Conectar fileira, barra e paleta ao único `ThemeWatcher.changed`, reaplicando estilos nas mudanças de `ApplicationPaletteChange`.
+- Aplicar estados normal/hover/ativo/marcado/foco/desabilitado/somente leitura e tipografia/medidas de `DESIGN.md`.
+- Aplicar **sombra dos painéis flutuantes**: deslocamento y=8 px, blur=24 px, preto a 38% escuro e 16% claro. Não aplicar sombra à paleta lateral.
+- **Limpeza da integração-1:** em `contextual_bar.py` e `tool_row.py`, remover `setFocusPolicy(Qt.NoFocus)` redundantes (conservar uma atribuição por botão). Na edição dos campos, unificar a devolução de foco: hoje `editingFinished` e o filtro de Enter/Esc em `QDoubleSpinBox` e no `lineEdit()` fazem o mesmo trabalho. Manter um único caminho por evento, preservando digitação e o atalho Espaço do Selecionar. Validar host em CI.
 
-  | Token | Onde | Escuro | Claro |
-  |---|---|---|---|
-  | `tool` (petróleo) | fundo da ferramenta ativa na fileira | `#3A7780`, texto `#FFFFFF` | `#2F6670`, texto `#FFFFFF` |
-  | `mark` (laranja) | borda e ícone da opção marcada na barra, faixa da seção aberta na paleta | `#F0A36B` | `#B35C22` |
-
-  Ficam só em `style.py`. Se algum par não passar no teste de contraste, o teste falha e a cor é escurecida ou clareada no mesmo tom (mesma matiz) até passar, sem trocar de cor.
-- `apply(widget, template)` aplica `template.format(**tokens)`, guarda o widget e reaplica no `QEvent.ApplicationPaletteChange`. Um filtro de eventos só no `QApplication` faz isso.
-
-*Uso:*
-- Toda cor fixa em stylesheet dos módulos da interface vira token. Há cerca de 30 hoje: `rg "#[0-9a-fA-F]{6}"` nos arquivos de interface.
-- Cor fixa só fica em `style.py` e `icons.py`.
-
-*Critério de legível:*
-- Texto: contraste de pelo menos 4,5:1 contra o fundo (WCAG AA), nas paletas clara e escura do host.
-- Ícone e borda de campo: pelo menos 3:1.
-
-**Testes que provam:**
-- `tests/test_style_contrast.py` (puro, sem Qt): a função `contrast(a, b)` de `style.py` bate com valores de referência do WCAG (preto/branco = 21).
-- `test_tokens_meet_contrast_in_both_themes`: aplica `views.theme.dark_palette()` e `light_palette()` do host no teste e confere os pares texto/fundo e texto suave/fundo (≥ 4,5) e borda/fundo (≥ 3).
-- `test_widgets_restyle_on_theme_change`: trocar a paleta muda o stylesheet da barra e da paleta, sem reiniciar.
-- `test_no_fixed_colours_outside_style_and_icons`: varre o código-fonte com regex e só aceita `#rrggbb` em `style.py` e `icons.py`.
-
-### Etapa 7 — Ícones claros por ferramenta
-**Arquivos:** `icons.py`, `ui.py`, `slab_ui.py`, `column_ui.py`, `beam_ui.py`, `tool_row.py`, `contextual_bar.py`, `tests_host/test_icons_host.py` (novo).
-
-**O que muda:**
-
-*Onde e como:*
-- Todos os ícones ficam em `icons.py`, desenhados com `QPainter`. Sem arquivos de imagem e sem base64.
-- `wall_icon`, `composite_wall_icon`, `curved_wall_icon`, `slab_icon`, `composite_slab_icon`, `column_icon`, `beam_icon` e `profile_icon` mudam-se para lá, e os módulos importam de lá.
-
-*Ícones novos:*
-- `opening` (retângulo vazado na parede), `opening_rect`, `opening_square`, `opening_circle`, `opening_free`.
-- `door` (folha com arco de giro em planta) e `window` (caixilho com vidro).
-- `anchor_left`, `anchor_center`, `anchor_right`.
-
-*Cores e repintura:*
-- A cor sai de `style.tokens`: traço principal com o texto e realce com o destaque.
-- A fileira, a barra e a paleta repintam os ícones no `ApplicationPaletteChange`.
-- Tamanhos 24 px na fileira e 20 px na barra, com traço mínimo de 1,5 px a 24 px.
-
-**Testes que provam:**
-- `test_every_tool_has_its_own_icon`: as ações da fileira e os botões de forma e âncora têm ícone não nulo, e todos os ícones são diferentes entre si (comparando os pixels da imagem a 24 px).
-- `test_icons_contrast_in_both_themes`: em cada paleta do host, a média dos pixels opacos do ícone tem contraste ≥ 3:1 com a cor `Window`.
-- `test_icons_repaint_on_theme_change`: a imagem do ícone da ação Parede muda ao trocar de escura para clara.
+### Etapa 7b — Ligar os novos ícones à interface (posterior à integração dos painéis)
+- Trocar os ícones anteriores em `ui.py`, `slab_ui.py`, `column_ui.py`, `beam_ui.py`, `profile_editor.py`, `tool_row.py`, `contextual_bar.py`, `suite_panel.py` e paleta radial, conservando os nomes antigos até migração completa.
+- Usar `icon-24` na fileira normal, `icon-16` na compacta, `icon-20` na barra; conferir silhuetas para formas, âncoras e geometrias.
+- Repintar ícones na alteração do tema, sem reiniciar o host.
+- Testar ícones reais nas ações da fileira, formas e âncoras, contraste em ambos os temas e atualização após troca de paleta. Substituir símbolos e ícones antigos somente nessa ligação.
+- **Nesta entrega 6a/7a nada muda na tela do Leandro e não há teste visual no Windows.**
 
 ### Etapa 8 — A função de edição escolhida continua ativa
 Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `suite_panel.py`.

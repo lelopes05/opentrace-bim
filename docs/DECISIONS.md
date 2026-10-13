@@ -26,6 +26,7 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 13/10: parede reta e curva são geometrias da ferramenta Parede, escolhidas na barra (como o Archicad), não ferramentas separadas.
 - 13/10: a fileira de ferramentas recolhe para uma versão compacta só com ícones; não some. Normal: ícone com nome ao lado.
 - 13/10: cor de destaque: petróleo na ferramenta ativa, laranja na opção marcada e na seção aberta da paleta.
+- 13/10: Design System aprovado (docs/DESIGN.md); neutras seguem a paleta do IngeTrazo, petróleo e laranja fixos.
 
 ### Vãos
 - 13/10: sair da função ativa por Esc ou espaço, como o host; clique fora não sai.
