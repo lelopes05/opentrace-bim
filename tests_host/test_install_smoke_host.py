@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Installed-package discovery smoke test on the actual IngeTrazo host."""
 from pathlib import Path
+import os
 import shutil
 import tempfile
 import unittest
