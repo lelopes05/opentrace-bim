@@ -322,7 +322,10 @@ Nenhuma.
 - `plan_angle` (padrão 90°) e `model_angle` (padrão 0°) independentes. Porta legada preserva seu `open_angle` em ambos, sem salto visual.
 - Testes puros em `tests/test_door_schema2.py`; teste real de persistência e histórico em `tests_host/test_door_schema2_igz_host.py`.
 - Especificação integral com erratas de 13/10 em `docs/PORTAS.md`.
-- **Limite do P0:** a ferramenta do host ainda cria registros sem `schema`, que são corretamente tratados como legados; emitir schema 2 na criação e reconciliar encaixe da geometria com o vão bruto pertencem ao bloco P1 e exigem avaliação específica das restrições dos arquivos compartilhados. Não anunciar o comportamento visual novo da ferramenta antes desse ajuste.
+- **P1a — Dados, geometria e IFC (branch `gpt/portas-p1a`):** a criação F01 usa schema 2; folha nominal de 0,80 m com folgas de 0,04 m em cada lado corta 0,88 m e acrescenta 0,04 m à altura. A âncora fixa a dimensão BRUTA, o conjunto fica dentro do recorte e os comandos de histórico atualizam ambos. Portas legadas permanecem com folgas zero e representação preservada; janela permanece em schema 1.
+- **P1a — IFC:** `IfcDoor.OverallWidth/OverallHeight` representam o vão bruto; `PredefinedType=DOOR`; `OperationType=SINGLE_SWING_LEFT/RIGHT`; dados específicos da instância ficam no Pset `OpenTrace_Door`. Mantêm-se os relacionamentos Voids/Fills existentes, sem expansão dos perfis de compatibilidade.
+- **Limite remanescente:** `IfcOpeningElement` ainda não possui representação geométrica própria. Essa implementação e a validação IFC em visualizador externo pertencem a etapa posterior, sem anunciar suporte inexistente.
+- **P1b — Interface da porta:** inserção em **dois cliques** (primeiro fixa parede, posição e face automática; segundo define dobradiça e sentido); `Tab` inverte a face na prévia; barra da Porta preserva os campos editáveis existentes, exibe **“Largura do vão de corte” apenas para leitura** e incorpora ajuda contextual do procedimento. A barra não troca ferramenta. Revisão visual no IngeTrazo Windows continua obrigatória.
 
 ## Tradução — T1 e T2 (13/10/2026)
 
