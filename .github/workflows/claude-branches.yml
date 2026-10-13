@@ -1,8 +1,8 @@
-name: Claude branches — tests, benchmark and test package
+name: Agent branches — tests, benchmark and test package
 
 on:
   push:
-    branches: ['claude/**']
+    branches: ['claude/**', 'gpt/**']
   workflow_dispatch:
 
 env:

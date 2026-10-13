@@ -28,7 +28,7 @@ Leia este arquivo primeiro. Ele substitui a leitura do projeto inteiro.
 
 ## Testes
 - `tests/`: Python puro. `tests_host/`: com IngeTrazo real, Qt offscreen.
-- CI: `.github/workflows/claude-branches.yml` (branches `claude/**`), inclui benchmark e zip de teste.
+- CI: `.github/workflows/claude-branches.yml` (branches `claude/**` e `gpt/**`), inclui benchmark e zip de teste.
 - Falhas aparecem como anotações do check (sem precisar abrir o log).
 
 ## Decisões vigentes (12/10/2026)
