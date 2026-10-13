@@ -48,6 +48,7 @@ from .slab_model import (DEFAULTS, MAX_DIM, SlabError, line_edge, read_slab,
                          slab_edge_specs, slab_path_world, slab_polygon_world, slab_openings_world,
                          slab_record, sample_boundary, normalize_edge_specs)
 from .slab_tool import SlabTool
+from .step_guide import show_step
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
 from .i18n import t, ui_locale
 from .snap_utils import angular_snap_result
@@ -298,7 +299,7 @@ class SlabController(QObject):
         # simple/composite structure.  One click must be enough to switch.
         if self.app.viewport.active_tool is self.tool:
             self.schedule_refresh()
-            self.message("Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão.")
+            show_step(self.tool, self.app.viewport, "slab.create.start")
             self.app.viewport.setFocus()
         else:
             self.start_drawing()
@@ -356,7 +357,7 @@ class SlabController(QObject):
             root_edit_allowed(self.app.scene)
             if self.app.workspace() is not None:raise SlabError("Volte ao modelo para desenhar lajes.")
         except SlabError as exc:self.action.setChecked(False);self.app.viewport.flash_status(t(str(exc)),6000);return
-        self.app.scene.clear_selection();self.defaults["openings"]=[];self.tool.reset();activate_slab(self.app);self.schedule_refresh();self.message("Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão.");self.app.viewport.setFocus()
+        self.app.scene.clear_selection();self.defaults["openings"]=[];self.tool.reset();activate_slab(self.app);self.schedule_refresh();self.app.viewport.setFocus()
 
     def stop_drawing(self):self.hide_mode_palette();activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
     def clear_sticky(self):
@@ -377,7 +378,7 @@ class SlabController(QObject):
         shown=t(text)
         if hasattr(self,"feedback"):
             self.feedback.setText(shown);self.feedback.setStyleSheet("color:#b00020;" if error else "")
-        if text:self.app.viewport.flash_status(shown,8000 if error else 15000)
+        if text:self.app.viewport.flash_status(shown,15000)
 
     @staticmethod
     def _pixel_segment_nearest(px,py,a,b):
