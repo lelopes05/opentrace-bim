@@ -135,6 +135,14 @@ STEPS = {
     "wall.edit.height.total": "Mova o topo e clique; digite a altura para preservar a inclinação.",
     "wall.edit.base.station": "Mova a base e clique ou digite a cota absoluta e pressione Enter.",
     "wall.edit.lean.top": "Mova o topo no plano horizontal e clique; Shift trava a inferência.",
+    "column.edit.move": "Clique no ponto de referência do pilar e depois no destino.",
+    "column.edit.curve": "Mova o segmento para definir a flecha e clique; digite 0 para endireitar.",
+    "column.edit.incline": "Mova o topo do segmento e clique para confirmar; Shift trava inferência.",
+    "column.edit.station_z": "Mova o vértice para a nova cota e clique.",
+    "beam.edit.move": "Clique no ponto de referência e depois no destino da viga.",
+    "beam.edit.curve": "Mova a flecha e clique ou digite 0 para endireitar.",
+    "beam.edit.curve_z": "Mova a flecha vertical e clique ou digite 0 para endireitar.",
+    "beam.edit.incline": "Mova a ponta da viga em Z e clique; Shift trava inferência.",
 }
 
 
