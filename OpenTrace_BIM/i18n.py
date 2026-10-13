@@ -12,6 +12,11 @@ from PySide6.QtCore import QLocale
 # explicit so the plugin can be published independently on GitHub without
 # depending on changes to the host application's translation catalogues.
 _EN = {
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Tools",
+    "OpenTrace BIM · Opções": "OpenTrace BIM · Options",
+    "Perfil Complexo…": "Complex Profile…",
+    "Recolher ferramentas": "Collapse tools",
+    "Expandir ferramentas": "Expand tools",
     "Arquitetura": "Architecture",
     "Ferramentas arquitetônicas": "Architecture tools",
     "Abertura": "Opening",
@@ -181,6 +186,11 @@ _EN = {
 }
 
 _ES = {
+    "OpenTrace BIM · Ferramentas": "OpenTrace BIM · Herramientas",
+    "OpenTrace BIM · Opções": "OpenTrace BIM · Opciones",
+    "Perfil Complexo…": "Perfil complejo…",
+    "Recolher ferramentas": "Contraer herramientas",
+    "Expandir ferramentas": "Expandir herramientas",
     "Arquitetura": "Arquitectura",
     "Ferramentas arquitetônicas": "Herramientas de arquitectura",
     "Abertura": "Abertura",
