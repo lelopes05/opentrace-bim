@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QApplication, QButtonGroup, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QStackedWidget, QToolButton, QVBoxLayout,
     QWidget,
 )
@@ -14,6 +14,7 @@ from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
 from .i18n import t
+from .style import SIZES, qss, theme_font
 
 # Home entries are ordered; a missing page suppresses its entire section.
 # Keys refer to existing pages, never to modelling tool actions.
@@ -70,7 +71,7 @@ class ArchitectureSuitePanel:
         h.setContentsMargins(9,6,8,6);h.setSpacing(6)
         brand=QLabel("OpenTrace BIM",header)
         brand.setObjectName("opentrace_sidebar_brand")
-        brand.setStyleSheet("font-size:13pt; font-weight:700;")
+        self.sidebar_brand = brand
         h.addWidget(brand);h.addStretch(1)
         self.arrange_button=QToolButton(header)
         self.arrange_button.setText("↔")
@@ -107,17 +108,13 @@ class ArchitectureSuitePanel:
             b.setCheckable(True)
             b.setAutoRaise(True)
             b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-            b.setIcon(icon(ico))
-            b.setIconSize(QSize(22,22))
+            b.setProperty("visualRole", "navigation")
+            b.setIcon(icon(ico, SIZES["icon-24"], palette=QApplication.palette()))
+            b.setIconSize(QSize(SIZES["icon-24"], SIZES["icon-24"]))
             b.setMinimumSize(QSize(43,48))
             b.setText(label)
             b.setToolTip(label)
             b.setAccessibleName(label)
-            b.setStyleSheet(
-                "QToolButton{font-size:9px;border:0;border-bottom:2px solid transparent;}"
-                "QToolButton:hover{background:palette(midlight);}"
-                "QToolButton:checked{border-bottom:2px solid palette(highlight);"
-                "background:palette(midlight);}")
             b.clicked.connect(lambda _=False,k=key:self.user_show_page(k))
             navlay.addWidget(b,1);self.group.addButton(b);self.buttons[key]=b
         root.addWidget(self.nav)
@@ -154,6 +151,44 @@ class ArchitectureSuitePanel:
         self.context_bar = None
         self._auto_check_timer.start(1800)
 
+    def apply_theme(self):
+        """ThemeWatcher dispatches the sidebar through this single style path."""
+        palette = QApplication.palette()
+        self.sidebar_brand.setFont(theme_font(QApplication.font(), "brand"))
+        self.panel.setStyleSheet(qss(
+            "QFrame#opentrace_sidebar_header { background: {panel};"
+            " border-bottom: 1px solid {divider}; }"
+            "QFrame#opentrace_section_open { border-left: 3px solid {orange}; }"
+            "QToolButton[visualRole='navigation'] { color: {text}; background: transparent;"
+            " border: 0px; border-bottom: 2px solid transparent; font-size: 11px; }"
+            "QToolButton[visualRole='navigation']:hover { background: {hover-wash}; }"
+            "QToolButton[visualRole='navigation']:checked { border-bottom: 2px solid {orange};"
+            " background: {panel-raised}; }"
+            "QToolButton[visualRole='home-button'] { color: {text}; border: 1px solid {border};"
+            " border-radius: 4px; padding: 5px; text-align: left; }"
+            "QToolButton[visualRole='home-button']:hover { background: {hover-wash}; }"
+            "QToolButton[visualRole='section-toggle'] { color: {text};"
+            " font-size: 12px; font-weight: 600; text-align: left;"
+            " border: 0px; border-bottom: 1px solid {divider}; padding: 7px; }"
+            "QLabel[visualRole='hint'] { color: {text-muted}; font-size: 11px; }",
+            palette))
+        for key, button in self.buttons.items():
+            name = next(ico for page, _label, ico in self.PAGE_INFO if page == key)
+            button.setIcon(icon(name, SIZES["icon-24"],
+                                state="marked" if button.isChecked() else "normal",
+                                palette=palette))
+        for definition in HOME_SECTIONS:
+            if definition["title"] not in self._home_sections:
+                continue
+            _frame, toggle, body = self._home_sections[definition["title"]]
+            toggle.setIcon(icon(definition["icon"], SIZES["icon-20"], palette=palette))
+            for button in body.findChildren(QToolButton):
+                button.setIcon(icon(button.property("designIcon"), SIZES["icon-24"],
+                                    palette=palette))
+        from .palette import RadialPalette
+        for radial in self.app.window.findChildren(RadialPalette):
+            radial.apply_theme()
+
     def _add_page(self,key,widget):
         self.pages[key]=widget;self.stack.addWidget(widget)
 
@@ -162,7 +197,7 @@ class ArchitectureSuitePanel:
         title=QLabel("<b style='font-size:14pt'>Membrana — Em avaliação</b>")
         title.setWordWrap(True);lay.addWidget(title)
         body=QLabel("Ferramenta temporariamente desativada enquanto o fluxo de modelagem é revisado.")
-        body.setWordWrap(True);body.setStyleSheet("color:#666;");lay.addWidget(body)
+        body.setWordWrap(True);body.setProperty("visualRole", "hint");lay.addWidget(body)
         note=QLabel("A ferramenta experimental não está carregada nesta versão.")
         note.setWordWrap(True);lay.addWidget(note);lay.addStretch(1)
         return w
@@ -174,7 +209,7 @@ class ArchitectureSuitePanel:
         lay.setContentsMargins(10,8,10,8)
         lay.setSpacing(7)
         subtitle=QLabel(t("Modelagem arquitetônica paramétrica"))
-        subtitle.setStyleSheet("color:palette(mid);font-size:10pt;")
+        subtitle.setProperty("visualRole", "hint")
         lay.addWidget(subtitle)
         for definition in HOME_SECTIONS:
             if definition["page"] is None:
@@ -189,7 +224,10 @@ class ArchitectureSuitePanel:
             toggle.setCheckable(True)
             toggle.setChecked(definition["title"]=="Configurações")
             toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-            toggle.setIcon(icon(definition["icon"]))
+            toggle.setProperty("visualRole", "section-toggle")
+            toggle.setIcon(icon(definition["icon"], SIZES["icon-20"],
+                                palette=QApplication.palette()))
+            toggle.setIconSize(QSize(SIZES["icon-20"], SIZES["icon-20"]))
             toggle.setText(t(definition["title"]))
             toggle.setAccessibleName(t(definition["title"]))
             body=QWidget(section)
@@ -200,15 +238,13 @@ class ArchitectureSuitePanel:
                 button=QToolButton(body)
                 button.setObjectName("opentrace_home_"+page)
                 button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-                button.setIcon(icon(glyph))
-                button.setIconSize(QSize(25,25))
+                button.setProperty("visualRole", "home-button")
+                button.setProperty("designIcon", glyph)
+                button.setIcon(icon(glyph, SIZES["icon-24"], palette=QApplication.palette()))
+                button.setIconSize(QSize(SIZES["icon-24"], SIZES["icon-24"]))
                 button.setText(t(title))
                 button.setToolTip(t(title))
                 button.setMinimumHeight(40)
-                button.setStyleSheet(
-                    "QToolButton{border:1px solid palette(mid);"
-                    "border-radius:5px;padding:5px;text-align:left;}"
-                    "QToolButton:hover{background:palette(midlight);}")
                 if page=="arrange":
                     button.clicked.connect(self.open_arrange)
                 else:
@@ -229,12 +265,12 @@ class ArchitectureSuitePanel:
             lay.addWidget(section)
         self.summary=QLabel()
         self.summary.setWordWrap(True)
-        self.summary.setStyleSheet("color:palette(mid);font-size:9pt;")
+        self.summary.setProperty("visualRole", "hint")
         project_grid=self._home_sections["Projeto e organização"][2].layout()
         project_grid.addWidget(self.summary,2,0,1,2)
         self.intersections=QLabel()
         self.intersections.setWordWrap(True)
-        self.intersections.setStyleSheet("color:palette(mid);font-size:9pt;")
+        self.intersections.setProperty("visualRole", "hint")
         project_grid.addWidget(self.intersections,3,0,1,2)
 
         update_box=QFrame();update_box.setFrameShape(QFrame.StyledPanel)
@@ -243,7 +279,7 @@ class ArchitectureSuitePanel:
         self.update_status=QLabel(
             "Consulta apenas o catálogo oficial. Nenhum pacote é instalado sem confirmação."
         )
-        self.update_status.setWordWrap(True);self.update_status.setStyleSheet("color:#666;")
+        self.update_status.setWordWrap(True);self.update_status.setProperty("visualRole", "hint")
         update_lay.addWidget(self.update_status)
 
         self.auto_update_check=QCheckBox("Verificar atualizações automaticamente")
@@ -311,6 +347,8 @@ class ArchitectureSuitePanel:
             widget.setVisible(not initial_hidden)
             def mark_open(opened, frame=section, original="opentrace_wall_section_"+attr):
                 frame.setObjectName("opentrace_section_open" if opened else original)
+                frame.style().unpolish(frame)
+                frame.style().polish(frame)
             section.toggle.toggled.connect(mark_open)
             mark_open(section.toggle.isChecked())
             self._editor_sections.append((section,widget))
@@ -348,12 +386,13 @@ class ArchitectureSuitePanel:
             sc.setVisible(expanded)
             bt.setText(("▾" if expanded else "▸")+" Propriedades detalhadas")
         toggle.toggled.connect(switch_properties)
-        toggle.setStyleSheet("QToolButton{font-weight:700;text-align:left;"
-                             "border:0;border-bottom:1px solid palette(mid);"
-                             "padding:7px;}")
-        toggle.toggled.connect(
-            lambda opened, frame=wrapper: frame.setObjectName(
-                "opentrace_section_open" if opened else "opentrace_properties_page"))
+        toggle.setProperty("visualRole", "section-toggle")
+        def mark_properties(opened, frame=wrapper):
+            frame.setObjectName("opentrace_section_open" if opened
+                                else "opentrace_properties_page")
+            frame.style().unpolish(frame)
+            frame.style().polish(frame)
+        toggle.toggled.connect(mark_properties)
         wrapper.setObjectName("opentrace_section_open")
         lay.addWidget(toggle)
         if key=="wall":
@@ -410,6 +449,8 @@ class ArchitectureSuitePanel:
             section.setObjectName("opentrace_section_open" if opened
                                   else "opentrace_wall_opening_section")
             toggle.setArrowType(Qt.DownArrow if opened else Qt.RightArrow)
+            section.style().unpolish(section)
+            section.style().polish(section)
         toggle.toggled.connect(expand)
         outer.addWidget(toggle)
         outer.addWidget(body)
