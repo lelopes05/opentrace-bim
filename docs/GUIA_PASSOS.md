@@ -1,0 +1,558 @@
+# OpenTrace BIM — guia de mensagens por passo
+
+> **Revisão documental, sem implementação.** Base oficial: `claude/b1-curved-wall-perf` em `4b94aec5cf47def7ecc11a4d004ff1c4fd1da91d` (13/10/2026). Referências de código revistas nesta base.
+
+## Regras de conteúdo
+
+- O passo deve permanecer visível enquanto seu estado não mudar e desaparecer quando a ferramenta fechar. Hoje o plugin ainda usa `flash_status` temporizado.
+- Esc cancela o passo; espaço volta ao Selecionar. Na edição contínua, clicar fora do vão **não** desativa a função.
+- Geometria da parede ou laje é escolhida na **barra de opções**, que **não troca a ferramenta**. Edição de arestas e vértices usa o **radial da vista**, e a função escolhida continua ativa até Esc, espaço ou substituição.
+- Geometria, forma e medidas escolhidas devem persistir na sessão. Divergências do código constam como defeitos, nunca como instrução de repetir uma escolha.
+- A digitação/Enter é sugerida apenas quando a ferramenta tem `on_value`. Dicas de widget e paleta não equivalem a mensagem na barra de status.
+
+## Contagem por problema
+
+- ok: **103**
+- falta: **68**
+- não bate com o fluxo: **26**
+- duplicada: **0**
+- dúvida: **7**
+- **Total: 204 passos.**
+
+## Defeitos de fluxo achados
+
+1. **Radial de construção obsoleto na parede:** `wall_tool.py:123-126` e `wall_tool.py:458-459` ainda apresentam escolha de método na paleta e chamam a geometria de reta/arco padrão mesmo quando a barra já escolheu outra. O estado correto é `WallDrawTool.geometry` (`wall_tool.py:632-639`).
+2. **Mensagem inicial do arco pelo centro:** `ui.py:1146` diz para clicar no início da parede, mas o primeiro clique no arco pelo centro define o centro (`wall_tool.py:329-335`).
+3. **Laje perde o método escolhido:** `slab_tool.py:32` define sempre `MODE_DIAGONAL` em `reset`, inclusive após `_commit` (`slab_tool.py:142-150`). Isso contraria a persistência na sessão.
+4. **Função contínua sem orientação do próximo passo:** `wall_opening_ui.py:209-214` e `slab_ui.py:371-375` marcam a função como aguardando outro alvo, sem emitir instrução correspondente no status.
+
+**Conferência do defeito antigo:** `wall.rect_diag.created` **não reinicia mais o método**. O `WallTool.reset` atual não redefine `mode` (`wall_tool.py:36-42`), e a `WallDrawTool` mantém `geometry` (`wall_tool.py:632-639`). A mensagem deve orientar a próxima construção com a mesma geometria.
+
+## Cinco divergências prioritárias
+
+1. `wall.segment.end`: após o primeiro clique, ainda anuncia o radial, não o ponto final (`wall_tool.py:126`).
+2. `wall.arc_normal.second`: o texto fala em arco padrão mesmo com outro método escolhido na barra (`wall_tool.py:459`).
+3. `slab.diagonal.second`: menciona mudança pela paleta, mas a seleção oficial é na barra de opções (`slab_tool.py:102`, `contextual_bar.py:234-247`).
+4. `wall.rect_base.width_value`: contém `digite/click` no lugar de uma instrução de Enter (`wall_tool.py:216`).
+5. `wall_opening.edit.delete_vertex` e `wall_opening.edit.delete`: são passos **após** excluir; a mensagem precisa confirmar o resultado e dizer o próximo passo (`wall_opening_ui.py:493`, `wall_opening_ui.py:235`).
+
+## Dúvidas explicitamente não resolvidas
+
+- `column.profile_complex` e `beam.profile_complex`: a seção complexa não equivale a estrutura composta por camadas; confirmar a mensagem emitida durante a escolha no painel.
+- `select.wall.on`, `select.slab.on`, `profile.library`: as dicas aparecem nos widgets, mas a emissão correspondente no status não está comprovada.
+- `column.edit.curve`: numeração interpolada do segmento requer conferência da mensagem concreta.
+- `wall_opening.outside`: o modelo recorta somente a parte interna do vão, mas não emite mensagem específica; confirmar o momento adequado para informar.
+
+## Mudanças desde a primeira versão
+
+- Atualização da base `c7d38c0` para `4b94aec`, com revisão de linhas e da nova `WallDrawTool`.
+- Removidas orientações de escolha geométrica pelo radial e de escolher novamente uma geometria já preservada.
+- Adicionados estados contínuos de edição de vão na parede e de abertura na laje: conclusão, repetição, troca pelo radial e clique vazio.
+- Mensagens de exclusão reescritas como resultado de uma ação já concluída.
+- Estados de dúvida marcados e contabilizados no CSV.
+- Membrana preservada no fim do guia, fora da fileira principal por enquanto.
+
+## Tabelas por ferramenta
+
+### Parede — segmento
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.segment.start` — Aguardar primeiro ponto | `OpenTrace_BIM/ui.py:1146` | Clique no início da parede. A cota de base define o plano horizontal. (ui.py:1146) | ok | Clique no início da parede. Esc cancela; espaço sai. |
+| `wall.segment.end` — Primeiro ponto definido; aguardar fim | `OpenTrace_BIM/wall_tool.py:120` | Parede reta ativa. Escolha na radial se quiser criar um bloco de quatro paredes. (wall_tool.py:126) | não bate com o fluxo | Clique no fim da parede ou digite o comprimento e confirme com Enter. |
+| `wall.segment.value` — Medida digitada com direção indicada | `OpenTrace_BIM/wall_tool.py:186` | nenhuma | falta | Aponte a direção e digite o comprimento; Enter confirma. |
+| `wall.segment.created` — Após confirmar trecho, ferramenta aguarda outro | `OpenTrace_BIM/wall_tool.py:169` | Parede criada. Clique para iniciar outra; Esc para sair. (wall_tool.py:169) | ok | Parede criada. Clique no início de outra; espaço sai. |
+| `wall.segment.cancel` — Esc durante trecho versus ferramenta em repouso | `OpenTrace_BIM/wall_tool.py:239` | Trecho/bloco cancelado. Clique para iniciar; Esc para sair. (wall_tool.py:243) | não bate com o fluxo | Trecho cancelado. Clique para recomeçar; espaço sai. |
+
+### Parede — retângulo diagonal
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.rect_diag.choose` — Geometria escolhida na barra; após primeiro canto | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por diagonal: indique o canto oposto. (wall_tool.py:60) | ok | Clique no canto oposto do retângulo; Esc cancela, espaço sai. |
+| `wall.rect_diag.end` — Clique no canto oposto confirma quatro paredes | `OpenTrace_BIM/wall_tool.py:130` | nenhuma | falta | Clique no canto oposto para criar quatro paredes independentes. |
+| `wall.rect_diag.value` — Tentar digitar medida neste modo | `OpenTrace_BIM/wall_tool.py:233` | No modo por diagonal, indique o canto oposto com o mouse. (wall_tool.py:233) | ok | Indique o canto oposto com o mouse; a medida digitada não vale neste modo. |
+| `wall.rect_diag.created` — Após concluir, manter a geometria retangular | `OpenTrace_BIM/wall_tool.py:183` | Bloco de quatro paredes criado. Cada lado permanece uma parede paramétrica independente. (wall_tool.py:183) | não bate com o fluxo | Bloco criado. Clique no primeiro canto do próximo retângulo; espaço sai. |
+
+### Parede — retângulo base e largura
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.rect_base.choose` — Base e largura escolhidos na barra | `OpenTrace_BIM/wall_tool.py:51` | Bloco retangular por base + profundidade: indique o fim da base. (wall_tool.py:60) | ok | Clique no fim da base ou digite o comprimento e confirme com Enter. |
+| `wall.rect_base.width` — Base definida, aguardar terceiro ponto | `OpenTrace_BIM/wall_tool.py:137` | Indique a profundidade para qualquer lado da base. (wall_tool.py:140) | ok | Clique do lado desejado para fixar a profundidade, ou digite e confirme. |
+| `wall.rect_base.width_value` — Comprimento da base digitado, aguardar profundidade | `OpenTrace_BIM/wall_tool.py:207` | Base definida. Aponte o lado e digite/click a profundidade. (wall_tool.py:216) | não bate com o fluxo | Aponte o lado da base; clique ou digite a profundidade e pressione Enter. |
+| `wall.rect_base.created` — Bloco criado; manter modo base e largura | `OpenTrace_BIM/wall_tool.py:174` | Bloco de quatro paredes criado. Cada lado permanece uma parede paramétrica independente. (wall_tool.py:183) | não bate com o fluxo | Bloco criado. Clique para começar outro com a mesma geometria. |
+
+### Parede — arco normal
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc_normal.start` — Aguardar primeiro extremo | `OpenTrace_BIM/ui.py:1146` | Clique no início da parede. A cota de base define o plano horizontal. (ui.py:1146) | não bate com o fluxo | Clique no primeiro ponto do arco escolhido na barra. |
+| `wall.arc_normal.second` — Primeiro ponto, aguardar segundo extremo | `OpenTrace_BIM/wall_tool.py:459` | Arco padrão ativo. Indique o segundo extremo ou escolha outro método na paleta flutuante. (wall_tool.py:459) | não bate com o fluxo | Clique no próximo ponto do arco escolhido na barra. |
+| `wall.arc_normal.bulge` — Dois extremos definidos; ajustar flecha | `OpenTrace_BIM/wall_tool.py:467` | Puxe o arco para qualquer lado e clique para confirmar. (wall_tool.py:468) | ok | Mova o mouse para definir a flecha; clique ou digite a medida e confirme. |
+| `wall.arc_normal.value` — Flecha digitada após os dois extremos | `OpenTrace_BIM/wall_tool.py:512` | nenhuma | falta | Digite a flecha do arco e pressione Enter, após definir os dois extremos. |
+| `wall.arc_normal.created` — Arco confirmado | `OpenTrace_BIM/wall_tool.py:510` | Parede curva criada. Clique para iniciar outra; Esc para sair. (wall_tool.py:510) | ok | Parede curva criada. Clique para começar outra; espaço sai. |
+
+### Parede — arco pelo centro
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc_center.choose` — Método pelo centro escolhido na barra | `OpenTrace_BIM/wall_tool.py:325` | Arco pelo centro: o primeiro ponto é o centro. Indique agora o início da parede. (wall_tool.py:338) | ok | Clique no início do arco, após marcar o centro. |
+| `wall.arc_center.end` — Centro e início definidos, escolher fim do giro | `OpenTrace_BIM/wall_tool.py:469` | Indique o fim do arco; a distância ao centro define o raio. (wall_tool.py:470) | não bate com o fluxo | Clique na direção final do arco; o raio vem do centro ao ponto inicial. |
+| `wall.arc_center.value` — Digitar medida após escolher método pelo centro | `OpenTrace_BIM/wall_tool.py:516` | A medida digitada está disponível após os dois extremos no arco padrão. (wall_tool.py:516) | ok | Neste método, indique o fim do arco com o mouse. |
+
+### Parede — arco por três pontos
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc_three.choose` — Método por três pontos escolhido na barra | `OpenTrace_BIM/wall_tool.py:325` | Arco por 3 pontos: indique um ponto intermediário por onde o arco deve passar. (wall_tool.py:339) | ok | Clique no ponto intermediário por onde o arco passará. |
+| `wall.arc_three.end` — Ponto intermediário definido, aguardar fim | `OpenTrace_BIM/wall_tool.py:471` | Indique o terceiro ponto/fim da parede curva. (wall_tool.py:472) | ok | Clique no terceiro ponto, que será o fim da parede curva. |
+| `wall.arc_three.value` — Digitar flecha nesse método | `OpenTrace_BIM/wall_tool.py:516` | A medida digitada está disponível após os dois extremos no arco padrão. (wall_tool.py:516) | ok | Defina o ponto final com o mouse; a flecha numérica é só do arco padrão. |
+
+### Parede — métodos
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc.cancel` — Esc durante arco; sem pontos encerra desenho | `OpenTrace_BIM/wall_tool.py:532` | Arco cancelado. Clique para iniciar outro; Esc para sair. (wall_tool.py:536) | não bate com o fluxo | Arco cancelado. Clique para começar outro; espaço sai. |
+| `wall.geometry.reset` — Após criar parede, geometria escolhida permanece | `OpenTrace_BIM/wall_tool.py:36` | nenhuma | falta | Clique para repetir a geometria; mude o método na barra quando quiser. |
+
+### Parede — simples/composta
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.structure.simple` — Selecionar estrutura simples na barra | `OpenTrace_BIM/ui.py:1548` | nenhuma | falta | Escolha as medidas e clique no início da parede simples. |
+| `wall.structure.composite` — Selecionar estrutura composta na barra | `OpenTrace_BIM/ui.py:1548` | nenhuma | falta | Configure as camadas e clique no início da parede composta. |
+
+### Parede — selecionada
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.selected` — Parede selecionada, edição pelo trajeto | `OpenTrace_BIM/ui.py:1346` | nenhuma | falta | Clique na linha de referência ou num vértice para abrir o radial. |
+| `wall.selected.pair` — Duas paredes para junção/prolongamento | `OpenTrace_BIM/ui.py:1279` | nenhuma | falta | Use a opção de unir/aparar para ajustar as duas paredes selecionadas. |
+
+### Laje — criação
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.create.start` — Início da laje na forma padrão | `OpenTrace_BIM/slab_ui.py:359` | Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão. (slab_ui.py:359) | ok | Clique no primeiro canto da laje; Esc cancela; espaço sai. |
+
+### Laje — diagonal
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.diagonal.second` — Primeiro ponto definido, radial oferece modo | `OpenTrace_BIM/slab_tool.py:98` | Retângulo por diagonal ativo. Escolha outro método na paleta se quiser. (slab_tool.py:102) | não bate com o fluxo | Clique no canto oposto; mude o método na barra de opções se necessário. |
+| `slab.diagonal.created` — Confirmar laje retangular | `OpenTrace_BIM/slab_tool.py:150` | Laje criada. Clique para iniciar outra; Esc para sair. (slab_tool.py:150) | ok | Laje criada. Clique para começar outra; espaço sai. |
+
+### Laje — base/largura
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.base.choose` — Método base/largura escolhido na barra | `OpenTrace_BIM/slab_tool.py:52` | Retângulo por base: indique o fim da base e depois a largura. (slab_tool.py:62) | ok | Clique no fim da base da laje. |
+| `slab.base.width` — Segundo ponto define a base | `OpenTrace_BIM/slab_tool.py:105` | Indique a largura para qualquer lado da base. (slab_tool.py:113) | ok | Clique do lado desejado para definir a largura da laje. |
+
+### Laje — polígono
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.polygon.choose` — Método poligonal escolhido na barra | `OpenTrace_BIM/slab_tool.py:52` | Polígono: indique os vértices e clique no primeiro para fechar. (slab_tool.py:63) | ok | Clique no próximo vértice; feche no primeiro após três pontos. |
+| `slab.polygon.next` — Após inserir um vértice, aguardar próximo | `OpenTrace_BIM/slab_tool.py:120` | Continue o polígono ou clique no primeiro vértice para fechar. (slab_tool.py:128) | ok | Clique no próximo vértice ou no primeiro para fechar a laje. |
+| `slab.polygon.close` — Fechar no primeiro vértice | `OpenTrace_BIM/slab_tool.py:116` | nenhuma | falta | Clique no primeiro vértice para confirmar o polígono. |
+
+### Laje — estrutura
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.structure.simple` — Laje com estrutura simples | `OpenTrace_BIM/slab_ui.py:287` | nenhuma | falta | Defina espessura e referência; clique no primeiro canto. |
+| `slab.structure.composite` — Laje composta com camadas | `OpenTrace_BIM/slab_ui.py:271` | nenhuma | falta | Defina as camadas da laje; clique no primeiro canto. |
+
+### Laje — criação
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.create.cancel` — Esc cancela laje em andamento | `OpenTrace_BIM/slab_tool.py:152` | Laje cancelada. Clique para iniciar outra; Esc para sair. (slab_tool.py:155) | não bate com o fluxo | Laje cancelada. Clique para recomeçar; espaço sai. |
+
+### Laje — selecionada
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.selected` — Laje selecionada; controles de referência | `OpenTrace_BIM/slab_ui.py:346` | nenhuma | falta | Clique numa aresta, vértice ou hotspot superior para editar a laje. |
+| `slab.selected.opening` — Abertura existente dentro da laje | `OpenTrace_BIM/slab_ui.py:403` | nenhuma | falta | Clique numa aresta ou vértice da abertura para abrir o radial. |
+
+### Pilar
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `column.start` — Ferramenta de inserção pronta | `OpenTrace_BIM/column_ui.py:356` | Clique no ponto de inserção do pilar. (column_ui.py:356) | ok | Clique no ponto de inserção; espaço sai. |
+| `column.created` — Após um clique cria pilar, repete | `OpenTrace_BIM/column_tool.py:27` | Pilar criado. Clique para inserir outro; Esc para sair. (column_tool.py:27) | ok | Pilar criado. Clique para inserir outro; espaço sai. |
+| `column.simple` — Estrutura simples e seção atual | `OpenTrace_BIM/column_ui.py:347` | nenhuma | falta | Confira a seção simples e clique onde inserir o pilar. |
+| `column.profile_complex` — Seção com Perfil Complexo selecionado | `OpenTrace_BIM/column_ui.py:268` | nenhuma | dúvida | Escolha um Perfil Complexo e clique no ponto de inserção do pilar. |
+| `column.selected` — Pilar selecionado; eixo e hotspot | `OpenTrace_BIM/column_ui.py:345` | nenhuma | falta | Clique no eixo para editar ou no hotspot superior para alterar a altura. |
+
+### Viga
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `beam.start` — Primeiro ponto | `OpenTrace_BIM/beam_ui.py:253` | Clique no início da viga. (beam_ui.py:253) | ok | Clique no ponto inicial da viga; espaço sai. |
+| `beam.end` — Primeiro ponto definido, aguardar final | `OpenTrace_BIM/beam_tool.py:24` | Indique o ponto final da viga; Shift trava a inferência ativa. (beam_tool.py:24) | ok | Clique no fim da viga ou digite o comprimento e pressione Enter. |
+| `beam.value` — Comprimento após primeiro ponto e direção | `OpenTrace_BIM/beam_tool.py:33` | nenhuma | falta | Aponte a direção e digite o comprimento; Enter confirma. |
+| `beam.created` — Viga confirmada | `OpenTrace_BIM/beam_tool.py:32` | Viga criada. Clique para iniciar outra; Esc para sair. (beam_tool.py:32) | ok | Viga criada. Clique para começar outra; espaço sai. |
+| `beam.cancel` — Esc durante viga | `OpenTrace_BIM/beam_tool.py:40` | Viga cancelada. Clique para iniciar outra; Esc para sair. (beam_tool.py:41) | não bate com o fluxo | Viga cancelada. Clique para começar outra; espaço sai. |
+| `beam.simple` — Seção simples em uso | `OpenTrace_BIM/beam_ui.py:245` | nenhuma | falta | Confira a seção simples e clique no início da viga. |
+| `beam.profile_complex` — Seção com Perfil Complexo selecionado | `OpenTrace_BIM/beam_ui.py:199` | nenhuma | dúvida | Escolha um Perfil Complexo e clique no início da viga. |
+| `beam.selected` — Viga selecionada, editar eixo/pontas | `OpenTrace_BIM/beam_ui.py:243` | nenhuma | falta | Clique no eixo ou numa extremidade para abrir as opções de edição. |
+
+### Abertura — retangular
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.rect.hover` — Ferramenta ativa, procurar parede | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para colocar a abertura. |
+| `opening.rect.placed` — Abertura colocada num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura colocada. (wall_opening_place.py:218) | não bate com o fluxo | Abertura colocada. Clique noutro ponto para inserir outra; espaço sai. |
+
+### Abertura — quadrada
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.square.hover` — Ferramenta ativa, contorno quadrado | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura quadrada: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre a parede e clique para criar o vão quadrado. |
+| `opening.square.placed` — Quadrado colocado num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura quadrada colocada. (wall_opening_place.py:218) | não bate com o fluxo | Vão quadrado criado. Clique para inserir outro; espaço sai. |
+
+### Abertura — circular
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.circle.hover` — Ferramenta ativa, forma circular | `OpenTrace_BIM/wall_opening_place.py:170` | Abertura circular: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre a parede e clique para colocar a abertura circular. |
+| `opening.circle.placed` — Círculo colocado num clique | `OpenTrace_BIM/wall_opening_place.py:218` | Abertura circular colocada. (wall_opening_place.py:218) | não bate com o fluxo | Abertura circular criada. Clique para inserir outra; espaço sai. |
+
+### Abertura — livre
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.free.start` — Aguardar primeiro vértice na face | `OpenTrace_BIM/wall_opening_place.py:273` | Clique os cantos da abertura na face da parede; clique no primeiro para fechar. Esc cancela. (wall_opening_place.py:273) | ok | Clique no primeiro vértice do vão sobre a face da parede. |
+| `opening.free.next_vertex` — Vértice adicionado, aguardando outro | `OpenTrace_BIM/wall_opening_place.py:310` | nenhuma | falta | Clique no próximo vértice; feche no primeiro quando houver pelo menos três. |
+| `opening.free.close` — Clique no primeiro vértice fecha polígono | `OpenTrace_BIM/wall_opening_place.py:316` | nenhuma | falta | Clique no primeiro vértice para fechar e criar o vão. |
+| `opening.free.placed` — Vão livre concluído | `OpenTrace_BIM/wall_opening_place.py:333` | Abertura livre criada. (wall_opening_place.py:333) | não bate com o fluxo | Abertura livre criada. Clique na parede para começar outro contorno. |
+| `opening.free.cancel` — Esc limpa contorno; em repouso sai | `OpenTrace_BIM/wall_opening_place.py:347` | nenhuma | falta | Contorno cancelado. Clique para começar outro; espaço sai. |
+
+### Porta
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `door.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Porta: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para inserir a porta. |
+| `door.placed` — Um clique cria registro e preenchimento associado | `OpenTrace_BIM/wall_opening_place.py:218` | Porta colocada. (wall_opening_place.py:218) | não bate com o fluxo | Porta colocada. Clique para inserir outra; espaço sai. |
+
+### Janela
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `window.hover` — Passe o cursor sobre parede | `OpenTrace_BIM/wall_opening_place.py:170` | Janela: passe o mouse sobre uma parede e clique para colocar; digite a distância do início da parede para posicionar exato. Esc encerra. (wall_opening_place.py:170) | ok | Passe o mouse sobre uma parede e clique para inserir a janela. |
+| `window.placed` — Um clique cria registro e preenchimento associado | `OpenTrace_BIM/wall_opening_place.py:218` | Janela colocada. (wall_opening_place.py:218) | não bate com o fluxo | Janela colocada. Clique para inserir outra; espaço sai. |
+
+### Abertura/porta/janela
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.position.value` — Posição exata digitada com parede sob cursor | `OpenTrace_BIM/wall_opening_place.py:231` | nenhuma | falta | Aponte uma parede; digite a distância desde o início e pressione Enter. |
+| `opening.position.no_wall` — Clique sem parede sob o cursor | `OpenTrace_BIM/wall_opening_place.py:224` | Clique sobre uma parede paramétrica. (wall_opening_place.py:224) | ok | Passe o cursor sobre uma parede paramétrica e clique. |
+| `opening.position.no_hover` — Digitar posição antes de passar sobre parede | `OpenTrace_BIM/wall_opening_place.py:234` | Passe o mouse sobre a parede antes de digitar a posição. (wall_opening_place.py:234) | ok | Passe primeiro o cursor sobre uma parede; depois digite a posição. |
+
+### Perfil complexo
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `profile.library` — Abrir biblioteca, escolher ação | `OpenTrace_BIM/profile_editor.py:313` | nenhuma | dúvida | Escolha um perfil ou clique em Novo para desenhar outro. |
+| `profile.library.edit` — Editar ou personalizar perfil do catálogo | `OpenTrace_BIM/profile_editor.py:374` | nenhuma | falta | Selecione um perfil e clique em Editar ou Personalizar. |
+| `profile.workspace` — Entrar no editor 2D | `OpenTrace_BIM/profile_editor.py:395` | Perfil Complexo: desenhe contornos fechados no plano 2D. (profile_editor.py:395) | ok | Desenhe contornos fechados no plano 2D; use Salvar Perfil ao concluir. |
+| `profile.origin.start` — Iniciar ferramenta definir origem | `OpenTrace_BIM/profile_editor.py:198` | Clique no ponto de origem do perfil. (profile_editor.py:198) | ok | Clique no ponto de origem do perfil. |
+| `profile.origin.done` — Origem definida, host volta a Selecionar | `OpenTrace_BIM/profile_editor.py:200` | nenhuma | falta | Origem definida. Continue o perfil ou clique em Salvar Perfil. |
+| `profile.save` — Salvar perfil na biblioteca | `OpenTrace_BIM/profile_editor.py:428` | nenhuma | falta | Perfil salvo. Selecione outro na biblioteca ou volte ao modelo. |
+| `profile.workspace_blocked` — Editor bloqueado por outro workspace | `OpenTrace_BIM/profile_editor.py:391` | Saia do workspace atual antes de editar um perfil. (profile_editor.py:391) | ok | Saia do espaço de trabalho atual antes de editar outro perfil. |
+
+### Seleção — parede
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `select.wall.on` — Selecionar parede pelo host | `OpenTrace_BIM/ui.py:1288` | nenhuma | dúvida | Clique na linha de referência ou no vértice para abrir o radial. |
+
+### Seleção — vão
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `select.wall_opening.on` — Host chama on_select(id), plugin destaca vão | `OpenTrace_BIM/wall_opening_ui.py:290` | nenhuma | falta | Clique na aresta ou vértice do vão para abrir o radial. |
+| `select.wall_opening.radial` — Radial aberto, aguardando função | `OpenTrace_BIM/wall_opening_ui.py:449` | nenhuma | falta | Escolha a função no radial para editar este vão. |
+
+### Seleção — laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `select.slab.on` — Laje selecionada no host | `OpenTrace_BIM/slab_ui.py:346` | nenhuma | dúvida | Clique na aresta ou no vértice da laje para abrir o radial. |
+
+### Seleção — abertura de laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `select.slab_opening.on` — Clicar na aresta ou vértice da abertura | `OpenTrace_BIM/slab_ui.py:404` | nenhuma | falta | Clique na aresta ou no vértice da abertura para abrir o radial. |
+| `select.slab_opening.radial` — Radial da abertura aberto | `OpenTrace_BIM/slab_ui.py:559` | nenhuma | falta | Escolha uma função para editar a abertura da laje. |
+
+### Seleção — vão
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `select.wall_opening.unpicked` — Selecionar vazio libera seleção do host | `OpenTrace_BIM/wall_opening_ui.py:290` | nenhuma | falta | Clique num objeto para selecionar; espaço mantém Selecionar. |
+
+### Edição de parede
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.edit.insert.choose` — Inserção de vértice armada | `OpenTrace_BIM/path_edit.py:157` | Clique no ponto da linha de referência onde deseja inserir o vértice. (path_edit.py:157) | ok | Clique na linha de referência onde quer inserir um vértice. |
+| `wall.edit.insert.position` — Ponto inserido, ajustar posição final | `OpenTrace_BIM/path_edit.py:220` | Vértice inserido. Mova-o no plano horizontal e clique para confirmar; clique sem mover para apenas dividir a parede. (path_edit.py:220) | ok | Mova o novo vértice e clique; clique sem mover para só dividir a parede. |
+| `wall.edit.insert.arc` — Inserção numa parede curva divide em duas | `OpenTrace_BIM/path_edit.py:201` | Vértice inserido: o arco foi dividido em duas paredes curvas independentes. (path_edit.py:201) | ok | Arco dividido. Selecione um dos trechos para continuar. |
+| `wall.edit.curve` — Converter/curvar linha de referência | `OpenTrace_BIM/path_edit.py:344` | Mova o mouse para um lado da linha e clique para definir a flecha do arco. Digite uma medida para precisão; flecha zero volta a parede para reta. (path_edit.py:344) | ok | Mova para definir a flecha e clique; digite 0 para voltar à reta. |
+| `wall.edit.move_vertex.free` — Vértice livre no plano | `OpenTrace_BIM/path_edit.py:566` | Mova o mouse: o vértice acompanha o cursor. Clique para confirmar; Shift trava a inferência ativa. Em arcos, a proporção da curvatura é preservada. (path_edit.py:566) | ok | Mova o vértice até a posição desejada e clique; Shift trava a inferência. |
+| `wall.edit.move_vertex.continue` — Vértice continua no alinhamento da parede | `OpenTrace_BIM/path_edit.py:573` | Mova o vértice ao longo do mesmo arco e clique para prolongar ou encurtar a parede. (path_edit.py:573) | ok | Arraste pela trajetória do arco e clique para confirmar. |
+| `wall.edit.move_vertex.continue_line` — Vértice continua em parede reta | `OpenTrace_BIM/path_edit.py:576` | Mova o vértice ao longo da mesma direção e clique para prolongar ou encurtar a parede. (path_edit.py:576) | ok | Arraste o vértice pelo alinhamento e clique para prolongar ou encurtar. |
+| `wall.edit.move.xy.start` — Mover parede: primeiro ponto de referência | `OpenTrace_BIM/path_edit.py:811` | Clique no ponto de referência para mover a parede no plano horizontal. (path_edit.py:811) | ok | Clique no ponto de referência da parede. |
+| `wall.edit.move.xy.end` — Mover parede: segundo clique | `OpenTrace_BIM/path_edit.py:857` | Agora clique no ponto de destino da parede. (path_edit.py:857) | ok | Clique no ponto de destino da parede. |
+| `wall.edit.move.z.start` — Mover parede verticalmente | `OpenTrace_BIM/path_edit.py:813` | Clique no ponto de referência para mover a parede na vertical. (path_edit.py:813) | ok | Clique no ponto de referência da parede; depois escolha a nova cota. |
+| `wall.edit.height.end` — Alterar altura local de extremo | `OpenTrace_BIM/path_edit.py:943` | Mova o mouse: este topo acompanha a cota indicada. Clique para confirmar; digitando, informe a altura local deste extremo. (path_edit.py:943) | ok | Mova o topo e clique ou digite a altura local e pressione Enter. |
+| `wall.edit.height.total` — Alterar altura de toda a parede | `OpenTrace_BIM/path_edit.py:1059` | Mova o mouse: os dois topos sobem ou descem juntos, mantendo a inclinação atual. Clique para confirmar; digite a altura local deste extremo para valor exato. (path_edit.py:1059) | ok | Mova o topo e clique; digite a altura para preservar a inclinação. |
+| `wall.edit.base.station` — Alterar cota de um ponto da base | `OpenTrace_BIM/path_edit.py:1144` | Mova o mouse: esta extremidade da base acompanha a cota indicada. Clique para confirmar; também pode digitar a cota absoluta. (path_edit.py:1144) | ok | Mova a base e clique ou digite a cota absoluta e pressione Enter. |
+| `wall.edit.lean.top` — Inclinar topo da parede | `OpenTrace_BIM/path_edit.py:1226` | Mova o mouse: o topo acompanha o cursor no plano horizontal. Clique para confirmar; Shift trava a inferência ativa. (path_edit.py:1226) | ok | Mova o topo no plano horizontal e clique; Shift trava a inferência. |
+
+### Edição de vão na parede
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall_opening.edit.push_edge` — Mover aresta | `OpenTrace_BIM/wall_opening_edit.py:318` | nenhuma | falta | Mova a aresta do vão e clique para confirmar. |
+| `wall_opening.edit.stretch_edge` — Esticar/extrudar aresta | `OpenTrace_BIM/slab_opening_edit.py:186` | nenhuma | falta | Puxe a aresta para extrudar e clique para confirmar. |
+| `wall_opening.edit.insert_vertex` — Inserir vértice na aresta | `OpenTrace_BIM/wall_opening_edit.py:249` | nenhuma | falta | Clique na aresta para inserir o novo vértice. |
+| `wall_opening.edit.curve_edge` — Curvar aresta | `OpenTrace_BIM/slab_opening_edit.py:245` | nenhuma | falta | Mova a flecha da aresta e clique para confirmar. |
+| `wall_opening.edit.move_vertex` — Mover/fundir vértice | `OpenTrace_BIM/slab_opening_edit.py:221` | nenhuma | falta | Mova o vértice e clique; aproxime-o do vizinho para unir. |
+| `wall_opening.edit.chamfer` — Chanfrar canto | `OpenTrace_BIM/slab_opening_edit.py:277` | nenhuma | falta | Mova para escolher o chanfro e clique. |
+| `wall_opening.edit.fillet` — Arredondar canto | `OpenTrace_BIM/slab_opening_edit.py:290` | nenhuma | falta | Mova para definir o raio do arredondamento e clique. |
+| `wall_opening.edit.offset` — Aumentar/reduzir contorno | `OpenTrace_BIM/slab_opening_edit.py:311` | nenhuma | falta | Mova para fora ou para dentro e clique; também pode digitar a distância. |
+| `wall_opening.edit.move` — Mover vão inteiro | `OpenTrace_BIM/wall_opening_edit.py:368` | Mova o vão pela parede e clique para confirmar; digite um deslocamento ao longo da parede. Esc cancela. (wall_opening_edit.py:369) | ok | Mova o vão na face da parede e clique ou digite o deslocamento. |
+| `wall_opening.edit.delete_vertex` — Após a exclusão de um vértice | `OpenTrace_BIM/wall_opening_ui.py:493` | Vértice do vão excluído. (wall_opening_ui.py:493) | não bate com o fluxo | Vértice excluído. Clique em outra aresta ou vértice para continuar. |
+| `wall_opening.edit.delete` — Após a exclusão do vão | `OpenTrace_BIM/wall_opening_ui.py:235` | Vão excluído. (wall_opening_ui.py:235) | não bate com o fluxo | Vão excluído. Selecione outro para editar ou use uma ferramenta de criação. |
+| `wall_opening.edit.sticky` — Após confirmar, função permanece armada | `OpenTrace_BIM/wall_opening_ui.py:209` | nenhuma | falta | Função ativa: clique em outra aresta ou vértice para repetir; Esc ou espaço sai. |
+| `wall_opening.edit.exit` — Esc/espaco encerram, clique vazio não encerra | `OpenTrace_BIM/wall_opening_ui.py:387` | nenhuma | falta | Esc ou espaço sai; clique no vazio mantém esta função ativa. |
+| `wall_opening.edit.error.short_edge` — Aresta curta demais para mover | `OpenTrace_BIM/wall_opening_edit.py:299` | A aresta do vão é curta demais. (wall_opening_edit.py:299) | ok | Escolha uma aresta maior; esta é curta demais. |
+
+### Edição de laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.edit.insert` — Inserir vértice na aresta | `OpenTrace_BIM/slab_edit.py:94` | nenhuma | falta | Clique na posição desejada na aresta da laje. |
+| `slab.edit.stretch` — Estender aresta | `OpenTrace_BIM/slab_edit.py:165` | nenhuma | falta | Mova a aresta para fora e clique para extrudar. |
+| `slab.edit.move_vertex` — Mover vértice | `OpenTrace_BIM/slab_edit.py:239` | nenhuma | falta | Mova o vértice da laje e clique na nova posição. |
+| `slab.edit.curve` — Curvar aresta | `OpenTrace_BIM/slab_edit.py:271` | nenhuma | falta | Mova a flecha da aresta e clique. |
+| `slab.edit.chamfer` — Chanfrar vértice | `OpenTrace_BIM/slab_edit.py:321` | nenhuma | falta | Mova para definir o chanfro e clique. |
+| `slab.edit.fillet` — Arredondar vértice | `OpenTrace_BIM/slab_edit.py:337` | nenhuma | falta | Mova para definir o arredondamento e clique. |
+| `slab.edit.offset` — Offset de contorno | `OpenTrace_BIM/slab_edit.py:513` | nenhuma | falta | Mova o contorno para dentro ou fora e clique. |
+| `slab.edit.move_xy_start` — Mover laje XY: referência | `OpenTrace_BIM/slab_edit.py:371` | Clique no ponto de referência para mover a laje no plano horizontal. (slab_edit.py:371) | ok | Clique no ponto de referência para mover a laje. |
+| `slab.edit.move_xy_end` — Mover laje XY: destino | `OpenTrace_BIM/slab_edit.py:396` | Agora clique no ponto de destino da laje. (slab_edit.py:396) | ok | Clique no ponto de destino da laje. |
+| `slab.edit.move_z` — Mover laje verticalmente | `OpenTrace_BIM/slab_edit.py:371` | Clique no ponto de referência para mover a laje na vertical. (slab_edit.py:371) | ok | Clique no ponto de referência e depois na nova cota. |
+| `slab.edit.thickness` — Alterar espessura pelo hotspot | `OpenTrace_BIM/slab_edit.py:440` | Mova o topo em Z e clique; o valor aparece junto ao controle e também pode ser digitado. (slab_edit.py:440) | ok | Mova o topo em Z e clique, ou digite a espessura e pressione Enter. |
+| `slab.edit.opening` — Criar abertura na laje | `OpenTrace_BIM/slab_opening.py:22` | Abertura: clique os vértices dentro da laje e finalize clicando novamente no primeiro. (slab_opening.py:22) | ok | Clique nos vértices da abertura e feche no primeiro. |
+
+### Abertura de laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab_opening.next` — Após inserir vértice, aguardar outro | `OpenTrace_BIM/slab_opening.py:39` | nenhuma | falta | Clique no próximo vértice da abertura; feche no primeiro. |
+| `slab_opening.created` — Após fechar a abertura, volta a Selecionar | `OpenTrace_BIM/slab_opening.py:48` | Abertura criada na laje. (slab_opening.py:48) | não bate com o fluxo | Abertura criada. Use Selecionar para editar a laje. |
+| `slab_opening.cancel` — Esc cancela abertura em andamento | `OpenTrace_BIM/slab_opening.py:54` | Abertura cancelada. (slab_opening.py:54) | ok | Abertura cancelada. Use Selecionar para escolher outra área. |
+
+### Edição de abertura de laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab_opening.edit.insert` — Inserir vértice | `OpenTrace_BIM/slab_opening_edit.py:145` | nenhuma | falta | Clique na posição da aresta onde inserir o vértice. |
+| `slab_opening.edit.stretch` — Esticar aresta | `OpenTrace_BIM/slab_opening_edit.py:186` | nenhuma | falta | Puxe a aresta da abertura e clique para extrudar. |
+| `slab_opening.edit.move_vertex` — Mover vértice | `OpenTrace_BIM/slab_opening_edit.py:221` | nenhuma | falta | Mova o vértice e clique; aproxime do vizinho para unir. |
+| `slab_opening.edit.curve` — Curvar aresta | `OpenTrace_BIM/slab_opening_edit.py:245` | nenhuma | falta | Mova a flecha da aresta e clique para curvar. |
+| `slab_opening.edit.chamfer` — Chanfrar canto | `OpenTrace_BIM/slab_opening_edit.py:277` | nenhuma | falta | Mova para definir o chanfro e clique. |
+| `slab_opening.edit.fillet` — Arredondar canto | `OpenTrace_BIM/slab_opening_edit.py:290` | nenhuma | falta | Mova para definir o arredondamento e clique. |
+| `slab_opening.edit.offset` — Offset do contorno | `OpenTrace_BIM/slab_opening_edit.py:311` | nenhuma | falta | Mova para dentro/fora e clique ou digite a distância e Enter. |
+| `slab_opening.edit.move.start` — Mover abertura: ponto referência | `OpenTrace_BIM/slab_opening_edit.py:340` | Clique no ponto de referência para mover a abertura. (slab_opening_edit.py:340) | ok | Clique no ponto de referência para mover a abertura. |
+| `slab_opening.edit.move.end` — Mover abertura: destino | `OpenTrace_BIM/slab_opening_edit.py:356` | Agora clique no ponto de destino da abertura. (slab_opening_edit.py:356) | ok | Clique no ponto de destino da abertura. |
+| `slab_opening.edit.sticky` — Função ativa após confirmação de edição | `OpenTrace_BIM/slab_ui.py:371` | nenhuma | falta | Função ativa: clique em outra aresta ou vértice para repetir; Esc ou espaço sai. |
+| `slab_opening.edit.exit` — Esc ou espaço encerra; clique fora não sai | `OpenTrace_BIM/slab_ui.py:499` | nenhuma | falta | Esc ou espaço sai; clique no vazio mantém esta função ativa. |
+
+### Edição de pilar
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `column.edit.move` — Mover pilar inteiro | `OpenTrace_BIM/structure_edit.py:48` | Clique no ponto de referência para mover pilar inteira no plano horizontal. (structure_edit.py:48) | ok | Clique no ponto de referência do pilar e depois no destino. |
+| `column.edit.curve` — Curvar segmento do pilar | `OpenTrace_BIM/structure_edit.py:266` | Curve somente o segmento {n}. Mova no plano do segmento e clique; digite 0 para endireitar. (structure_edit.py:266) | dúvida | Mova o segmento para definir a flecha e clique; digite 0 para endireitar. |
+| `column.edit.incline` — Inclinar segmento do pilar | `OpenTrace_BIM/structure_edit.py:545` | Mova o mouse: o topo do segmento {n} acompanha o cursor. Clique para confirmar; Shift trava a inferência ativa. (structure_edit.py:545) | ok | Mova o topo do segmento e clique para confirmar; Shift trava inferência. |
+| `column.edit.station_z` — Alterar cota do vértice do pilar | `OpenTrace_BIM/structure_edit.py:631` | Mova o mouse: o vértice do pilar acompanha a cota indicada. Clique para confirmar; Shift trava a inferência ativa. (structure_edit.py:631) | ok | Mova o vértice para a nova cota e clique. |
+
+### Edição de viga
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `beam.edit.endpoint_free` — Mover ponta da viga livremente | `OpenTrace_BIM/beam_edit.py:66` | Mova o mouse: o extremo da viga acompanha o cursor. Clique para confirmar; Shift trava a inferência ativa. (beam_edit.py:66) | ok | Mova a ponta da viga e clique para confirmar. |
+| `beam.edit.endpoint_continue` — Prolongar/encurtar ponta no eixo | `OpenTrace_BIM/beam_edit.py:68` | Prolongue/encurte a viga no mesmo eixo e clique. (beam_edit.py:68) | ok | Prolongue ou encurte a viga pelo eixo e clique. |
+| `beam.edit.endpoint_z` — Mover ponta verticalmente | `OpenTrace_BIM/beam_edit.py:63` | Mova o mouse: o extremo da viga acompanha a cota indicada. Clique para confirmar; Shift trava a inferência ativa. (beam_edit.py:63) | ok | Mova a ponta em Z e clique na nova altura. |
+| `beam.edit.move` — Mover viga inteira | `OpenTrace_BIM/structure_edit.py:48` | Clique no ponto de referência para mover viga inteira no plano horizontal. (structure_edit.py:48) | ok | Clique no ponto de referência e depois no destino da viga. |
+| `beam.edit.curve` — Curvar eixo da viga | `OpenTrace_BIM/structure_edit.py:142` | Mova para um lado do eixo e clique para definir a flecha. Digite 0 para endireitar. (structure_edit.py:142) | ok | Mova a flecha e clique ou digite 0 para endireitar. |
+| `beam.edit.curve_z` — Curvar viga verticalmente | `OpenTrace_BIM/structure_edit.py:349` | Mova para cima/baixo e clique para definir a curvatura vertical. Digite 0 para endireitar. (structure_edit.py:349) | ok | Mova a flecha vertical e clique ou digite 0 para endireitar. |
+| `beam.edit.incline` — Inclinar a viga | `OpenTrace_BIM/structure_edit.py:451` | Mova o mouse: o extremo da viga acompanha a altura indicada. Clique para confirmar; Shift trava a inferência ativa. (structure_edit.py:451) | ok | Mova a ponta da viga em Z e clique; Shift trava inferência. |
+
+### Parede — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.error.diagonal` — Diagonal sem largura/profundidade | `OpenTrace_BIM/wall_tool.py:90` | A diagonal precisa definir largura e profundidade maiores que 1 mm. (wall_tool.py:90) | ok | Afaste os cantos: largura e profundidade devem superar 1 mm. |
+| `wall.error.short_base` — Base menor que 1 mm | `OpenTrace_BIM/wall_tool.py:102` | A base do bloco precisa ter ao menos 1 mm. (wall_tool.py:102) | ok | Defina uma base com pelo menos 1 mm. |
+| `wall.error.depth` — Profundidade quase zero | `OpenTrace_BIM/wall_tool.py:107` | A profundidade do bloco precisa ter ao menos 1 mm. (wall_tool.py:107) | ok | Indique uma profundidade maior que 1 mm. |
+| `wall.error.distance` — Valor não positivo | `OpenTrace_BIM/wall_tool.py:189` | Digite uma medida positiva, por exemplo 2,50m. (wall_tool.py:189) | ok | Digite uma medida positiva; por exemplo, 2,50 m. |
+| `wall.error.direction` — Digite sem apontar direção | `OpenTrace_BIM/wall_tool.py:202` | Aponte a direção da parede com o mouse. (wall_tool.py:202) | ok | Aponte uma direção com o mouse antes de digitar a medida. |
+
+### Parede curva — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.arc.error.invalid` — Pontos não produzem arco válido | `OpenTrace_BIM/wall_tool.py:476` | Os pontos ainda não definem um arco válido. (wall_tool.py:476) | ok | Escolha pontos diferentes e não colineares para formar o arco. |
+| `wall.arc.error.sagitta` — Flecha digitada inválida | `OpenTrace_BIM/wall_tool.py:517` | Digite uma flecha válida, por exemplo 0,50m. (wall_tool.py:517) | ok | Digite uma flecha válida; por exemplo, 0,50 m. |
+
+### Abertura/porta/janela — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.error.no_wall` — Clique não encontra parede | `OpenTrace_BIM/wall_opening_place.py:224` | Clique sobre uma parede paramétrica. (wall_opening_place.py:224) | ok | Clique sobre uma parede paramétrica para inserir o vão. |
+
+### Abertura livre — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `opening.error.free_no_face` — Primeiro vértice fora da face | `OpenTrace_BIM/wall_opening_place.py:314` | Comece clicando sobre a face de uma parede. (wall_opening_place.py:314) | ok | Clique o primeiro vértice sobre a face de uma parede. |
+
+### Laje — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.error.same_point` — Segundo ponto da base coincide com o primeiro | `OpenTrace_BIM/slab_tool.py:107` | Indique um segundo ponto diferente do primeiro. (slab_tool.py:107) | ok | Clique num segundo ponto diferente para definir a base. |
+
+### Abertura de laje — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab_opening.error.near_edge` — Inserir muito próximo do vértice | `OpenTrace_BIM/slab_opening_edit.py:151` | Insira o vértice afastado das extremidades da abertura. (slab_opening_edit.py:151) | ok | Afaste o novo vértice das extremidades da aresta. |
+| `slab_opening.error.short_edge` — Curvar aresta curta demais | `OpenTrace_BIM/slab_opening_edit.py:238` | A aresta da abertura é curta demais para ser curvada. (slab_opening_edit.py:238) | ok | Escolha outra aresta: esta é curta demais para curvar. |
+
+### Perfil complexo — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `profile.error.no_workspace` — Não pode abrir editor no workspace atual | `OpenTrace_BIM/profile_editor.py:391` | Saia do workspace atual antes de editar um perfil. (profile_editor.py:391) | ok | Saia do workspace atual e abra o editor do perfil. |
+
+### Edição de pilar
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `column.edit.height` — Alterar altura com controle superior | `OpenTrace_BIM/column_height.py:41` | Mova o mouse: o topo do pilar acompanha a cota indicada e o pilar inteiro é projetado antes do clique. Snaps copiam apenas a cota. (column_height.py:41) | ok | Mova o topo até a nova cota; clique ou digite e confirme. |
+
+### Abertura/porta/janela — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall_opening.error.overlap` — Aberturas sobrepostas na parede | `OpenTrace_BIM/model.py:829` | As aberturas da parede não podem se sobrepor. (model.py:829) | ok | Afaste ou reduza os vãos: eles não podem se sobrepor. |
+
+### Abertura/porta/janela — limites
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall_opening.outside` — Vão fora da extremidade da parede: corte parcial | `OpenTrace_BIM/model.py:802` | nenhuma | dúvida | Vão ultrapassa a parede: só o trecho interno será recortado. |
+
+### Abertura de laje — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab_opening.error.outside` — Abertura fora do perímetro | `OpenTrace_BIM/slab_model.py:273` | A abertura precisa ficar inteiramente dentro do contorno da laje. (slab_model.py:273) | ok | Coloque toda a abertura dentro da laje. |
+| `slab_opening.error.border` — Abertura toca/cruza o perímetro | `OpenTrace_BIM/slab_model.py:278` | A abertura não pode tocar ou cruzar a borda da laje. (slab_model.py:278) | ok | Afaste a abertura da borda da laje; ela não pode tocar ou cruzar. |
+| `slab_opening.error.overlap` — Duas aberturas sobrepostas | `OpenTrace_BIM/slab_model.py:282` | Duas aberturas da laje não podem se sobrepor. (slab_model.py:282) | ok | Afaste ou reduza as aberturas; elas não podem se sobrepor. |
+
+### Parede — geometrias
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall.geometry.bar.switch` — Alternar entre seis geometrias sem trocar ferramenta | `OpenTrace_BIM/wall_tool.py:632` | nenhuma | falta | Escolha a geometria na barra; a ferramenta Parede continua ativa. |
+| `wall.geometry.persist` — Geometria escolhida persiste entre paredes | `OpenTrace_BIM/wall_tool.py:36` | nenhuma | falta | Clique para iniciar outra parede com a geometria escolhida. |
+| `wall.arc.geometry.persist` — Arco mantém método após confirmação | `OpenTrace_BIM/wall_tool.py:317` | nenhuma | falta | Clique para iniciar outro arco com o mesmo método. |
+| `wall.arc.geometry.bar` — Método de arco escolhido na barra | `OpenTrace_BIM/contextual_bar.py:225` | nenhuma | falta | Escolha arco, centro ou três pontos na barra; depois clique no primeiro ponto. |
+| `wall.geometry.old_radial` — Primeiro clique ainda mostra instrução antiga do radial | `OpenTrace_BIM/wall_tool.py:126` | Parede reta ativa. Escolha na radial se quiser criar um bloco de quatro paredes. (wall_tool.py:126) | não bate com o fluxo | Continue a geometria escolhida na barra. |
+| `wall.arc.old_radial` — Primeiro clique ainda anuncia arco padrão | `OpenTrace_BIM/wall_tool.py:459` | Arco padrão ativo. Indique o segundo extremo ou escolha outro método na paleta flutuante. (wall_tool.py:459) | não bate com o fluxo | Continue a construção pelo método selecionado na barra. |
+
+### Laje — geometrias
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab.geometry.bar` — Escolher método de laje na barra | `OpenTrace_BIM/contextual_bar.py:234` | nenhuma | falta | Escolha a geometria na barra sem sair da ferramenta Laje. |
+| `slab.geometry.reset_defect` — Código volta para diagonal após concluir | `OpenTrace_BIM/slab_tool.py:32` | nenhuma | não bate com o fluxo | Clique para iniciar outra laje com a geometria escolhida. |
+
+### Edição de vão na parede
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `wall_opening.edit.switch` — Trocar função contínua pelo radial | `OpenTrace_BIM/wall_opening_ui.py:400` | nenhuma | falta | Escolha outra função no radial para substituir a atual. |
+| `wall_opening.edit.empty` — Clique no vazio com função ativa | `OpenTrace_BIM/wall_opening_ui.py:395` | nenhuma | falta | Clique em outra aresta ou vértice; o vazio mantém a função ativa. |
+| `wall_opening.edit.after` — Depois de confirmar, aguardar outro alvo | `OpenTrace_BIM/wall_opening_ui.py:209` | nenhuma | falta | Clique em outra aresta ou vértice para repetir; Esc ou espaço sai. |
+
+### Edição de abertura de laje
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `slab_opening.edit.switch` — Trocar função contínua pelo radial | `OpenTrace_BIM/slab_ui.py:514` | nenhuma | falta | Escolha outra função no radial para substituir a atual. |
+| `slab_opening.edit.empty` — Clique no vazio com função ativa | `OpenTrace_BIM/slab_ui.py:508` | nenhuma | falta | Clique em outra aresta ou vértice; o vazio não encerra. |
+| `slab_opening.edit.after` — Depois de confirmar, aguardar outro alvo | `OpenTrace_BIM/slab_ui.py:371` | nenhuma | falta | Clique em outra aresta ou vértice para repetir; Esc ou espaço sai. |
+
+## Fora da fileira por enquanto — Membrana
+
+A membrana continua documentada, mas ainda não está na fileira principal.
+
+### Membrana — polígono
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.polygon.start` — Iniciar desenho do contorno | `OpenTrace_BIM/membrane_tool.py:51` | Polígono: clique os vértices e clique no primeiro para fechar. (membrane_tool.py:54) | ok | Clique no primeiro vértice; feche o contorno depois de três. |
+| `membrane.polygon.second` — Primeiro vértice definido | `OpenTrace_BIM/membrane_tool.py:109` | Defina o próximo ponto. (membrane_tool.py:109) | ok | Clique no próximo vértice da membrana. |
+| `membrane.polygon.next` — Inserir vértices ou fechar | `OpenTrace_BIM/membrane_tool.py:124` | Continue o polígono ou clique no primeiro vértice para fechar. (membrane_tool.py:124) | ok | Clique no próximo vértice ou no primeiro para fechar. |
+
+### Membrana — retângulo
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.rect.start` — Aguardar primeiro canto | `OpenTrace_BIM/membrane_tool.py:51` | Retângulo: clique dois cantos opostos. (membrane_tool.py:55) | ok | Clique no primeiro canto do retângulo de membrana. |
+| `membrane.rect.end` — Primeiro canto definido; aguardar oposto | `OpenTrace_BIM/membrane_tool.py:109` | Defina o próximo ponto. (membrane_tool.py:109) | não bate com o fluxo | Clique no canto oposto para confirmar o retângulo. |
+
+### Membrana — elipse
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.ellipse.start` — Aguardar centro | `OpenTrace_BIM/membrane_tool.py:51` | Elipse: clique o centro e depois um canto da caixa envolvente. (membrane_tool.py:56) | ok | Clique no centro da elipse. |
+| `membrane.ellipse.end` — Centro definido; aguardar tamanho | `OpenTrace_BIM/membrane_tool.py:109` | Defina o próximo ponto. (membrane_tool.py:109) | não bate com o fluxo | Clique num canto da caixa envolvente para confirmar a elipse. |
+
+### Membrana — criação
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.created` — Membrana pronta; pode iniciar outra | `OpenTrace_BIM/membrane_tool.py:138` | Membrana criada. Clique para iniciar outra ou Esc para sair. (membrane_tool.py:138) | ok | Membrana criada. Clique para começar outra; espaço sai. |
+| `membrane.cancel` — Esc com desenho iniciado | `OpenTrace_BIM/membrane_tool.py:140` | Desenho cancelado. Clique para iniciar outra membrana. (membrane_tool.py:143) | ok | Desenho cancelado. Clique para recomeçar; espaço sai. |
+
+### Membrana — edição
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.edit.select` — Membrana selecionada, abrir paleta contextual | `OpenTrace_BIM/membrane_tool.py:204` | Clique em um vértice, aresta, ponto interno ou na pele para abrir a paleta contextual. (membrane_tool.py:209) | ok | Clique num vértice, numa aresta ou sobre a pele para abrir a paleta. |
+| `membrane.edit.vertex` — Mover vértice do contorno | `OpenTrace_BIM/membrane_tool.py:300` | Mova o vértice e clique. Shift trava a inferência ativa. (membrane_tool.py:302) | ok | Mova o vértice e clique; Shift trava a inferência. |
+| `membrane.edit.mesh_vertex` — Mover ponto interno da malha | `OpenTrace_BIM/membrane_tool.py:300` | Mova o ponto da malha e clique. Shift trava a inferência ativa. (membrane_tool.py:303) | ok | Mova o ponto interno e clique; Shift trava a inferência. |
+| `membrane.edit.edge` — Mover aresta do contorno | `OpenTrace_BIM/membrane_tool.py:300` | Mova a aresta e clique. Shift trava a inferência ativa. (membrane_tool.py:304) | ok | Mova a aresta e clique; Shift trava a inferência. |
+| `membrane.edit.curve_h` — Curvar uma aresta no plano | `OpenTrace_BIM/membrane_tool.py:300` | Puxe a aresta horizontalmente e clique. (membrane_tool.py:305) | ok | Puxe a aresta horizontalmente e clique. |
+| `membrane.edit.curve_v` — Curvar uma aresta verticalmente | `OpenTrace_BIM/membrane_tool.py:300` | Puxe a aresta na vertical e clique. (membrane_tool.py:306) | ok | Puxe a aresta na vertical e clique. |
+| `membrane.edit.after` — Após confirmar ação de edição | `OpenTrace_BIM/membrane_tool.py:388` | Membrana atualizada. Clique em outro controle. (membrane_tool.py:388) | ok | Membrana atualizada. Clique no próximo controle para continuar. |
+
+### Membrana — erros
+
+| Passo | Onde (arquivo:linha) | Atual | Problema | Proposta |
+|---|---|---|---|---|
+| `membrane.error.rigid` — Tentar curvar borda tensionada | `OpenTrace_BIM/membrane_tool.py:413` | Para curvar manualmente esta borda, marque-a primeiro como Rígida; bordas Tensionadas assumem a forma da pele. (membrane_tool.py:413) | ok | Marque a borda como Rígida para poder curvá-la manualmente. |
+| `membrane.error.selection` — Editar sem uma única membrana selecionada | `OpenTrace_BIM/membrane_ui.py:319` | Selecione uma única membrana OpenTrace para editar. (membrane_ui.py:319) | ok | Selecione uma única membrana OpenTrace para editar. |
