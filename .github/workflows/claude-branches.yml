@@ -57,6 +57,14 @@ jobs:
           fi
           tail -5 host.txt
           exit $status
+      - name: Publish i18n audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: i18n-report-${{ github.run_number }}
+          path: plugin/i18n_report.md
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Benchmark against the base revision
         env:
           QT_QPA_PLATFORM: offscreen
