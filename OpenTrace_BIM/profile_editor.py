@@ -22,8 +22,8 @@ from core.history import History
 from core.scene import Scene
 from tools.base import Tool
 
-from .i18n import t
-from .step_guide import show_step, step_text, ui_locale
+from .i18n import t, ui_locale
+from .step_guide import show_step, step_text
 from .host import activate_tool, register_tool
 from .profile_library import (delete_profile, duplicate_profile, load_profiles,
                               upsert_profile)
