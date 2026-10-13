@@ -141,7 +141,7 @@ class ContextualBar(QWidget):
             "▭": "opening_rect", "□": "opening_square",
             "◯": "opening_circle", "⬡": "opening_free",
             "◧": "anchor_left", "⊕": "anchor_center",
-            "◨": "anchor_right", "↶": "door", "⊘": "opening",
+            "◨": "anchor_right", "↶": "swing", "⊘": "delete",
         }
         self._button_icons[button] = names[symbol]
         if active is not None:
