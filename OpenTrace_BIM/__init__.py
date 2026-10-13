@@ -62,7 +62,7 @@ def setup(app, *, translate_widgets=True):
     _suite_bootstrap = QWidget()
     _suite_bootstrap.setMinimumSize(0, 0)
     _master_dock = app.add_panel(
-        "Parametric Architecture", _suite_bootstrap,
+        "OpenTrace BIM", _suite_bootstrap,
         name="parametric_architecture",
     )
     _master_dock.hide()
