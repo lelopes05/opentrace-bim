@@ -174,6 +174,12 @@ def setup(app):
         startup_errors.append(f"Contexto: {type(exc).__name__}: {exc}")
     app.window._arquitetura_parametrica_context_guard = context_guard
 
+    # The fixed tool row reuses the actions registered by the controllers.
+    from .tool_row import ToolRow
+    tool_row = ToolRow(app, controller, slab_controller, column_controller,
+                       beam_controller, profile_controller)
+    app.window._arquitetura_parametrica_tool_row = tool_row
+
     # The master dock already exists and is known to the host before
     # restoreState().  Populate it now; no post-show QTimer, addDockWidget,
     # removeDockWidget or focus-changing raise is needed.
