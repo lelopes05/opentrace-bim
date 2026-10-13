@@ -17,6 +17,12 @@ APP = QApplication.instance() or QApplication([])
 
 
 def tearDownModule():
+    # Release the standalone test application's Python owner while Qt modules
+    # and its event loop are still alive, instead of during interpreter exit.
+    global APP
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    APP.processEvents()
+    APP = None
     gc.collect()
 
 
