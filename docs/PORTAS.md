@@ -314,6 +314,23 @@ Persistir IDs estáveis; referências para tipo/família e materiais; transforma
 
 Exportação requer ao menos: GUIDs estáveis; dimensão nominal e dimensão bruta identificadas semanticamente; número de folhas, operação/handing quando aplicável; materiais e Psets estruturados; geometria com coordenadas coerentes; relação com pavimento e hospedeiro; sem produto ou abertura duplicado. Provar com inspeção programática e abertura em ao menos um visualizador IFC externo; o formato/esquema de exportação definitivo segue a compatibilidade do motor IFC do OpenTrace.
 
+### Errata de implementação P1a (13/10/2026)
+
+O contrato IFC desta etapa segue o padrão onde houver campo nativo: `IfcDoor.OverallWidth` e `IfcDoor.OverallHeight` recebem as dimensões **brutas do corte** (`wallhole_size`, metros), não as dimensões da folha. `IfcDoor.PredefinedType=DOOR` e `OperationType=SINGLE_SWING_LEFT` ou `SINGLE_SWING_RIGHT` refletem a orientação local: dobradiça à esquerda com giro positivo (ou à direita com giro negativo) produz LEFT; a combinação oposta produz RIGHT.
+
+O Pset exclusivo `OpenTrace_Door` guarda os valores **da instância**, sem alterar a família:
+
+| Propriedade IFC | Valor | Unidade |
+|---|---|---|
+| `LeafWidth`, `LeafHeight` | `width`, `height` da folha | metros |
+| `ClearanceLeft`, `ClearanceRight` | `clearance_left`, `clearance_right` | metros |
+| `ClearanceTop`, `ClearanceBottom` | `clearance_top`, `clearance_bottom` | metros |
+| `PlanAngle`, `ModelAngle` | ângulos independentes | graus |
+| `Family` | `F01 swing_single` | texto |
+| `Schema` | `2` | inteiro |
+
+`Pset_DoorCommon` contém apenas os valores existentes e explicitamente fornecidos, nunca inferidos; um arquivo sem `IsExternal` informado não recebe esse valor artificialmente. A porta física conserva uma única entidade `IfcDoor` conectada por `IfcRelFillsElement` ao `IfcOpeningElement` existente. A representação geométrica própria da abertura não é implementada na P1a, e os perfis externos continuam com os controles atuais de Voids/Fills.
+
 ## 17. Segurança de geometria, conflitos e feedback
 
 **Política aprovada:** avisar sobre sobreposições e permitir confirmar quando a geometria resultante é válida. **Limite técnico obrigatório:** não autorizar malha inválida, componente sem espessura física, IDs repetidos, relação com abertura inexistente, cavidade embutida irrealizável ou operação que corrompa a cena. Mensagens indicam objeto/causa e possível correção. Ex.: `Porta P04: o nicho de correr precisa de comprimento de parede maior do que o disponível`.

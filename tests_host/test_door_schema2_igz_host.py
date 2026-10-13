@@ -48,6 +48,7 @@ class DoorSchema2HostTests(unittest.TestCase):
         create = CreateHostedFill(scene, wall, legacy)
         create.do(scene)
         old_cut = copy.deepcopy(read_wall(wall)["openings"][0])
+        original_mesh = tuple(vertices(part) for part in create.group.children)
         original_guid = create.group.ifc["global_id"]
         original_uid = create.group.uid
         # Represent a real saved schema-1 project rather than falsely
@@ -70,6 +71,8 @@ class DoorSchema2HostTests(unittest.TestCase):
         self.assertEqual(migrated["extension"], {"keep": True})
         self.assertEqual(migrated["ifc_global_id"], original_guid)
         self.assertEqual(read_wall(loaded_wall)["openings"][0], old_cut)
+        self.assertEqual(tuple(vertices(part) for part in loaded_door.children),
+                         original_mesh)
         expected_cut = opening_request(migrated, opening_guid=old_cut["ifc_global_id"])
         self.assertEqual(expected_cut["position"], old_cut["position"])
         self.assertEqual(expected_cut["width"], old_cut["width"])
@@ -81,6 +84,8 @@ class DoorSchema2HostTests(unittest.TestCase):
         self.assertEqual(read_wall(loaded_wall)["openings"][0], old_cut)
         self.assertEqual(loaded_door.uid, original_uid)
         self.assertEqual(loaded_door.ifc["global_id"], original_guid)
+        self.assertEqual(tuple(vertices(part) for part in loaded_door.children),
+                         original_mesh)
         migrate.undo(reopened)
         self.assertEqual(loaded_door.ext[KEY]["params"]["schema"], 1)
         self.assertEqual(read_wall(loaded_wall)["openings"][0], old_cut)

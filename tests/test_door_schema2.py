@@ -6,7 +6,7 @@ import unittest
 from OpenTrace_BIM.door_window_core import (
     DOOR_FAMILIES, FillError, SCHEMA, SCHEMA_DOOR, door_leaf_plan,
     migrate_door, normalize_fill, opening_request, station_span,
-    wallhole_size, wallhole_span,
+    wallhole_size, wallhole_span, reanchor_fill,
 )
 
 
@@ -141,15 +141,45 @@ class DoorSchema2Tests(unittest.TestCase):
         left, right = wallhole_span(spec)
         self.assertAlmostEqual(w, 0.91)
         self.assertAlmostEqual(h, 2.20)
-        self.assertAlmostEqual(left, 1.57)
-        self.assertAlmostEqual(right, 2.48)
-        self.assertAlmostEqual(sum(station_span(spec))/2, 2.0)
+        self.assertAlmostEqual(left, 1.545)
+        self.assertAlmostEqual(right, 2.455)
+        self.assertAlmostEqual(sum(station_span(spec))/2, 1.975)
         request = opening_request(spec)
         self.assertAlmostEqual(request["width"], w)
         self.assertAlmostEqual(request["height"], h)
         self.assertAlmostEqual(request["position"], (left+right)/2)
         self.assertEqual(request["fill"]["overall_width"], 0.8)
         self.assertEqual(request["fill"]["overall_height"], 2.1)
+
+    def test_nominal_leaf_and_rough_cut_with_defaults(self):
+        spec = normalize_fill(new(width=0.80, height=2.10))
+        self.assertEqual(spec["schema"], 2)
+        self.assertEqual(DOOR_FAMILIES[spec["family_key"]]["code"], "F01")
+        self.assertEqual((spec["plan_angle"], spec["model_angle"]), (90, 0))
+        w, h = wallhole_size(spec)
+        self.assertAlmostEqual(w, 0.88, places=6)
+        self.assertAlmostEqual(h, 2.14, places=6)
+        self.assertAlmostEqual(opening_request(spec)["width"], 0.88, places=6)
+        self.assertAlmostEqual(spec["width"], 0.80, places=6)
+
+    def test_rough_anchor_stays_fixed_when_leaf_changes(self):
+        for anchor in ("left", "center", "right"):
+            with self.subTest(anchor=anchor):
+                raw = new(anchor=anchor, width=0.80, position=2.0)
+                first = wallhole_span(raw)
+                leaf = station_span(raw)
+                self.assertAlmostEqual(leaf[0] - first[0], 0.04, places=6)
+                resized = dict(raw, width=1.10)
+                later = wallhole_span(resized)
+                index = {"left": 0, "center": 0.5, "right": 1}[anchor]
+                pivot_before = first[0] + index * (first[1] - first[0])
+                pivot_after = later[0] + index * (later[1] - later[0])
+                self.assertAlmostEqual(pivot_before, 2.0, places=6)
+                self.assertAlmostEqual(pivot_after, 2.0, places=6)
+                switched = reanchor_fill(raw, "right" if anchor != "right" else "left")
+                switched_span = wallhole_span(switched)
+                self.assertAlmostEqual(switched_span[0], first[0], places=6)
+                self.assertAlmostEqual(switched_span[1], first[1], places=6)
 
     def test_angles_are_independent(self):
         first = door_leaf_plan(new(plan_angle=90, model_angle=0))

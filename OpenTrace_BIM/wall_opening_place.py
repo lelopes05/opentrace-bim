@@ -207,8 +207,10 @@ class PlaceWallOpeningTool(_OnAnyWall):
             size = self.sizes[self.kind]
             start = item["position"] - item["width"] / 2.0
             spec = normalize_fill({
+                "schema": 2 if self.kind == "door" else 1,
                 "id": uuid.uuid4().hex, "host_id": str(self.wall.uid), "opening_id": item["id"],
                 "kind": self.kind, "anchor": self.anchor,
+                "family_key": "swing_single" if self.kind == "door" else None,
                 "position": start + ANCHOR_SHIFT[self.anchor] * item["width"],
                 "width": size["width"], "height": size["height"], "sill": size["sill"]})
             command = CreateHostedFill(viewport.scene, self.wall, spec)

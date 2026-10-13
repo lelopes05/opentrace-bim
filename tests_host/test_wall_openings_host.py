@@ -307,6 +307,11 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual([o["kind"] for o in ops], ["polygon", "rect"])
         self.assertEqual([e["type"] for e in ops[0]["edges"]], ["arc"] * 4)
         self.assertAlmostEqual(ops[1]["position"] - ops[1]["width"] / 2, 5.0, places=3)
+        door = next(_fill_record(g)["params"] for g in scene.groups if _fill_record(g))
+        self.assertEqual(door["schema"], 2)
+        self.assertEqual(door["anchor"], "left")
+        self.assertAlmostEqual(door["position"], 5.0, places=3)
+        self.assertAlmostEqual(door["position"] + door["clearance_left"], 5.04, places=3)
         self.assertEqual(sum(1 for g in scene.groups if _fill_record(g)), 1)
 
     def test_circle_record_is_a_closed_round_cut(self):
@@ -471,12 +476,20 @@ class OpeningToolTests(unittest.TestCase):
                 else:
                     kind = shape or self.window._tools[key].kind
                     self.assertEqual(item["kind"], "rect")
-                    self.assertAlmostEqual(item["width"], PRESETS[kind]["width"])
-                    self.assertAlmostEqual(item["height"], PRESETS[kind]["height"])
+                    if kind == "door":
+                        self.assertAlmostEqual(item["width"], PRESETS[kind]["width"] + 0.08)
+                        self.assertAlmostEqual(item["height"], PRESETS[kind]["height"] + 0.04)
+                    else:
+                        self.assertAlmostEqual(item["width"], PRESETS[kind]["width"])
+                        self.assertAlmostEqual(item["height"], PRESETS[kind]["height"])
                     self.assertAlmostEqual(item["position"], 3.0, places=6)
                 if shape is None:
                     self.assertEqual(len(fills()), 1)
                     self.assertEqual(item["source_id"], _fill_record(fills()[0])["params"]["id"])
+                    if key == OPENING_KEYS[1]:
+                        self.assertEqual(_fill_record(fills()[0])["params"]["schema"], 2)
+                        self.assertAlmostEqual(_fill_record(fills()[0])["params"]["width"],
+                                               PRESETS["door"]["width"])
                 else:
                     self.assertEqual(fills(), [])
                 self.assertEqual(self.editor.active, (wall, item["id"]))
