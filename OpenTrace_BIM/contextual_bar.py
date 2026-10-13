@@ -506,7 +506,7 @@ class ContextualBar(QWidget):
         for key, label in (("width", "Largura"), ("height", "Altura"), ("sill", "Peitoril")):
             title = self._section(layout, t(label))
             spin = QDoubleSpinBox(self)
-                spin.installEventFilter(self._focus_return)
+            spin.installEventFilter(self._focus_return)
             spin.lineEdit().installEventFilter(self._focus_return)
             spin.setDecimals(2)
             spin.setRange(0.0 if key == "sill" else MIN_DIM, 100.0)
