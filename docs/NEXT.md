@@ -243,6 +243,16 @@ A faixa laranja permanece responsabilidade da etapa 6b.
 - `tests_host/test_icons_host.py`: ícones não nulos a 16/20/24 px, imagens distintas, contraste nas duas paletas, estados diferenciados, traço mínimo a 16 px.
 - `docs/icons_sheet.png` é gerada **somente no CI**, enviada como artefato separado. Não entra no git, nem no ZIP instalável.
 
+### Revisão visual 6b/7b — 13/10/2026, branch `gpt/visual-6b7b`
+
+- Design tokens dos painéis flutuantes, fileira, barra de opções, paleta lateral e radial; tema claro/escuro refeito por um único `ThemeWatcher.changed` criado no `OverlayDock`.
+- Fileira: ícones de 24/16 px e estados do Design System (petrol ativo, on-petrol, hover-wash, bordas, medidas, brand e espaço reservado para logo). Barra: grupos, borda orange 2 px, ícones de 20 px, campos, read-only e foco. Painéis: sombra `y=8`, `blur=24`, alfa 38%/16%, sem sombra na paleta lateral.
+- A barra continua compartilhando campos e histórico com os controladores; não ativa ferramenta; as regras da Viga e da Laje permanecem intactas.
+- **Cores fixas adiadas:** `architecture_contracts.py` (1), `beam_ui.py` (2), `column_ui.py` (3), `membrane_ui.py` (1), `profile_editor.py` (2), `slab_ui.py` (6), `ui.py` (10), `wall_opening_ui.py` (2). Total **27** ocorrências hexadecimais de seis dígitos, todas em arquivos **expressamente proibidos nesta branch**. `tests/test_style_contrast.py::KNOWN_FIXED_COLOURS` permanece em 27 por isso; nunca reduzir artificialmente. Também removidas as cores de três dígitos e RGBA fixas dos arquivos permitidos, não contadas nesse orçamento.
+- **Ícones legados adiados por propriedade dos outros agentes:** `ui.py` (`wall_icon`, `composite_wall_icon`, `set_symbol_icon`), `slab_ui.py` (`slab_icon`, `composite_slab_icon`, `set_symbol_icon`), `column_ui.py` (`column_icon`, `set_symbol_icon`), `beam_ui.py` (`beam_icon`, `set_symbol_icon`), `profile_editor.py` (`profile_icon`, `set_symbol_icon`), `wall_opening_ui.py` e `membrane_ui.py` (`set_symbol_icon`). As ações e ferramentas originais continuam preservadas; somente os widgets desta branch recebem os novos ícones.
+- **Verificação funcional:** `tests_host/test_visual_host.py` testa ferramenta ativa em ambos os temas, borda da opção marcada, mudança de paleta sem reinício, sombra e ícones distintos, além do foco. Manter verdes `test_bar_never_changes_tool`, `test_contextual_buttons_and_fields_focus_contract`, `test_segmented_options_preserve_viewport_focus` e `test_no_fixed_colours_outside_style_and_icons`.
+- **Caixa de revisão no Windows:** em tema escuro e claro, conferir fileira normal e compacta, tool ativo petrol/on-petrol, hover, grupos marcados laranja, medidas e read-only, foco Enter/Esc, sombras arredondadas dos painéis, ausência de sombra na paleta lateral, faixa laranja da seção aberta e ícones dos métodos.
+
 ### Etapa 6b — Aplicar tema nos widgets (posterior à integração dos painéis)
 - Substituir pelas cores de `style.tokens()` as **27 ocorrências legadas** de `#rrggbb` nos oito módulos listados na 6a, sem introduzir novas cores fixas.
 - Conectar fileira, barra e paleta ao único `ThemeWatcher.changed`, reaplicando estilos nas mudanças de `ApplicationPaletteChange`.
