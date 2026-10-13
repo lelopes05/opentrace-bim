@@ -7,6 +7,8 @@ fields, so existing validation, history, and Undo/Redo remain authoritative.
 """
 from __future__ import annotations
 
+import math
+
 from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
@@ -283,8 +285,7 @@ class ContextualBar(QWidget):
                                  _profile_yz, _ring_frames)
         beam = self.controllers["beam"]
         p = beam.resolved_defaults()
-        chord = p.get("chord", p["length"] * abs(__import__("math").cos(
-            __import__("math").radians(p["inclination"]))))
+        chord = p.get("chord", p["length"] * abs(math.cos(math.radians(p["inclination"]))))
         centers, _length, _plan = _centerline_local(chord, p)
         center, lateral, vertical = _ring_frames(centers)[0]
         if p["section_type"] == "complex":
