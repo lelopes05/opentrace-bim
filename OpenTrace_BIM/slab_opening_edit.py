@@ -25,6 +25,33 @@ from .slab_model import (
 )
 
 
+class StickyOpeningFunction:
+    """Shared state for a wall or slab opening edit repeated on matching parts."""
+
+    def __init__(self):
+        self.clear()
+
+    def choose(self, tool, part):
+        self.tool = tool
+        self.part = part
+        self.waiting = False
+
+    def finished(self, active_tool):
+        if self.tool is not None and active_tool is self.tool:
+            self.waiting = True
+
+    def ready(self, active_tool, part):
+        return self.waiting and active_tool is self.tool and part == self.part
+
+    def armed(self):
+        self.waiting = False
+
+    def clear(self):
+        self.tool = None
+        self.part = None
+        self.waiting = False
+
+
 def _opening_data(slab, opening_index):
     ops = slab_openings_world(slab, reference=True)
     oi = int(opening_index)
@@ -85,7 +112,13 @@ class _OpeningEditBase(AxisMagnet, Tool):
         return QVector3D(ctx.world.x(), ctx.world.y(), z)
 
     def on_activate(self, viewport): viewport.update()
-    def on_deactivate(self, viewport): self.reset(); viewport.update()
+    def on_deactivate(self, viewport):
+        self.reset()
+        clear = getattr(self.controller, "clear_sticky", None)
+        if clear is not None:
+            clear()
+        viewport.update()
+
     def on_cancel(self, viewport): self.reset(); QTimer.singleShot(0, self.controller.return_to_select)
 
     def _data(self):
@@ -101,7 +134,13 @@ class _OpeningEditBase(AxisMagnet, Tool):
         if viewport.history.last_error:
             raise SlabError(viewport.history.last_error)
         viewport.notify_scene_changed(); self.controller.message(message)
-        self.reset(); QTimer.singleShot(0, self.controller.return_to_select)
+        slab, opening_index = self.slab, self.opening_index
+        self.reset()
+        finished = getattr(self.controller, "edit_finished", None)
+        if finished is None:
+            QTimer.singleShot(0, self.controller.return_to_select)
+        else:
+            QTimer.singleShot(0, lambda: finished(slab, opening_index))
 
 
 class InsertOpeningVertexTool(_OpeningEditBase):
@@ -305,7 +344,12 @@ class MoveOpeningTool(AxisMagnet, Tool):
     def on_activate(self,viewport):
         if self.slab is None:QTimer.singleShot(0,self.controller.return_to_select)
         else:self.controller.message("Clique no ponto de referência para mover a abertura.")
-    def on_deactivate(self,viewport):self.reset();viewport.update()
+    def on_deactivate(self,viewport):
+        self.reset()
+        clear = getattr(self.controller, "clear_sticky", None)
+        if clear is not None:
+            clear()
+        viewport.update()
     def _delta(self,p):
         if self.origin is None:return QVector3D(0,0,0)
         return QVector3D(p.x()-self.origin.x(),p.y()-self.origin.y(),0)
@@ -321,7 +365,14 @@ class MoveOpeningTool(AxisMagnet, Tool):
             pts,specs=self._candidate(ctx.world);ops,oi,item,_p,_s=_opening_data(self.slab,self.opening_index);new_ops=_store_opening(ops,oi,item,pts,specs)
             ctx.viewport.history.execute(EditSlab(ctx.viewport.scene,self.slab,openings=new_ops))
             if ctx.viewport.history.last_error:raise SlabError(ctx.viewport.history.last_error)
-            ctx.viewport.notify_scene_changed();self.controller.message("Abertura movida.");self.reset();self.controller.return_to_select()
+            ctx.viewport.notify_scene_changed();self.controller.message("Abertura movida.")
+            slab, oi = self.slab, self.opening_index
+            self.reset()
+            finished = getattr(self.controller, "edit_finished", None)
+            if finished is None:
+                self.controller.return_to_select()
+            else:
+                finished(slab, oi)
         except SlabError as exc:self.controller.message(str(exc),error=True)
         ctx.viewport.update()
     def on_cancel(self,viewport):self.reset();self.controller.return_to_select();viewport.update()
