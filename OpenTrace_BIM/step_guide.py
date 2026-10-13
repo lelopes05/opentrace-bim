@@ -110,6 +110,17 @@ STEPS = {
     "wall.arc_three.after_first": "Clique no ponto intermediário por onde o arco passará.",
     "wall.rect_diag.after_first": "Clique no canto oposto para concluir o retângulo.",
     "wall.rect_base.after_first": "Clique no fim da base ou digite o comprimento e confirme com Enter.",
+    "slab.edit.insert": "Clique na posição desejada na aresta da laje.",
+    "slab.edit.stretch": "Mova a aresta para fora e clique para extrudar.",
+    "slab.edit.move_vertex": "Mova o vértice da laje e clique na nova posição.",
+    "slab.edit.curve": "Mova a flecha da aresta e clique.",
+    "slab.edit.chamfer": "Mova para definir o chanfro e clique.",
+    "slab.edit.fillet": "Mova para definir o arredondamento e clique.",
+    "slab.edit.offset": "Mova o contorno para dentro ou fora e clique.",
+    "slab.edit.move_xy_start": "Clique no ponto de referência para mover a laje.",
+    "slab.edit.move_xy_end": "Clique no ponto de destino da laje.",
+    "slab.edit.move_z": "Clique no ponto de referência e depois na nova cota.",
+    "slab.edit.thickness": "Mova o topo em Z e clique, ou digite a espessura e pressione Enter.",
 }
 
 

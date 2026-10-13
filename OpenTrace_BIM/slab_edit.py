@@ -10,6 +10,7 @@ from core.history import MoveGroupCommand
 
 from .commands import root_edit_allowed
 from .slab_commands import EditSlab
+from .step_guide import show_step, step_text
 from .slab_model import (MIN_DIM, MAX_DIM, ARC_EPS, SlabError, edge_outward_normal,
                          edge_length, edge_point, line_edge, normalize_edge_specs,
                          offset_boundary, sample_boundary, slab_edge_specs,
@@ -45,8 +46,10 @@ def _distance_xy(a, b):
 
 class _SlabEditBase(AxisMagnet, Tool):
     wireframe_color = (0.15, 0.45, 0.85, 1.0)
+    default_step_id = "slab.edit.insert"
     def __init__(self, controller):
         self.controller = controller
+        self.step_id = self.default_step_id
         self.slab = None
         self.index = None
         self.anchor = None
@@ -68,10 +71,17 @@ class _SlabEditBase(AxisMagnet, Tool):
         return QVector3D(ctx.world.x(), ctx.world.y(), z)
 
     def on_activate(self, viewport):
+        show_step(self, viewport, self.step_id)
         viewport.update()
 
     def on_deactivate(self, viewport):
-        self.reset(); viewport.update()
+        self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def on_cancel(self, viewport):
         self.reset(); QTimer.singleShot(0, self.controller.return_to_select)
@@ -88,6 +98,7 @@ class _SlabEditBase(AxisMagnet, Tool):
 
 
 class InsertSlabVertexTool(_SlabEditBase):
+    default_step_id = "slab.edit.insert"
     name = "Inserir vértice na laje"
     description = "Inserir um vértice na aresta selecionada."
 
@@ -120,6 +131,7 @@ class InsertSlabVertexTool(_SlabEditBase):
 
 
 class StretchSlabEdgeTool(_SlabEditBase):
+    default_step_id = "slab.edit.stretch"
     name = "Estender aresta da laje"
     description = "Extrudar uma aresta perpendicularmente, preservando os vértices originais como ancoragens."
 
@@ -180,6 +192,7 @@ class StretchSlabEdgeTool(_SlabEditBase):
 
 
 class MoveSlabVertexTool(_SlabEditBase):
+    default_step_id = "slab.edit.move_vertex"
     name = "Mover vértice da laje"
     description = "Mover um vértice da laje livremente no plano horizontal; sobre um vizinho, os dois são fundidos."
     MERGE_TOL = 1.0e-4
@@ -253,6 +266,7 @@ class MoveSlabVertexTool(_SlabEditBase):
 
 
 class CurveSlabEdgeTool(_SlabEditBase):
+    default_step_id = "slab.edit.curve"
     name="Curvar aresta da laje"
     description="Curvar a aresta mantendo suas duas extremidades."
     def __init__(self,controller):
@@ -314,6 +328,7 @@ class _CornerEditBase(_SlabEditBase):
 
 
 class ChamferSlabVertexTool(_CornerEditBase):
+    default_step_id = "slab.edit.chamfer"
     name="Chanfrar vértice da laje"; description="Criar um chanfro reto, inclusive entre arestas curvas."
     def _candidate(self,p):
         p1,p2,tp,tn=self._trim_by_distance(self._size(p));return self._build_replacement(p1,p2,tp,tn,line_edge())
@@ -326,6 +341,7 @@ class ChamferSlabVertexTool(_CornerEditBase):
 
 
 class FilletSlabVertexTool(_CornerEditBase):
+    default_step_id = "slab.edit.fillet"
     name="Arredondar vértice da laje"; description="Criar um fillet circular tangente a arestas retas ou curvas."
     def _candidate(self,p):
         # Mouse distance controls the requested radius. The exact solver clamps
@@ -350,7 +366,7 @@ class MoveSlabTool(AxisMagnet, Tool):
     wireframe_color = (0.55, 0.36, 0.84, 1.0)
 
     def __init__(self, controller, mode):
-        self.controller=controller; self.mode=mode; self.architecture_angle_snap=(mode=="xy")
+        self.controller=controller; self.mode=mode; self.step_id="slab.edit.move_xy_start" if mode=="xy" else "slab.edit.move_z"; self.architecture_angle_snap=(mode=="xy")
         self.name = "Mover laje no plano" if mode=="xy" else "Mover laje na vertical"
         self.description=self.name; self.reset()
 
@@ -368,12 +384,18 @@ class MoveSlabTool(AxisMagnet, Tool):
         try:
             if self.slab not in viewport.scene.groups: raise SlabError("A laje não está mais disponível.")
             viewport.begin_groups_preview([self.slab]);self.preview=True
-            self.controller.message("Clique no ponto de referência para mover a laje no plano horizontal." if self.mode=="xy" else "Clique no ponto de referência para mover a laje na vertical.")
+            show_step(self,viewport,self.step_id)
         except SlabError as exc:self.controller.message(str(exc),error=True);QTimer.singleShot(0,self.controller.return_to_select)
 
     def on_deactivate(self,viewport):
         if self.preview:viewport.end_groups_preview()
-        self.reset();viewport.update()
+        self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def drag_plane(self,viewport):
         if self.anchor is None:return None
@@ -393,7 +415,7 @@ class MoveSlabTool(AxisMagnet, Tool):
         try:
             if self.cursor_origin is None:
                 self.cursor_origin=QVector3D(ctx.world);self.start_point=QVector3D(ctx.world)
-                self.controller.message("Agora clique no ponto de destino da laje.");ctx.viewport.update();return
+                show_step(self,ctx.viewport,"slab.edit.move_xy_end" if self.mode=="xy" else "slab.edit.move_z");ctx.viewport.update();return
             self.delta=self._delta(ctx.world)
             if self.preview:ctx.viewport.end_groups_preview();self.preview=False
             if self.delta.length()>1e-9:
@@ -422,7 +444,7 @@ class ChangeSlabThicknessTool(Tool):
     name="Alterar espessura da laje";description="Arrastar a face superior mantendo a base da laje fixa."
     uses_snap=True;wireframe_color=(0.95,0.62,0.18,1.0);vcb_label="Espessura"
 
-    def __init__(self,controller):self.controller=controller;self.reset()
+    def __init__(self,controller):self.controller=controller;self.step_id="slab.edit.thickness";self.reset()
     def arm(self,slab,_index,anchor):
         self.slab=slab;self.anchor=QVector3D(anchor);self.scene=self.controller.app.scene
         # Use the physical top handle as the drag origin.  The previous tool
@@ -437,12 +459,18 @@ class ChangeSlabThicknessTool(Tool):
         try:
             self.values=read_slab(self.slab);self.new_thickness=self.values["thickness"]
             viewport.begin_groups_preview([self.slab]);self.preview=True
-            self.controller.message("Mova o topo em Z e clique; o valor aparece junto ao controle e também pode ser digitado.")
+            show_step(self,viewport,"slab.edit.thickness")
         except SlabError as exc:self.controller.message(str(exc),error=True);QTimer.singleShot(0,self.controller.return_to_select)
 
     def on_deactivate(self,viewport):
         if self.preview:viewport.end_groups_preview()
-        self.reset();viewport.update()
+        self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def _thickness(self,ctx):
         if ctx.snap is not None and getattr(ctx.snap,"kind",None) in {"endpoint","midpoint","arc_midpoint","center","origin","component_origin","intersection","close","reference"}:
@@ -488,6 +516,7 @@ class ChangeSlabThicknessTool(Tool):
 
 
 class OffsetSlabBoundaryTool(_SlabEditBase):
+    default_step_id = "slab.edit.offset"
     """Offset all reference edges together, preserving logical circular arcs."""
     name="Offset do contorno da laje";description="Deslocar todo o perímetro para dentro ou para fora.";uses_snap=False;vcb_label="Offset"
 
