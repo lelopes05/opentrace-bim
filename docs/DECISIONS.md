@@ -24,7 +24,8 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 13/10: fileira com Parede, Laje, Pilar, Viga, Abertura, Porta, Janela e Perfil complexo; Membrana entra quando estiver pronta.
 - 13/10: Home da paleta já prevê Plantas e Vistas, escondidas até existirem.
 - 13/10: parede reta e curva são geometrias da ferramenta Parede, escolhidas na barra (como o Archicad), não ferramentas separadas.
-- 13/10: a fileira de ferramentas recolhe para uma versão compacta só com ícones; não some.
+- 13/10: a fileira de ferramentas recolhe para uma versão compacta só com ícones; não some. Normal: ícone com nome ao lado.
+- 13/10: cor de destaque: petróleo na ferramenta ativa, laranja na opção marcada e na seção aberta da paleta.
 
 ### Vãos
 - 12/10: o vão é um contorno na face da parede, editado com o motor da abertura da laje, e fica preso à parede onde nasceu.

@@ -92,7 +92,7 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Perfil complexo: a ação que já abre o editor de perfis (`profile_editor`, "Perfil Complexo…"). Ela passa a ser uma `QAction` guardada no controlador de perfis, usada no menu e na fileira.
 - A fileira só referencia as QActions; não cria ações novas.
 - Membrana não entra agora. Ela entra quando a ferramenta estiver pronta (resposta de 13/10).
-- Estilo do botão: o da janela (`window.toolButtonStyle()`), até a resposta de P1.
+- Estilo do botão (resposta de 13/10): ícone com o nome ao lado (`Qt.ToolButtonTextBesideIcon`).
 
 *Posição:*
 - Linha própria, abaixo das toolbars do host e acima da barra de opções.
@@ -102,7 +102,7 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 
 *Recolher (resposta de 13/10: não some, fica compacta):*
 - Um botão ▴/▾ no fim da fileira alterna entre normal e compacta.
-- Compacta: só ícones, a 16 px, sem texto, com o nome na dica. Normal: estilo da resposta de P1, ícones a 24 px.
+- Compacta: só ícones, a 16 px, sem texto, com o nome na dica. Normal: ícone com nome ao lado, ícones a 24 px.
 - O estado compacto fica em `QSettings`, chave `OpenTrace_BIM/tool_row_compact`, e é lido na partida.
 - A fileira nunca é escondida pelo plugin. Se o usuário fechar pelo menu Toolbars do host, o host lembra.
 
@@ -223,7 +223,15 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 **O que muda:**
 
 *`style.py`:*
-- `tokens(palette)` deriva as cores da `QPalette` do app: texto, texto suave, fundo, fundo de campo, borda, destaque e erro. Usa `palette.color(...)` e não depende de `views.theme`, que não é API pública de plugin.
+- `tokens(palette)` deriva as cores da `QPalette` do app: texto, texto suave, fundo, fundo de campo, borda e erro. Usa `palette.color(...)` e não depende de `views.theme`, que não é API pública de plugin.
+- **Cores de destaque (resposta de 13/10, "mistura 1"):**
+
+  | Token | Onde | Escuro | Claro |
+  |---|---|---|---|
+  | `tool` (petróleo) | fundo da ferramenta ativa na fileira | `#3A7780`, texto `#FFFFFF` | `#2F6670`, texto `#FFFFFF` |
+  | `mark` (laranja) | borda e ícone da opção marcada na barra, faixa da seção aberta na paleta | `#F0A36B` | `#B35C22` |
+
+  Ficam só em `style.py`. Se algum par não passar no teste de contraste, o teste falha e a cor é escurecida ou clareada no mesmo tom (mesma matiz) até passar, sem trocar de cor.
 - `apply(widget, template)` aplica `template.format(**tokens)`, guarda o widget e reaplica no `QEvent.ApplicationPaletteChange`. Um filtro de eventos só no `QApplication` faz isso.
 
 *Uso:*
@@ -303,11 +311,12 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - **Home:** Plantas e Vistas previstas, escondidas até existirem.
 - **Recolher a fileira:** ela fica compacta, só com ícones; não some.
 - **Parede curva:** é geometria da Parede, escolhida na barra (etapa 3).
+- **Botões da fileira:** ícone com o nome ao lado.
+- **Cor de destaque:** petróleo na ferramenta ativa e laranja na opção marcada (etapa 6).
 - **Medidas iniciais:** as atuais servem para começar.
 
-### Perguntas abertas (na Caixa de Revisão)
-- **P1 (etapa 2):** botões da fileira de ferramentas do topo (a faixa retrátil com Parede, Laje, Pilar…): só ícone, ícone com nome ao lado, ou ícone com nome embaixo?
-- **P9 (etapa 6):** cor de destaque. Até a resposta, a etapa 6 usa o `Highlight` da paleta do IngeTrazo.
+### Perguntas abertas
+Nenhuma.
 
 ---
 
