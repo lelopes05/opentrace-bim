@@ -27,7 +27,7 @@ from .door_window_commands import EditHostedFill, _fill_record
 from .door_window_core import FillError, normalize_fill
 from .model import WallError, path_world, read_wall, wall_opening_intervals
 from .slab_edit import _preview_lines
-from .slab_model import SlabError, line_edge, normalize_edge_specs
+from .slab_model import SlabError, line_edge, normalize_edge_specs, sample_boundary
 from .slab_opening_edit import (
     _OpeningEditBase, ChamferOpeningVertexTool, CurveOpeningEdgeTool, FilletOpeningVertexTool,
     InsertOpeningVertexTool, MoveOpeningVertexTool, OffsetOpeningTool,
@@ -243,8 +243,34 @@ def _wall_tool(base, tool_name, text):
                 {"name": tool_name, "description": text})
 
 
+class _InsertOnClickedEdge(InsertOpeningVertexTool):
+    """Insert on the edge actually clicked, not only the one the radial opened on."""
+
+    def on_click(self, ctx):
+        try:
+            _o, _oi, _it, pts, specs = self._data()
+            p = self.point(ctx)
+            sampled, owner = sample_boundary(pts, specs, with_map=True)
+            n = len(sampled)
+            best = None
+            for k in range(n):
+                a, b = sampled[k], sampled[(k + 1) % n]
+                d = b - a
+                den = d.x() * d.x() + d.y() * d.y()
+                t = 0.0 if den <= 1e-12 else max(0.0, min(1.0, ((p.x() - a.x()) * d.x()
+                                                               + (p.y() - a.y()) * d.y()) / den))
+                dist = math.hypot(p.x() - a.x() - d.x() * t, p.y() - a.y() - d.y() * t)
+                if best is None or dist < best[0]:
+                    best = (dist, owner[k])
+            if best is not None:
+                self.index = best[1]
+        except SlabError:
+            pass  # the base click reports the same error to the user
+        super().on_click(ctx)
+
+
 InsertWallOpeningVertexTool = _wall_tool(
-    InsertOpeningVertexTool, "Inserir vértice no vão", "Inserir um vértice numa aresta do vão.")
+    _InsertOnClickedEdge, "Inserir vértice no vão", "Inserir um vértice na aresta clicada do vão.")
 StretchWallOpeningEdgeTool = _wall_tool(
     StretchOpeningEdgeTool, "Puxar aresta do vão", "Puxar uma aresta do vão na face da parede.")
 MoveWallOpeningVertexTool = _wall_tool(

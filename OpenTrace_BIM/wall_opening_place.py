@@ -14,6 +14,7 @@ import uuid
 from PySide6.QtGui import QVector3D
 from tools.base import Tool
 
+from . import wall_cache
 from .bim import new_ifc_guid
 from .commands import EditWall
 from .door_window_commands import CreateHostedFill
@@ -76,18 +77,49 @@ def opening_wire(face, pts, specs):
     return near + far + depth
 
 
-def wall_under_cursor(viewport, ctx):
-    pick = getattr(viewport, "pick_group", None)
-    group = pick(ctx.screen.x(), ctx.screen.y()) if callable(pick) else None
-    if group is None or wall_record(group) is None:
-        return None
+def _face(scene, wall):
+    return wall_cache.memo(scene, ("wall_face", wall), lambda: WallFace(wall))
+
+
+def wall_under_cursor(viewport, ctx, tolerance=0.02):
+    """The wall whose face the cursor is on.
+
+    The viewport puts the hovered point on the face under the cursor; find the
+    wall that point lies on. Asking the host which group is under the pixel
+    returned nothing for walls (their faces live in child groups).
+    """
+    point = ctx.world
     scene = viewport.scene
-    if not scene.entity_selectable(group) or not scene.entity_visible(group):
-        return None
-    try:
-        return group if wall_path_kind(group) in ("line", "arc") else None
-    except WallError:
-        return None
+    best = None
+    for wall in scene.groups:
+        if (wall_record(wall) is None or not scene.entity_selectable(wall)
+                or not scene.entity_visible(wall)):
+            continue
+        try:
+            if wall_path_kind(wall) not in ("line", "arc"):
+                continue
+            face = _face(scene, wall)
+        except WallError:
+            continue
+        sheet = face.sheet(point)
+        s = sheet.x()
+        if not (-tolerance <= s <= face.length + tolerance):
+            continue
+        near = face.world(QVector3D(s, sheet.y(), 0), "near")
+        far = face.world(QVector3D(s, sheet.y(), 0), "far")
+        across = far - near
+        span = across.length()
+        if span <= 1e-9:
+            continue
+        u = QVector3D.dotProduct(point - near, across) / (span * span)
+        if u < -tolerance / span or u > 1 + tolerance / span:
+            continue
+        off = (point - (near + across * max(0.0, min(1.0, u)))).length()
+        if off > tolerance or not -tolerance <= sheet.y() <= face.height_at(s) + tolerance:
+            continue
+        if best is None or off < best[0]:
+            best = (off, wall)
+    return None if best is None else best[1]
 
 
 class _OnAnyWall(Tool):

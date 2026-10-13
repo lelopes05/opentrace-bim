@@ -195,6 +195,17 @@ class EditToolTests(unittest.TestCase):
                 detail = [(round(e.v0.position.x(), 3), round(e.v1.position.x(), 3),
                            round(e.v0.position.z(), 2),
                            [f.attrs.get(model.FACE_KEY) for f in e.faces]) for e in open_edges]
+                if open_edges:
+                    face = WallFace(wall)
+                    spans = []
+                    for f in body.mesh.faces:
+                        if f.attrs.get(model.FACE_KEY) != "bottom":
+                            continue
+                        st = sorted(round(face.station(v.position), 4) for v in f.loop)
+                        spans.append((st[0], st[-1], len(f.loop)))
+                    spans.sort()
+                    near = [sp for sp in spans if 3.3 < sp[0] < 4.6]
+                    detail.append(("bottom spans", near))
                 self.assertEqual(open_edges, [], (shape is D, alignment, detail))
 
     def test_door_keeps_its_rectangle(self):
@@ -318,9 +329,9 @@ class SelectionTests(unittest.TestCase):
             real = window.viewport
             pixel = real._world_to_pixel(face.world(QVector3D(2.5, 1.5, 0)))
             self.assertIsNotNone(pixel, "test wall is off screen")
-            picked = real.pick_group(*pixel)
-            found = wall_under_cursor(real, SimpleNamespace(screen=QPointF(*pixel)))
-            self.assertIs(found, wall, f"pick_group returned {picked!r}")
+            found = wall_under_cursor(real, SimpleNamespace(
+                screen=QPointF(*pixel), world=face.world(QVector3D(2.5, 1.5, 0))))
+            self.assertIs(found, wall)
         finally:
             window.deleteLater()
             qt.processEvents()

@@ -44,6 +44,13 @@ class WallFace:
         base, _top, _off = _interp_validated(self.values, station / self.length)
         return base
 
+    def height_at(self, station):
+        """Wall height (base to top) at a station."""
+        if self.length <= 1e-12:
+            return float(self.values["height"])
+        base, top, _off = _interp_validated(self.values, station / self.length)
+        return top - base
+
     def _xy(self, side, station):
         pts, cum = self.sides[side], self.cum
         n = len(cum)
