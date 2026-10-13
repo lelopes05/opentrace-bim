@@ -45,7 +45,8 @@ jobs:
           status=0
           : > host.txt
           for f in tests_host/test_*.py; do
-            python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2>> host.txt || status=1
+            echo "::notice title=Host test file::$(basename "$f")"
+            timeout 75s python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2>> host.txt || status=1
           done
           if [ $status -ne 0 ]; then
             python - <<'PY'
