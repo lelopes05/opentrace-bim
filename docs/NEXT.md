@@ -1,24 +1,22 @@
 # Próximos passos
 
-Branch: `claude/b1-curved-wall-perf`. Último pacote testado pelo Leandro: TEST-7.
+Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 
 ## Bloco atual — vãos na parede (correções do teste TEST-7)
 
 | # | Problema | Onde | Quem |
 |---|---|---|---|
-| 1 | Botões de criar vão (barra de cima e paleta lateral) não funcionam no Windows. Nos testes a ferramenta funciona; suspeita: `wall_under_cursor` → `viewport.pick_group` devolve outro grupo (corpo da parede) ou nada no host real. Reproduzir com MainWindow real. | `wall_opening_place.py`, `wall_opening_ui.py` | Opus |
-| 2 | "Inserir vértice" dá erro no Windows ("afastado das extremidades"). Teste simulado passa; suspeita: ponto do snap / ímã de eixo. | `wall_opening_edit.py` (`_OnWallFace.point`) | Opus |
-| 3 | Malha com falhas em vão curvo na parede curva. `test_curved_wall_round_opening_mesh_is_closed` reproduz: polígono reto na parede curva passa; o "D" (aresta em arco) falha. As arestas abertas ficam na base e no topo da parede, no lado de fora (high), com 4–6 faces bottom/top+side na mesma aresta: faixas sobrepostas, não buraco. Já descartado: estações < 1 mm (agora unidas) e mitra de segmentos colineares (corrigida, não era a causa). Próxima hipótese: ordem/posição dos pontos do lado externo nas estações vindas das amostras do arco, ou `_stitch_opening_mesh` dividindo cordas quase colineares. | `model.py` (`_build_body_with_polygon_openings`, `_offset_path`) | Opus |
+| 1 | **Corrigido em 13/10.** Botões de criar vão não achavam a parede: o pick de grupo do host não devolve paredes (faces em grupos filhos). Agora a parede é achada pelo ponto do cursor na face (`wall_under_cursor`); teste com a janela real. | `wall_opening_place.py` | Opus |
+| 2 | **Corrigido em 13/10.** Inserir vértice usa a aresta clicada (antes, a do radial; clicar em outra aresta dava erro). | `wall_opening_edit.py` | Opus |
+| 3 | **Corrigido em 13/10.** Vão curvo na parede curva: vetores do Qt são float32; reoffsetar a trajetória picada em milímetros dobrava as faces. Agora os lados são calculados uma vez na trajetória da parede e as estações interpoladas neles. Reproduzido localmente com um shim float32. | `model.py` | Opus |
 | 4 | **Feito em 13/10 (código).** Tirar as bolinhas do meio das arestas; vértices como pontos/bolas; aresta clicável pela linha. | `wall_opening_ui.py` (`_draw`, `_hit_active`) | Sonnet |
 | 5 | **Conferido e testado em 13/10.** Paleta lateral: Home e Perfis não abriam (a sincronização voltava para a página da parede). Correção em `sync_context` conferida; teste novo `tests_host/test_suite_panel_sync_host.py`. | `suite_panel.py` (`sync_context`) | Sonnet verifica |
 | 6 | **Teste novo em 13/10** (os testes do host não rodam fora do CI, então não se sabe se algo falhava). Atualizar teste de fumaça para IngeTrazo 0.5.8 (painéis em abas dos dois lados, extensões carregadas depois da janela). | `tests_host/test_install_smoke_host.py` | Sonnet |
 | 7 | **Feito em 13/10** (`DECISIONS.md` + `ARCHITECTURE.md`, 101 linhas; cadernos antigos removidos). Enxugar os cadernos: `docs/DECISIONS.md` (só o que vale hoje: aprovado/descartado/adiado, com data, partindo das decisões de 12/10 no AGENTS.md — onde os cadernos antigos conflitarem, vale o AGENTS.md) e `docs/ARCHITECTURE.md` (módulos e contratos). Remover `INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.md`; o histórico fica no git. Juntos, menos de 250 linhas. | `docs/` | Sonnet |
 
-## Estado do CI (envio `4aba901`, 13/10)
+## Estado do CI (13/10)
 
-- Workflow "Claude branches": o job `test` falhou na etapa de testes do host com saída 139 (travamento do processo). Não há anotação com o nome do teste, então o teste exato não foi identificado. Testes puros: passaram. Benchmark e pacote: não rodaram, **sem pacote de teste**.
-- Antes dos itens 4 a 7, o mesmo job falhava só em `test_curved_wall_round_opening_mesh_is_closed` (item 3, malha de vão curvo), sem travar.
-- Suspeitos do travamento: os dois testes novos, `test_setup_after_window_is_shown_puts_the_sidebar_in_the_side_tray` (janela mostrada, extensões depois) e `test_home_and_profiles_stay_open_while_a_wall_stays_selected`. Próximo passo: isolar rodando cada um sozinho no CI.
+- Tudo verde (run 38348746501); pacote TEST-8 publicado. Testes do host rodam um arquivo por processo (várias MainWindow no mesmo processo derrubam o PySide).
 
 ## Depois
 - Portas e janelas: ferramenta própria, segundo clique para lado/giro, tamanhos editáveis na barra.
