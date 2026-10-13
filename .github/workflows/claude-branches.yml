@@ -46,7 +46,17 @@ jobs:
           : > host.txt
           for f in tests_host/test_*.py; do
             echo "::notice title=Host test file::$(basename "$f")"
-            timeout 75s python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2>> host.txt || status=1
+            : > current_host.txt
+            if ! timeout 75s python -X faulthandler -m unittest discover -s tests_host -p "$(basename "$f")" -v 2> current_host.txt; then
+              status=1
+              TEST_FILE="$(basename "$f")" python - <<'PY'
+          import os
+          detail = open("current_host.txt").read()[-4000:]
+          print("::error title=" + os.environ["TEST_FILE"] + "::" +
+                detail.replace("%", "%25").replace("\n", "%0A"))
+          PY
+            fi
+            cat current_host.txt >> host.txt
           done
           if [ $status -ne 0 ]; then
             python - <<'PY'
