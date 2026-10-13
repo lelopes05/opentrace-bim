@@ -167,7 +167,23 @@ class ToolRowTests(unittest.TestCase):
         """All visible panels must match their fresh Qt layout size hints."""
         overlay = self.window._arquitetura_parametrica_overlay_dock
         APP.processEvents()
-        self.assertEqual(overlay.height(), overlay.sizeHint().height())
+        actual_height = overlay.height()
+        expected_height = overlay.sizeHint().height()
+        if actual_height != expected_height:
+            diagnostic = dict(
+                actual=actual_height, expected=expected_height,
+                frame_hidden=overlay.options_frame.isHidden(),
+                frame_height=overlay.options_frame.height(),
+                frame_hint=overlay.options_frame.sizeHint().height(),
+                row_height=self.row.height(),
+                row_hint=self.row.sizeHint().height(),
+                context=overlay.bar._context_key(),
+                queued=overlay._layout_request_queued,
+                busy=overlay._repositioning,
+            )
+            overlay.reposition()
+            diagnostic["after_direct_reposition"] = overlay.height()
+            self.fail(f"Overlay failed to track size hints: {diagnostic}")
         self.assertEqual(self.row.height(), self.row.sizeHint().height())
         if not overlay.options_frame.isHidden():
             self.assertEqual(
