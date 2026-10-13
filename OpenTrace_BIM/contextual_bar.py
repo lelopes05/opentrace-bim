@@ -10,10 +10,11 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
-    QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
+    QToolButton, QWidget, QFrame, QVBoxLayout, QStyle,
 )
 
 from .icons import set_symbol_icon
+from .i18n import t
 
 
 class _CompactStack(QStackedWidget):
@@ -78,19 +79,13 @@ class ContextualBar(QWidget):
         # simply added a widget to the native row, compressing it out of view.
         # Qt keeps native menus / native toolbars and their actions unchanged.
         toolbar = self.wall.toolbar
-        self.hidden_legacy_actions = tuple(toolbar.actions())
-        for action in self.hidden_legacy_actions:
-            if isinstance(action, QWidgetAction):
-                action.setVisible(False)
-            else:
-                toolbar.removeAction(action)  # QAction stays alive in menus.
         window = self.app.window
         # QMainWindow manages full-width rows and persistence for toolbars.
         # Insert one break BEFORE our toolbar; do not create Ribbon bars.
         if not window.toolBarBreak(toolbar):
             window.insertToolBarBreak(toolbar)
         toolbar.addWidget(self)
-        toolbar.setWindowTitle("OpenTrace BIM · Barra contextual")
+        toolbar.setWindowTitle(t("OpenTrace BIM · Opções"))
         toolbar.setMovable(False)
         toolbar.setFloatable(False)
         toolbar.setIconSize(QSize(24,24))
