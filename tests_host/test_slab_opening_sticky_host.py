@@ -3,9 +3,10 @@
 import unittest
 from types import SimpleNamespace
 
-from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent, QVector3D
 from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
 
 from OpenTrace_BIM.slab_model import DEFAULTS, make_slab, slab_openings_world
 
@@ -119,6 +120,42 @@ class StickySlabOpeningTests(unittest.TestCase):
         self._first_commit()
         self.assertFalse(self.controller.eventFilter(
             self.viewport, self._event(pixel=(-10000, -10000))))
+        self.assertIsNone(self.controller.sticky.tool)
+
+    def _click_viewport(self, pos):
+        vp = self.viewport
+        self.assertGreaterEqual(pos.x(), 0)
+        self.assertGreaterEqual(pos.y(), 0)
+        self.assertLess(pos.x(), vp.width())
+        self.assertLess(pos.y(), vp.height())
+        QTest.mouseClick(vp, Qt.LeftButton, Qt.NoModifier, pos)
+        APP.processEvents()
+
+    def _blank_pixel(self):
+        vp = self.viewport
+        for x, y in ((8, 8), (vp.width() - 8, 8),
+                     (8, vp.height() - 8),
+                     (vp.width() - 8, vp.height() - 8)):
+            if vp.pick_group(x, y) is None:
+                return QPoint(x, y)
+        self.fail("No empty viewport pixel available")
+
+    def test_real_click_on_slab_face_outside_opening_returns_to_select(self):
+        from OpenTrace_BIM.host import host_tool
+        self._first_commit()
+        xy = self.viewport._world_to_pixel(QVector3D(1, 1, 0))
+        self.assertIsNotNone(xy)
+        pos = QPoint(round(xy[0]), round(xy[1]))
+        self.assertIs(self.viewport.pick_group(pos.x(), pos.y()), self.slab)
+        self._click_viewport(pos)
+        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
+        self.assertIsNone(self.controller.sticky.tool)
+
+    def test_real_click_on_empty_view_returns_to_select(self):
+        from OpenTrace_BIM.host import host_tool
+        self._first_commit()
+        self._click_viewport(self._blank_pixel())
+        self.assertIs(self.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.controller.sticky.tool)
 
     def test_choosing_another_function_replaces_the_sticky_one(self):

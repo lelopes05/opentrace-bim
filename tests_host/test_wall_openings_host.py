@@ -8,9 +8,10 @@ import math
 import unittest
 from types import SimpleNamespace
 
-from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent, QVector3D
 from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
 from core.history import History
 from core.scene import Scene
 
@@ -568,6 +569,43 @@ class StickyWallOpeningTests(unittest.TestCase):
         self._commit_first_edge()
         self.assertFalse(self.editor.eventFilter(
             self.window.viewport, self._event(pixel=(-10000, -10000))))
+        self.assertIsNone(self.editor.sticky.tool)
+
+    def _click_viewport(self, pos):
+        vp = self.window.viewport
+        self.assertGreaterEqual(pos.x(), 0)
+        self.assertGreaterEqual(pos.y(), 0)
+        self.assertLess(pos.x(), vp.width())
+        self.assertLess(pos.y(), vp.height())
+        QTest.mouseClick(vp, Qt.LeftButton, Qt.NoModifier, pos)
+        APP.processEvents()
+
+    def _blank_pixel(self):
+        vp = self.window.viewport
+        for x, y in ((8, 8), (vp.width() - 8, 8),
+                     (8, vp.height() - 8),
+                     (vp.width() - 8, vp.height() - 8)):
+            if vp.pick_group(x, y) is None:
+                return QPoint(x, y)
+        self.fail("No empty viewport pixel available")
+
+    def test_real_click_on_wall_face_outside_opening_returns_to_select(self):
+        from OpenTrace_BIM.host import host_tool
+        self._commit_first_edge()
+        world = self.face.world(QVector3D(0.75, 1.2, 0))
+        xy = self.window.viewport._world_to_pixel(world)
+        self.assertIsNotNone(xy)
+        pos = QPoint(round(xy[0]), round(xy[1]))
+        self.assertIs(self.window.viewport.pick_group(pos.x(), pos.y()), self.wall)
+        self._click_viewport(pos)
+        self.assertIs(self.window.viewport.active_tool, host_tool(self.app, "select"))
+        self.assertIsNone(self.editor.sticky.tool)
+
+    def test_real_click_on_empty_view_returns_to_select(self):
+        from OpenTrace_BIM.host import host_tool
+        self._commit_first_edge()
+        self._click_viewport(self._blank_pixel())
+        self.assertIs(self.window.viewport.active_tool, host_tool(self.app, "select"))
         self.assertIsNone(self.editor.sticky.tool)
 
     def test_choosing_another_function_replaces_the_sticky_one(self):
