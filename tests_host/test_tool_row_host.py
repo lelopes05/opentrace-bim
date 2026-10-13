@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The tool row: one fixed line of tools above the options bar."""
+"""The tool row and the options bar: floating panels over the 3D view."""
 import os
 import tempfile
 import unittest
@@ -7,7 +7,10 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QSettings, QSize, Qt
+from unittest import mock
+
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, QRect, QSettings, QSize, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QToolBar, QToolButton
 
 # Settings of their own: the compact state is written by these tests.
@@ -53,8 +56,8 @@ class ToolRowTests(unittest.TestCase):
     def entries(self):
         """The row's actions in order, None for a separator, without the fold button."""
         out = []
-        for action in self.row.actions():
-            widget = self.row.widgetForAction(action)
+        for action in self.row.toolbar.actions():
+            widget = self.row.toolbar.widgetForAction(action)
             if action.isSeparator():
                 out.append(None)
             elif widget is self.row.compact_button:
@@ -85,22 +88,73 @@ class ToolRowTests(unittest.TestCase):
             [t("Parede paramétrica"), t("Laje paramétrica"), t("Pilar paramétrico"),
              t("Viga paramétrica"), "", t("Abertura"), t("Porta"), t("Janela"), "",
              t("Perfil Complexo…")])
-        self.assertEqual(self.row.objectName(), "opentrace_tools_toolbar")
-        self.assertIs(self.row.widgetForAction(self.row.actions()[0]), self.wall.wall_menu_button)
+        self.assertIs(self.row.toolbar.widgetForAction(self.row.toolbar.actions()[0]),
+                      self.wall.wall_menu_button)
 
-    def test_tool_row_is_its_own_line_above_the_bar(self):
+    def panel_rect(self, panel):
+        viewport = self.window.viewport
+        return QRect(panel.mapTo(viewport, QPoint(0, 0)), panel.size())
+
+    def test_panels_are_not_host_toolbars(self):
+        w = self.window
+        saved = bytes(w.saveState())
+        plugin_bars = [tb for tb in w.findChildren(QToolBar)
+                       if self.row.isAncestorOf(tb)]
+        self.assertIn(self.row.toolbar, plugin_bars)
+        for toolbar in plugin_bars:
+            self.assertEqual(w.toolBarArea(toolbar), Qt.NoToolBarArea)
+        for encoding in ("utf-8", "utf-16-be"):
+            self.assertNotIn("opentrace_".encode(encoding), saved)
+
+    def test_panels_stacked_top_left_inside_viewport(self):
         self.show_window()
-        w, row, bar = self.window, self.row, self.wall.toolbar
-        self.assertEqual(bar.objectName(), "opentrace_options_toolbar")
-        self.assertTrue(w.toolBarBreak(row))
-        self.assertTrue(w.toolBarBreak(bar))
-        self.assertLess(row.geometry().y(), bar.geometry().y())
-        host = [tb for tb in w.findChildren(QToolBar)
-                if tb not in (row, bar) and tb.isVisible()
-                and w.toolBarArea(tb) == Qt.TopToolBarArea]
-        self.assertTrue(host)
-        for toolbar in host:
-            self.assertLess(toolbar.geometry().y(), row.geometry().y(), toolbar.objectName())
+        viewport = self.window.viewport
+        bar = self.window._arquitetura_parametrica_suite_panel.context_bar
+        row_rect, bar_rect = self.panel_rect(self.row), self.panel_rect(bar)
+        self.assertLess(row_rect.y(), bar_rect.y())
+        self.assertEqual(row_rect.x(), 8)
+        for rect in (row_rect, bar_rect):
+            self.assertTrue(viewport.rect().contains(rect), rect)
+
+    def test_panels_follow_viewport_resize(self):
+        self.show_window()
+        viewport = self.window.viewport
+        bar = self.window._arquitetura_parametrica_suite_panel.context_bar
+        self.row.set_compact(False)
+        self.window.resize(600, 700)
+        APP.processEvents()
+        self.assertLess(viewport.width() - 16, self.row.sizeHint().width())
+        for panel in (self.row, bar):
+            self.assertTrue(viewport.rect().contains(self.panel_rect(panel)), panel.objectName())
+        extension = self.row.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
+        self.assertTrue(extension.isVisible())
+        self.window.resize(1500, 900)
+        APP.processEvents()
+
+    def test_click_on_panel_does_not_reach_tool(self):
+        from OpenTrace_BIM.host import activate_select
+        self.show_window()
+        viewport = self.window.viewport
+        bar = self.window._arquitetura_parametrica_suite_panel.context_bar
+        reached = []
+
+        class Spy(QObject):
+            def eventFilter(self, watched, event):
+                if event.type() == QEvent.MouseButtonPress:
+                    reached.append(watched)
+                return False
+
+        spy = Spy(viewport)
+        viewport.installEventFilter(spy)
+        self.wall.action.trigger()
+        tool = self.wall.draw_tool
+        with mock.patch.object(tool, "on_mouse_press") as pressed:
+            for panel in (self.row, bar):
+                QTest.mouseClick(panel, Qt.LeftButton, pos=QPoint(1, 1))
+        viewport.removeEventFilter(spy)
+        activate_select(self.app)
+        pressed.assert_not_called()
+        self.assertEqual(reached, [])
 
     def test_tool_row_actions_activate_tools(self):
         from OpenTrace_BIM.host import activate_select
@@ -139,10 +193,9 @@ class ToolRowTests(unittest.TestCase):
         # A new row reads the saved state.
         stand_in = SimpleNamespace(wall_menu_button=QToolButton(),
                                    openings=SimpleNamespace(tool_actions=()))
-        fresh = ToolRow(self.window, stand_in, None, None, None, None)
+        fresh = ToolRow(stand_in, None, None, None, None)
         self.assertTrue(fresh.compact)
-        self.assertEqual(fresh.iconSize(), QSize(16, 16))
-        fresh.setParent(None)
+        self.assertEqual(fresh.toolbar.iconSize(), QSize(16, 16))
         fresh.deleteLater()
 
         row.compact_button.click()
@@ -151,21 +204,12 @@ class ToolRowTests(unittest.TestCase):
         self.assertFalse(QSettings().value(COMPACT_KEY, True, type=bool))
         self.assertEqual(row.sizeHint().height(), normal_height)
 
-    def test_tool_row_survives_restore_state(self):
+    def test_panels_survive_restore_state(self):
         self.show_window()
-        w = self.window
-
-        def layout():
-            bars = sorted((tb for tb in w.findChildren(QToolBar)
-                           if tb.isVisible() and w.toolBarArea(tb) == Qt.TopToolBarArea),
-                          key=lambda tb: (tb.geometry().y(), tb.geometry().x()))
-            return ([tb.objectName() for tb in bars], w.toolBarBreak(self.row),
-                    w.toolBarBreak(self.wall.toolbar), self.entries())
-
-        before = layout()
-        w.restoreState(w.saveState())
+        before = (self.panel_rect(self.row), self.entries())
+        self.window.restoreState(self.window.saveState())
         APP.processEvents()
-        self.assertEqual(layout(), before)
+        self.assertEqual((self.panel_rect(self.row), self.entries()), before)
 
 
 if __name__ == "__main__":

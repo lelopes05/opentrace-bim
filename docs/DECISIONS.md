@@ -6,9 +6,8 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 ## Aprovado
 
 ### Interface
-- 12/10: topo com fileira de ferramentas recolhível e, abaixo, a barra de opções da ferramenta ativa (como o Info Box do Archicad). A barra mostra e edita opções; não troca de ferramenta.
+- 13/10: fileira e barra de opções são painéis flutuantes sobre a vista, no canto superior esquerdo, como o ArchXQ; não são toolbars do host. A fileira é recolhível e a barra mostra as opções da ferramenta ativa (como o Info Box do Archicad); a barra não troca ferramenta.
 - 09/10: a barra é uma faixa única, recolhível e baixa; o menu nativo do IngeTrazo continua como está.
-- 11/10: a faixa fica em linha própria, abaixo dos menus nativos, e não espremida na toolbar do host.
 - 09/10: cada propriedade tem uma só fonte de verdade, o campo do controlador. A barra e a paleta espelham esse campo; editar num atualiza o outro.
 - 09/10: modos construtivos em ícones com dica ao passar o mouse e título pequeno. Só aparece modo que funciona.
 - 12/10: a paleta lateral tem plantas, vistas, BIM/IFC e Projeto; por enquanto também as configurações completas da ferramenta ou objeto. Edição de vértice e aresta fica na viewport (radial) e na paleta, nunca na barra.
@@ -40,6 +39,7 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 09/10: nada vai para `main`, release ou catálogo sem autorização expressa; o release público segue em 0.12.9.
 
 ## Descartado
+- 11/10: faixa em linha própria abaixo dos menus nativos, como toolbar do host. O host reaplica o layout salvo (`restoreState`, `_pack_toolbars`) e põe toda toolbar que não conhece na linha das dele; trocar o `objectName` não resolveu (CI de 13/10). Substituída pelos painéis flutuantes sobre a vista.
 - 09/10: Ribbon fixo com famílias de ícones sempre expostas.
 - 09/10: segunda ou terceira barra permanente; edição de vértice, aresta ou propriedade avançada dentro da barra.
 - 10/10: bolinha no meio das arestas (substituída em 12/10 pela aresta clicável pela linha).

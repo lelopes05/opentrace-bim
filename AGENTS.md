@@ -32,7 +32,7 @@ Leia este arquivo primeiro. Ele substitui a leitura do projeto inteiro.
 - Falhas aparecem como anotações do check (sem precisar abrir o log).
 
 ## Decisões vigentes (12/10/2026)
-- Topo: fileira de ferramentas (recolhível) + barra de opções da ferramenta ativa (como o Info Box do Archicad). A barra não troca ferramenta.
+- Fileira de ferramentas (recolhível) e barra de opções da ferramenta ativa são painéis flutuantes sobre a vista, no canto superior esquerdo (como o ArchXQ), filhos do viewport; não são toolbars do host. A barra não troca ferramenta.
 - Paleta lateral: plantas, vistas, BIM/IFC, Projeto; por enquanto também as configurações completas da ferramenta/objeto.
 - Vãos: contorno na face da parede, editado com o motor da abertura da laje; ficam presos à parede onde nasceram.
 - Pontos de controle: só nos vértices; arestas são linhas (sem bolinha no meio).

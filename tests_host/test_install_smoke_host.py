@@ -125,19 +125,13 @@ class InstallationSmokeTests(unittest.TestCase):
             # a single toolbar changes its real method controls per tool.
             bar = suite.context_bar
             self.assertEqual(bar.objectName(),"opentrace_contextual_bar")
-            self.assertIs(bar.parent(),ctl.toolbar)
-            self.assertTrue(window.toolBarBreak(ctl.toolbar),
-                            "Context Info Box must have its OWN row below native tools")
+            self.assertIs(bar.parent(),window._arquitetura_parametrica_overlay)
             self.assertIn("wall",bar.pages)
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
             self.assertIn("polygon_edit",bar.pages)
             self.assertEqual(len([k for k in bar.pages if k.endswith("_edit") and k.startswith(("door","window"))]),0)
             self.assertEqual(bar._context_key(),"idle")
-            self.assertEqual(
-                [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
-                 if a.isVisible()],
-                [bar])
             ctl.action.trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"wall")

@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""No stray dock tab bar appears while a modal dialog is open at start-up.
+"""No stray dock tab bar appears at start-up with the real plugin.
 
 Leandro's print (13/10): with "Escolher Template de Layers" open, a second row
-of tabs (Properties, BIM, Terrain, AI) floated under the toolbars.
+of tabs (Properties, BIM, Terrain, AI) floated under the toolbars. That
+window belongs to the plugin (layer_combinations); it now opens without a
+timer and without blocking the event loop.
 """
 import os
 import shutil
@@ -12,7 +14,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QDockWidget, QTabBar
 
 QCoreApplication.setOrganizationName("OpenTraceTests")
@@ -44,7 +46,7 @@ def stray_tab_bars(window):
 
 
 class StartupTabsTests(unittest.TestCase):
-    def test_no_stray_tab_bar_while_a_modal_dialog_is_open(self):
+    def test_no_stray_tab_bar_at_startup_with_real_plugin(self):
         from views.main_window import MainWindow
         data = tempfile.mkdtemp(prefix="opentrace-tests-plugins-")
         os.environ["XDG_DATA_HOME"] = data
@@ -57,17 +59,16 @@ class StartupTabsTests(unittest.TestCase):
         window.show()
         APP.processEvents()
 
-        dialog = QDialog(window)
-        dialog.setWindowModality(Qt.ApplicationModal)
-        dialog.open()
-        APP.processEvents()
         window.load_extensions()
         APP.processEvents()
 
         self.assertEqual(window._extension_load_errors, {})
         self.assertIsNotNone(window._arquitetura_parametrica_tool_row)
+        self.assertIsNotNone(getattr(window, "_layer_combinations_service", None))
         self.assertEqual(stray_tab_bars(window), [])
-        dialog.close()
+        for dialog in window.findChildren(QDialog):
+            dialog.reject()
+        APP.processEvents()
 
 
 if __name__ == "__main__":
