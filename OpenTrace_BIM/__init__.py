@@ -39,7 +39,7 @@ def _setup_bundled_layer_combinations(app):
     app.window._opentrace_bundled_layer_combinations_app = layer_app
 
 
-def setup(app):
+def setup(app, *, translate_widgets=True):
     # Import implementation from submodules: the host must not discover the
     # spatial tool as a one-shot menu tool and instantiate it without its UI.
     from .host import require_reference_host
@@ -189,8 +189,9 @@ def setup(app):
         # 0.12.8 used a QApplication-wide event filter here; translating on
         # Show/Polish/LayoutRequest could recursively retrigger Qt layouts and
         # caused a native crash when a modelling page was opened on Windows.
-        from .i18n import translate_widget
-        translate_widget(_master_dock)
+        from .i18n import language, translate_widget
+        if translate_widgets and language() == "en":
+            translate_widget(_master_dock)
     except Exception as exc:
         log.exception("parametric unified sidebar setup failed")
         startup_errors.append(f"Painel: {type(exc).__name__}: {exc}")
