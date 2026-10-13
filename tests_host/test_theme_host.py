@@ -3,6 +3,7 @@
 import unittest
 
 from PySide6.QtCore import QEvent
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
 from views.theme import dark_palette, light_palette
 
@@ -15,7 +16,7 @@ APP = QApplication.instance() or QApplication([])
 class ThemeHostTests(unittest.TestCase):
     def test_tokens_meet_contrast_in_both_themes(self):
         for palette in (dark_palette(), light_palette()):
-            with self.subTest(theme=palette.color(palette.Window).name()):
+            with self.subTest(theme=palette.color(QPalette.Window).name()):
                 result = tokens(palette)
                 for ground in ("panel", "field"):
                     for fg in ("text", "text-muted"):
@@ -26,7 +27,7 @@ class ThemeHostTests(unittest.TestCase):
                         contrast(result["border"], result[ground]), 3.0,
                         f"border against {ground}")
                 self.assertEqual(result["panel"], palette.color(palette.Window))
-                self.assertEqual(result["field"], palette.color(palette.Base))
+                self.assertEqual(result["field"], palette.color(QPalette.Base))
 
     def test_qss_uses_tokens(self):
         palette = dark_palette()

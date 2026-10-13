@@ -250,7 +250,9 @@ def _stroke_path(*commands):
 def _parts(name):
     """A distinctive primary silhouette and its one changeable accent."""
     def path(*ops):
-        return _stroke_path(*ops)
+        # Keep the reusable spec as immutable Python data. Construct only the
+        # requested icon's two QPainterPaths, never all 56 on every repaint.
+        return ops
 
     M = lambda x, y: ("M", (x, y))
     L = lambda x, y: ("L", (x, y))
@@ -327,7 +329,7 @@ def _parts(name):
         "overflow": (path(E(4, 10, 3, 3), E(10.5, 10, 3, 3)),
                      path(E(17, 10, 3, 3))),
     }
-    return shapes[name]
+    return tuple(_stroke_path(*commands) for commands in shapes[name])
 
 
 def pixmap(name, size=24, state="normal", palette=None):
@@ -365,6 +367,8 @@ def pixmap(name, size=24, state="normal", palette=None):
     return pm
 
 
-def icon(name, size=24, state="normal", palette=None):
-    """Return a QIcon in the design-system state; preserve old symbol names."""
+def icon(name, size=32, state="normal", palette=None):
+    """Old 32 px call sites stay untouched until 7b; opt-in uses design paths."""
+    if size == 32 and state == "normal" and palette is None:
+        return _legacy_icon(name, size)
     return QIcon(pixmap(name, size, state, palette))
