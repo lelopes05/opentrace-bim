@@ -384,7 +384,7 @@ class MoveSlabTool(AxisMagnet, Tool):
         try:
             if self.slab not in viewport.scene.groups: raise SlabError("A laje não está mais disponível.")
             viewport.begin_groups_preview([self.slab]);self.preview=True
-            show_step(self,viewport,self.step_id)
+            show_step(self, viewport, "slab.edit.move_xy_start" if self.mode == "xy" else "slab.edit.move_z")
         except SlabError as exc:self.controller.message(str(exc),error=True);QTimer.singleShot(0,self.controller.return_to_select)
 
     def on_deactivate(self,viewport):
