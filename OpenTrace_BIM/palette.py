@@ -12,6 +12,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolTip
 
 from .i18n import t
+from .style import SIZES, qss, tokens
 
 
 class _DragHandle(QLabel):
@@ -24,7 +25,12 @@ class _DragHandle(QLabel):
         self.setCursor(QCursor(Qt.SizeAllCursor))
         self.setAlignment(Qt.AlignCenter)
         self.setFixedSize(20, 30)
-        self.setStyleSheet("color: rgba(255,255,255,170); padding:0; margin:0;")
+        self.apply_theme()
+
+    def apply_theme(self):
+        self.setStyleSheet(qss(
+            "QLabel { color: {text-muted}; padding: 0; margin: 0; }",
+            QGuiApplication.palette()))
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -87,13 +93,14 @@ class _RadialDragHandle(QLabel):
         self.setCursor(QCursor(Qt.SizeAllCursor))
         self.setAlignment(Qt.AlignCenter)
         self.setFixedSize(27, 22)
-        self.setStyleSheet(
-            "color: rgba(25,25,25,220);"
-            "background: rgba(252,252,252,178);"
-            "border: 1px solid rgba(0,0,0,38);"
-            "border-radius: 5px; padding:0; margin:0;"
-            "font-size: 12px; font-weight: 600;"
-        )
+        self.apply_theme()
+
+    def apply_theme(self):
+        self.setStyleSheet(qss(
+            "QLabel { color: {text}; background: {panel-raised};"
+            " border: 1px solid {panel-edge}; border-radius: 4px;"
+            " padding: 0; margin: 0; font-size: 12px; font-weight: 600; }",
+            QGuiApplication.palette()))
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -162,9 +169,6 @@ class RadialPalette(QFrame):
     _shared_position_loaded = False
     _shared_user_center = None
 
-    DRAW_COLOR = QColor(232, 138, 62)
-    EDIT_COLOR = QColor(57, 132, 219)
-
     def __init__(self, owner_window, *, popup=True, ring_capacity=8, role="edit"):
         flags = (Qt.Popup if popup else Qt.Tool) | Qt.FramelessWindowHint
         if not popup:
@@ -196,25 +200,22 @@ class RadialPalette(QFrame):
 
         # Command glyphs are deliberately naked: no square/circular button
         # outline.  Interaction feedback belongs to the whole radial sector.
-        self.setStyleSheet("""
-            QToolButton {
-                color: rgba(12,12,12,248);
-                background: transparent;
-                border: none;
-                padding: 0px;
-                margin: 0px;
-            }
-            QToolButton:hover, QToolButton:pressed, QToolButton:checked {
-                color: rgba(0,0,0,255);
-                background: transparent;
-                border: none;
-            }
-            QToolButton:disabled {
-                color: rgba(0,0,0,70);
-                background: transparent;
-                border: none;
-            }
-        """)
+        self.apply_theme()
+
+    def apply_theme(self):
+        """Theme the radial plate and discard its old cached paint."""
+        palette = QGuiApplication.palette()
+        self.setStyleSheet(qss(
+            "QToolButton { color: {text}; background: transparent;"
+            " border: none; padding: 0; margin: 0; }"
+            "QToolButton:hover, QToolButton:pressed, QToolButton:checked {"
+            " color: {text}; background: transparent; border: none; }"
+            "QToolButton:disabled { color: {text-disabled};"
+            " background: transparent; border: none; }", palette))
+        self.drag_handle.apply_theme()
+        self._background_key = None
+        self._background_cache = None
+        self.update()
 
     @property
     def row(self):
@@ -222,7 +223,8 @@ class RadialPalette(QFrame):
 
     @property
     def accent(self):
-        return self.DRAW_COLOR if self._role == "draw" else self.EDIT_COLOR
+        colors = tokens(QGuiApplication.palette())
+        return colors["orange"] if self._role == "draw" else colors["petrol"]
 
     def add_radial_widget(self, widget):
         if widget not in self._widgets:
@@ -405,24 +407,27 @@ class RadialPalette(QFrame):
                                      inner * 2.0, inner * 2.0))
         annulus = outer_path.subtracted(inner_path)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(252, 252, 252, 178))
+        colors = tokens(QGuiApplication.palette())
+        plate = QColor(colors["panel"])
+        plate.setAlpha(178)
+        painter.setBrush(plate)
         painter.drawPath(annulus)
 
         # Subtle outlines and separators remain visible through the lighter plate.
         painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(QColor(0, 0, 0, 54), 1.0))
+        painter.setPen(QPen(colors["panel-edge"], SIZES["border-width"]))
         painter.drawEllipse(QRectF(c.x() - outer, c.y() - outer,
                                    outer * 2.0, outer * 2.0))
         painter.drawEllipse(QRectF(c.x() - inner, c.y() - inner,
                                    inner * 2.0, inner * 2.0))
 
         boundaries = self._ring_boundaries()
-        painter.setPen(QPen(QColor(0, 0, 0, 31), 1.0))
+        painter.setPen(QPen(colors["divider"], SIZES["border-width"]))
         for boundary in boundaries[1:-1]:
             painter.drawEllipse(QRectF(c.x() - boundary, c.y() - boundary,
                                        boundary * 2.0, boundary * 2.0))
 
-        painter.setPen(QPen(QColor(0, 0, 0, 29), 1.0))
+        painter.setPen(QPen(colors["divider"], SIZES["border-width"]))
         for ring_index, count in enumerate(self._ring_counts):
             if count <= 1:
                 continue
