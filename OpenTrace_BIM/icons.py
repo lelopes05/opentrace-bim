@@ -39,7 +39,7 @@ def _pen(color=BLUE, width=2.0):
     return pen
 
 
-def icon(name: str, size: int = 32) -> QIcon:
+def _legacy_icon(name: str, size: int = 32) -> QIcon:
     name = str(name or "").lower()
     # Runtime palette makes vector symbols legible on the DARK IngeTrazo
     # theme used by the maintainer; previous blue strokes almost disappeared.
@@ -210,3 +210,161 @@ def set_symbol_icon(button, symbol: str, size=22):
     button.setIcon(icon(key, 32))
     button.setIconSize(QSize(size, size))
     return button
+
+
+# Design-system icons (24 x 24 coordinates, stroke-only).
+# Existing symbols above remain available until the 7b widget integration.
+_NAMES = (
+    "wall", "wall_composite", "wall_curved", "slab", "slab_composite",
+    "column", "beam", "profile", "opening", "door", "window",
+    "opening_rect", "opening_square", "opening_circle", "opening_free",
+    "anchor_left", "anchor_center", "anchor_right",
+    "geo_segment", "geo_rect_diagonal", "geo_rect_base_width",
+    "geo_arc_normal", "geo_arc_center", "geo_arc_three",
+    "help", "collapse", "expand", "overflow",
+)
+
+
+def _stroke_path(*commands):
+    path = QPainterPath()
+    for op, coords in commands:
+        if op == "M":
+            path.moveTo(*coords)
+        elif op == "L":
+            path.lineTo(*coords)
+        elif op == "Q":
+            path.quadTo(*coords)
+        elif op == "C":
+            path.cubicTo(*coords)
+        elif op == "Z":
+            path.closeSubpath()
+        elif op == "R":
+            path.addRect(QRectF(*coords))
+        elif op == "E":
+            path.addEllipse(QRectF(*coords))
+        else:
+            raise ValueError(f"Unknown path operation: {op}")
+    return path
+
+
+def _parts(name):
+    """A distinctive primary silhouette and its one changeable accent."""
+    def path(*ops):
+        return _stroke_path(*ops)
+
+    M = lambda x, y: ("M", (x, y))
+    L = lambda x, y: ("L", (x, y))
+    Q = lambda a, b, x, y: ("Q", (a, b, x, y))
+    C = lambda a, b, c, d, x, y: ("C", (a, b, c, d, x, y))
+    R = lambda x, y, w, h: ("R", (x, y, w, h))
+    E = lambda x, y, w, h: ("E", (x, y, w, h))
+    Z = ("Z", ())
+    shapes = {
+        "wall": (path(R(3, 6, 18, 12), M(3, 12), L(21, 12),
+                      M(9, 6), L(9, 12), M(15, 12), L(15, 18)),
+                 path(M(3, 18), L(9, 18))),
+        "wall_composite": (path(R(3, 4, 18, 4), R(3, 10, 18, 4), R(3, 16, 18, 4)),
+                           path(M(7, 8), L(7, 10), M(17, 14), L(17, 16))),
+        "wall_curved": (path(M(4, 20), C(5, 8, 11, 3, 21, 4),
+                             M(9, 21), C(10, 13, 14, 10, 21, 10)),
+                        path(M(4, 20), L(9, 21))),
+        "slab": (path(M(3, 11), L(16, 6), L(21, 10), L(8, 16), Z,
+                      M(8, 16), L(8, 20), L(3, 15), L(3, 11)),
+                 path(M(8, 20), L(21, 14), L(21, 10))),
+        "slab_composite": (path(M(3, 7), L(15, 3), L(21, 7), L(9, 11), Z,
+                                M(3, 12), L(9, 16), L(21, 12),
+                                M(3, 17), L(9, 21), L(21, 17)),
+                           path(M(9, 11), L(9, 16))),
+        "column": (path(M(6, 6), L(15, 3), L(20, 7), L(11, 10), Z,
+                        M(6, 6), L(6, 19), L(11, 22), L(11, 10),
+                        M(11, 22), L(20, 19), L(20, 7)),
+                   path(M(15, 3), L(15, 16))),
+        "beam": (path(M(3, 5), L(21, 5), M(6, 8), L(18, 8), M(12, 8),
+                      L(12, 18), M(6, 20), L(18, 20), M(3, 22), L(21, 22)),
+                 path(M(12, 5), L(12, 8))),
+        "profile": (path(M(5, 20), L(5, 5), L(15, 5), L(20, 9), L(15, 13),
+                         L(10, 13), L(10, 20), Z),
+                    path(E(13, 7, 4, 4))),
+        "opening": (path(R(3, 5, 18, 15), M(3, 11), L(7, 11),
+                         M(17, 11), L(21, 11)),
+                    path(R(7, 9, 10, 11))),
+        "door": (path(M(5, 20), L(5, 5), M(5, 20), L(19, 20),
+                      M(5, 20), L(17, 8)),
+                 path(M(19, 20), Q(19, 9, 5, 6))),
+        "window": (path(R(4, 5, 16, 15), R(7, 8, 10, 9), M(12, 8), L(12, 17)),
+                   path(M(7, 17), L(12, 12), L(17, 17))),
+        "opening_rect": (path(R(3, 7, 18, 10)),
+                         path(M(6, 17), L(18, 17))),
+        "opening_square": (path(R(6, 5, 12, 12)),
+                           path(M(18, 17), L(21, 20))),
+        "opening_circle": (path(E(4, 4, 16, 16)),
+                           path(M(12, 2), L(12, 5))),
+        "opening_free": (path(M(4, 18), L(5, 7), L(14, 4), L(20, 11),
+                              L(17, 20), Z),
+                         path(M(14, 4), L(17, 7))),
+        "anchor_left": (path(R(5, 7, 14, 11), M(3, 21), L(21, 21)),
+                        path(M(5, 3), L(5, 21))),
+        "anchor_center": (path(R(5, 7, 14, 11), M(3, 21), L(21, 21)),
+                          path(M(12, 3), L(12, 21))),
+        "anchor_right": (path(R(5, 7, 14, 11), M(3, 21), L(21, 21)),
+                         path(M(19, 3), L(19, 21))),
+        "geo_segment": (path(M(5, 18), L(19, 5)), path(E(3, 16, 4, 4), E(17, 3, 4, 4))),
+        "geo_rect_diagonal": (path(R(4, 5, 16, 13)), path(M(4, 18), L(20, 5))),
+        "geo_rect_base_width": (path(R(4, 4, 16, 12), M(4, 20), L(20, 20),
+                                     M(4, 18), L(4, 22), M(20, 18), L(20, 22)),
+                                path(M(12, 16), L(12, 20))),
+        "geo_arc_normal": (path(M(4, 19), Q(10, 3, 20, 17)),
+                           path(M(4, 19), L(8, 19), M(20, 17), L(20, 13))),
+        "geo_arc_center": (path(M(4, 18), Q(11, 2, 20, 18), E(10, 12, 4, 4)),
+                           path(M(12, 14), L(18, 9))),
+        "geo_arc_three": (path(M(3, 19), Q(11, 2, 21, 19)),
+                          path(E(2, 17, 2, 2), E(10, 7, 2, 2), E(20, 17, 2, 2))),
+        "help": (path(E(3, 3, 18, 18), M(8, 9), Q(9, 5, 13, 7),
+                      Q(18, 10, 12, 14), L(12, 16)),
+                 path(M(12, 19), L(12, 20))),
+        "collapse": (path(R(4, 4, 16, 16)), path(M(8, 14), L(12, 10), L(16, 14))),
+        "expand": (path(R(4, 4, 16, 16)), path(M(8, 10), L(12, 14), L(16, 10))),
+        "overflow": (path(E(4, 10, 3, 3), E(10.5, 10, 3, 3)),
+                     path(E(17, 10, 3, 3))),
+    }
+    return shapes[name]
+
+
+def pixmap(name, size=24, state="normal", palette=None):
+    """Paint a sharp stroke icon, using a constant 1.5 physical-pixel width."""
+    if name not in _NAMES:
+        return _legacy_icon(name, size).pixmap(size, size)
+    from .style import tokens
+    if palette is None:
+        palette = QGuiApplication.palette()
+    colors = tokens(palette)
+    key = {
+        "normal": "icon", "active": "icon-on-active",
+        "marked": "icon-accent", "disabled": "icon-disabled",
+    }.get(state)
+    if key is None:
+        raise ValueError(f"Unsupported icon state: {state}")
+    pm = QPixmap(int(size), int(size))
+    pm.fill(Qt.transparent)
+    painter = QPainter(pm)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.scale(float(size) / 24, float(size) / 24)
+    stroke = 1.5 * 24 / float(size)
+    pen = QPen(colors[key], stroke)
+    pen.setCapStyle(Qt.RoundCap)
+    pen.setJoinStyle(Qt.RoundJoin)
+    painter.setBrush(Qt.NoBrush)
+    primary, accent = _parts(name)
+    painter.setPen(pen)
+    painter.drawPath(primary)
+    if state == "normal":
+        pen.setColor(colors["icon-accent"])
+        painter.setPen(pen)
+    painter.drawPath(accent)
+    painter.end()
+    return pm
+
+
+def icon(name, size=24, state="normal", palette=None):
+    """Return a QIcon in the design-system state; preserve old symbol names."""
+    return QIcon(pixmap(name, size, state, palette))
