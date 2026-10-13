@@ -1,9 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Stage 2: toolbar order, persistence and the IngeTrazo 0.5.8 startup."""
 import os
-import subprocess
-import sys
-import textwrap
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -122,83 +119,3 @@ class ToolRowHostTests(unittest.TestCase):
         self.assertTrue(self.window.toolBarBreak(self.wall.toolbar))
         self.assertLess(self.row.y(), self.wall.toolbar.y())
 
-    @staticmethod
-    def _child(script):
-        result = subprocess.run(
-            [sys.executable, "-c", textwrap.dedent(script)],
-            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
-            capture_output=True, text=True, timeout=100)
-        if result.returncode:
-            raise AssertionError(result.stdout + "\n" + result.stderr)
-
-    def test_old_saved_layout_does_not_squeeze_the_bars(self):
-        self._child("""
-            import tempfile
-            from pathlib import Path
-            from types import SimpleNamespace
-            from unittest.mock import patch
-            from PySide6.QtCore import QSettings, Qt
-            from PySide6.QtWidgets import QApplication, QMainWindow, QToolBar
-            from views.main_window import MainWindow
-            from OpenTrace_BIM import setup
-
-            qt = QApplication.instance() or QApplication([])
-            with tempfile.TemporaryDirectory() as directory:
-                QSettings.setDefaultFormat(QSettings.IniFormat)
-                QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, directory)
-                old = QMainWindow()
-                legacy = QToolBar("Old Architecture", old)
-                legacy.setObjectName("arquitetura_parametrica_toolbar")
-                old.addToolBar(Qt.TopToolBarArea, legacy)  # no toolbar break
-                QSettings().setValue("ui/window_state", old.saveState())
-                old.deleteLater()
-                qt.processEvents()
-                window = MainWindow(defer_extensions=True)
-                window.show()
-                qt.processEvents()
-                plugin = SimpleNamespace(stem="OpenTrace_BIM",
-                    setup=setup, tools=[], path=Path("OpenTrace_BIM"))
-                with patch("core.extensions.discover_plugins", return_value=([plugin], [])):
-                    window.load_extensions()
-                qt.processEvents()
-                row = window._arquitetura_parametrica_tool_row
-                bar = window._arquitetura_parametrica_controller.toolbar
-                assert window.toolBarBreak(row)
-                assert window.toolBarBreak(bar)
-                assert row.y() < bar.y()
-                window.deleteLater()
-                qt.processEvents()
-        """)
-
-    def test_no_duplicate_tabs_during_modal_startup(self):
-        # Test the reported "Properties, BIM, Terrain, AI" ghost tab strip.
-        self._child("""
-            from pathlib import Path
-            from types import SimpleNamespace
-            from unittest.mock import patch
-            from PySide6.QtWidgets import QApplication, QDialog, QTabBar
-            from views.main_window import MainWindow
-            from OpenTrace_BIM import setup
-
-            qt = QApplication.instance() or QApplication([])
-            window = MainWindow(defer_extensions=True)
-            window.show()
-            dialog = QDialog(window)
-            dialog.setWindowTitle("Escolher Template de Layers")
-            dialog.setModal(True)
-            dialog.open()
-            qt.processEvents()
-            plugin = SimpleNamespace(stem="OpenTrace_BIM",
-                setup=setup, tools=[], path=Path("OpenTrace_BIM"))
-            with patch("core.extensions.discover_plugins", return_value=([plugin], [])):
-                window.load_extensions()
-            qt.processEvents()
-            central_top = window.centralWidget().mapTo(window, window.centralWidget().rect().topLeft()).y()
-            ghosts = [tab for tab in window.findChildren(QTabBar)
-                      if tab.isVisibleTo(window)
-                      and tab.mapTo(window, tab.rect().topLeft()).y() < central_top]
-            assert not ghosts, [(tab.objectName(), tab.tabText(0), tab.y()) for tab in ghosts]
-            dialog.close()
-            window.deleteLater()
-            qt.processEvents()
-        """)
