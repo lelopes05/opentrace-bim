@@ -249,7 +249,6 @@ class ContextualBar(QWidget):
         self._method(p, "▏", "Criar parede", wall.action.trigger)
         if slab is not None:
             self._method(p, "▱", "Criar laje", slab.action.trigger)
-        self._method(p, "□", "Criar abertura", lambda: wall.begin_hosted_fill("opening"))
         p = self._page("wall", "Parede")
         self._section(p, "Mét. construtivos")
         for symbol, title, mode in (
@@ -318,23 +317,7 @@ class ContextualBar(QWidget):
                 ):
                     self._field(p, label, getattr(ctrl, name, None))
         for kind, title in (("opening", "Abertura"), ("door", "Porta"), ("window", "Janela")):
-            p = self._page(kind, title + " · criação")
-            if kind == "opening":
-                self._section(p, "Mét. construtivos")
-                self._method(p, "▱", "Vão retangular", lambda: wall.begin_hosted_fill("opening"))
-                self._method(p, "□", "Vão quadrado", lambda: wall.begin_hosted_fill("square"))
-                self._method(p, "⊙", "Vão circular", lambda: wall.begin_hosted_fill("circle"))
-                self._method(p, "⬡", "Vão livre: desenhar os cantos", wall.begin_wall_polygon_from_toolbar)
-            else:
-                self._section(p, "Ancoragem")
-                for symbol, anchor, label in (
-                    ("◧", "left", "Esquerda"), ("⊕", "center", "Centro"),
-                    ("◨", "right", "Direita"),
-                ):
-                    self._method(p, symbol, label,
-                                 lambda k=kind, a=anchor: wall.begin_hosted_fill(k, a))
-                # Guided placement remains on the viewport, never in a modal.
-            # Existing modelling actions control actual placement.
+            self._page(kind, title + " · criação")
         # One set of live opening fields: variants use visibility, not
         # duplicate signal-connected spinboxes for the same source widgets.
         p = self._page("opening_edit", "Vão selecionado")
@@ -389,11 +372,11 @@ class ContextualBar(QWidget):
             return "wall"
         if active is wall.curve_create_tool:
             return "wall_curve"
-        place = wall.openings.place_tool
-        if active is place:
-            return place.kind if place.kind in ("door", "window") else "opening"
-        if active is wall.openings.draw_tool:
-            return "opening"
+        for key, tool in (("opening", wall.openings.opening_tool),
+                          ("door", wall.openings.door_tool),
+                          ("window", wall.openings.window_tool)):
+            if active is tool:
+                return key
         for key in ("slab", "column", "beam"):
             ctrl = self.controllers.get(key)
             if ctrl is not None and active is getattr(ctrl, "tool", None):

@@ -45,11 +45,7 @@ class InstallationSmokeTests(unittest.TestCase):
             ctl=getattr(window,"_arquitetura_parametrica_controller",None)
             self.assertIsNotNone(ctl,"setup did not create wall controller")
             self.assertIsNotNone(getattr(ctl,"toolbar",None))
-            button=ctl.opening_toolbar_button
-            self.assertEqual(button.objectName(),"opentrace_opening_toolbar_button")
-            self.assertIs(button.parent(),ctl.toolbar)
-            self.assertEqual(button.defaultAction().text(),"Abertura")
-            self.assertEqual(len(button.menu().actions()),4)  # rect, square, circle, free
+            self.assertEqual(len(ctl.openings.tool_actions),3)  # opening, door, window
             # Openings are not created from the wall's radial palette.
             self.assertIsNone(getattr(ctl,"opening_btn",None))
             self.assertTrue(getattr(ctl,"opening_selector",None))
@@ -117,7 +113,7 @@ class InstallationSmokeTests(unittest.TestCase):
                 __import__("PySide6.QtWidgets",fromlist=["QMenu"]).QMenu,
                 "opentrace_workspace_openings")
             self.assertIsNotNone(voids)
-            for action in ctl.opening_toolbar_menu.actions():
+            for action in ctl.openings.tool_actions:
                 self.assertIn(action,voids.actions())
             self.assertEqual(
                 [a.text() for a in creation.actions() if a.menu()],
@@ -161,7 +157,7 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertEqual(bar._context_key(),"wall")
             bar.toggle_collapsed()
             self.assertTrue(bar.stack.isVisibleTo(bar))
-            ctl.begin_hosted_fill("door","left")
+            ctl.openings.tool_actions[1].trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"door")
             # Existing creation and editor actions are still shared.

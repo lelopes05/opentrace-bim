@@ -197,16 +197,6 @@ class ArchitectureSuitePanel:
                  ("Laje","slab",lambda:self.user_show_page("slab")),
                  ("Pilar","column",lambda:self.user_show_page("column")),
                  ("Viga","beam",lambda:self.user_show_page("beam"))))
-        header("Vãos e esquadrias","Parede hospedeira")
-        wall=self.controllers.get("wall")
-        options((("Abertura","opening",
-                  lambda:wall.begin_hosted_fill("opening") if wall else None),
-                 ("Porta","opening",
-                  lambda:wall.begin_hosted_fill("door") if wall else None),
-                 ("Janela","opening",
-                  lambda:wall.begin_hosted_fill("window") if wall else None),
-                 ("Vão poligonal","polygon",
-                  lambda:wall.begin_wall_polygon_from_toolbar() if wall else None)))
         header("Projeto e organização","Gerenciamento")
         options((("Informações","bim",lambda:self.show_page("project")),
                  ("Alinhar / distribuir","move",self.open_arrange),
@@ -421,11 +411,9 @@ class ArchitectureSuitePanel:
             # cursor moves or creating any parallel command registration.
             for action in (getattr(wall,"action",None),
                            getattr(wall,"curve_action",None),
-                           getattr(wall,"opening_toolbar_action",None)):
+                           *wall.openings.tool_actions):
                 if action is not None:
                     action.triggered.connect(self.schedule_sync_context)
-            for action in getattr(getattr(wall,"opening_toolbar_menu",None),"actions",lambda:[])():
-                action.triggered.connect(self.schedule_sync_context)
 
     def schedule_sync_context(self,*_):
         if self._sync_queued:return

@@ -404,45 +404,14 @@ class WallController(QObject):
         self.wall_type_menu=QMenu(self.app.window);self.wall_type_menu.addAction(self.simple_wall_action);self.wall_type_menu.addAction(self.composite_wall_action);self.wall_type_menu.addSeparator();self.wall_type_menu.addAction(self.curve_action)
         self.wall_menu_button=QToolButton(self.app.window);self.wall_menu_button.setDefaultAction(self.action);self.wall_menu_button.setMenu(self.wall_type_menu);self.wall_menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.wall_menu_button.setToolTip(t("Parede — use a seta para escolher simples, composta ou curva."))
         self.toolbar.addWidget(self.wall_menu_button)
-        # First-class hosted opening tool: no searching through a wall's
-        # context menu. Default click starts a rectangular void; the arrow
-        # also offers a free, vertex-defined polygon like the slab tool.
-        self.opening_toolbar_action=QAction("Abertura",self.app.window)
-        self.opening_toolbar_action.setToolTip(
-            "Criar abertura: clique na ferramenta e depois na parede.")
-        self.opening_toolbar_action.triggered.connect(
-            lambda checked=False:self.begin_hosted_fill("opening"))
-        self.opening_toolbar_menu=QMenu(self.app.window)
-        for title,kind in (("Vão retangular","opening"),("Vão quadrado","square"),("Vão circular","circle")):
-            self.opening_toolbar_menu.addAction(
-                title,lambda checked=False,k=kind:self.begin_hosted_fill(k))
-        self.opening_toolbar_menu.addAction(
-            "Vão poligonal",lambda checked=False:self.begin_wall_polygon_from_toolbar())
-        self.opening_toolbar_button=QToolButton(self.app.window)
-        self.opening_toolbar_button.setObjectName("opentrace_opening_toolbar_button")
-        self.opening_toolbar_button.setDefaultAction(self.opening_toolbar_action)
-        self.opening_toolbar_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.opening_toolbar_button.setMenu(self.opening_toolbar_menu)
-        self.opening_toolbar_button.setPopupMode(QToolButton.MenuButtonPopup)
-        self.toolbar.addWidget(self.opening_toolbar_button)
-        for kind,title in (("door","Porta"),("window","Janela")):
-            menu=QMenu(self.app.window)
-            for anchor,label in (("left","Âncora esquerda"),("center","Âncora central"),
-                                 ("right","Âncora direita")):
-                menu.addAction(label,lambda checked=False,k=kind,a=anchor:self.begin_hosted_fill(k,a))
-            btn=QToolButton(self.app.window)
-            btn.setText(title)
-            btn.setToolTip("Selecione uma parede, escolha a âncora e clique para inserir a esquadria.")
-            btn.setMenu(menu)
-            btn.setPopupMode(QToolButton.InstantPopup)
-            self.toolbar.addWidget(btn)
         self.app.window.addToolBar(Qt.TopToolBarArea, self.toolbar)
         self.fit_toolbar()
         menu = self.app.add_menu(t("Ferramentas arquitetônicas"))
         self.arch_menu = menu
+        self.arch_menu_end = None
         if menu is not None:
             sub=menu.addMenu(t("Parede"));sub.addAction(self.simple_wall_action);sub.addAction(self.composite_wall_action);sub.addSeparator();sub.addAction(self.curve_action)
-            menu.addSeparator()
+            self.arch_menu_end = menu.addSeparator()
             menu.addAction(self.toolbar.toggleViewAction())
         self.app.add_context_menu(self.context_menu)
 
@@ -762,15 +731,6 @@ class WallController(QObject):
         self.lean_tool.prepare(wall, anchor)
         activate_wall_lean(self.app)
         self.app.viewport.setFocus()
-
-    def begin_hosted_fill(self, kind, anchor="center"):
-        """Toolbar, menus and panel: place an opening, door or window."""
-        self.hide_path_palette()
-        self.openings.begin_place("rect" if kind == "opening" else kind, anchor)
-
-    def begin_wall_polygon_from_toolbar(self):
-        self.hide_path_palette()
-        self.openings.begin_draw()
 
     def _load_opening_fields(self, openings):
         ops=list(openings or [])

@@ -5,6 +5,7 @@ Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 ## Feito em 13/10
 - Vãos na parede (TEST-7): parede achada pelo cursor (`wall_under_cursor`), inserir vértice na aresta clicada, malha do vão curvo em parede curva (float32), vértices como pontos sem bolinha no meio, Home e Perfis da paleta voltando a abrir, teste de fumaça do 0.5.8, cadernos enxutos (`DECISIONS.md`, `ARCHITECTURE.md`).
 - Botões de criar abertura, porta, janela e vão livre saíram da paleta radial da parede. Criar vão passa a ser só pelas ferramentas do bloco abaixo.
+- Etapa 1 do bloco de interface feita (aguarda o teste do Leandro): Abertura, Porta e Janela são ferramentas do host (`WallOpeningTool`, chaves `opentrace_wall_opening_tool`, `..._door_tool`, `..._window_tool`), no menu "Ferramentas arquitetônicas ▸ Vãos" e em "Criar ▸ Vãos e esquadrias". Saíram os botões da toolbar antiga, os métodos que iniciavam vão e o bloco da Home. As páginas `opening`, `door` e `window` da barra ficam vazias até a etapa 3.
 - CI verde (run 38348746501). Os testes do host rodam um arquivo por processo.
 
 ---
@@ -75,6 +76,14 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Tudo num único Desfazer.
 - `test_no_widget_outside_toolrow_and_menu_starts_an_opening`: nenhum atributo `begin_hosted_fill`, `begin_wall_polygon_from_toolbar`, `opening_toolbar_action` ou `opening_btn` existe.
 - O teste de fumaça continua verde.
+
+**Caixa de Revisão da etapa 1 (Leandro, no Windows):**
+- Menu Ferramentas arquitetônicas ▸ Vãos mostra Abertura, Porta e Janela; as três aparecem marcadas quando ativas.
+- F3 acha "Abertura", "Porta" e "Janela".
+- Passar sobre uma parede mostra o vão sob o cursor; um clique coloca e a ferramenta continua ativa com o vão novo selecionado.
+- Um Desfazer remove porta ou janela junto com o vão.
+- Não sobrou botão de Abertura, Porta ou Janela na toolbar antiga, na Home da paleta nem na barra de opções.
+- Ainda sem como trocar a forma (quadrada, circular, livre) e a âncora pela interface: vem na etapa 3.
 
 ### Etapa 2 — Fileira de ferramentas fixa no topo
 **Arquivos:** `tool_row.py` (novo), `__init__.py`, `ui.py`, `slab_ui.py`, `column_ui.py`, `beam_ui.py`, `contextual_bar.py`, `i18n.py`, `tests_host/test_tool_row_host.py` (novo).

@@ -149,22 +149,22 @@ class _OnAnyWall(Tool):
 class PlaceWallOpeningTool(_OnAnyWall):
     """One click places an opening, door or window on the wall under the cursor."""
 
-    name = "Colocar abertura"
-    description = "Colocar abertura, porta ou janela numa parede."
     vcb_label = "Posição"
 
-    def __init__(self, controller):
+    def __init__(self, controller, kind="rect"):
         super().__init__(controller)
-        self.kind = "rect"
         self.anchor = "center"
         self.sizes = copy.deepcopy(PRESETS)
         self.item = None
         self.station = None
+        self.set_kind(kind)
 
-    def prepare(self, kind, anchor="center"):
+    def set_kind(self, kind):
         if kind not in PRESETS:
             raise WallError("Tipo de abertura desconhecido.")
-        self.kind, self.anchor = kind, anchor
+        self.kind = kind
+        self.name = KIND_NAMES[kind]
+        self.description = f"{KIND_NAMES[kind]}: passe sobre a parede e clique."
         self.item = None
 
     def on_activate(self, viewport):
@@ -350,3 +350,114 @@ class DrawWallOpeningTool(_OnAnyWall):
             viewport.update()
         else:
             self.controller.return_to_select()
+
+
+SHAPES = ("rect", "square", "circle", "free")
+
+
+class WallOpeningTool(Tool):
+    """The Opening tool: places or draws an opening in the chosen shape.
+
+    The host sees one tool. The shape picks which inner tool does the work, and
+    changing it never changes the host tool. The inner tools keep the last sizes
+    and anchor of the session; each placed opening keeps its own in its record.
+    """
+
+    name = "Abertura"
+    description = "Abertura na parede: passe sobre a parede e clique."
+
+    def __init__(self, controller):
+        self.shape = "rect"
+        self.place = PlaceWallOpeningTool(controller, self.shape)
+        self.draw = DrawWallOpeningTool(controller)
+        self.viewport = None
+
+    @property
+    def current(self):
+        return self.draw if self.shape == "free" else self.place
+
+    def set_shape(self, shape):
+        if shape not in SHAPES:
+            raise WallError("Forma de abertura desconhecida.")
+        if shape == self.shape:
+            return
+        if self.viewport is not None:
+            self.current.on_deactivate(self.viewport)
+        self.shape = shape
+        if shape != "free":
+            self.place.set_kind(shape)
+        if self.viewport is not None:
+            self.current.on_activate(self.viewport)
+
+    def on_activate(self, viewport):
+        self.viewport = viewport
+        self.current.on_activate(viewport)
+
+    def on_deactivate(self, viewport):
+        self.current.on_deactivate(viewport)
+        self.viewport = None
+
+    @property
+    def uses_snap(self):
+        return self.current.uses_snap
+
+    @property
+    def wireframe_color(self):
+        return self.current.wireframe_color
+
+    @property
+    def vcb_label(self):
+        return self.current.vcb_label
+
+    @property
+    def start_point(self):
+        return getattr(self.current, "start_point", None)
+
+    def value_label(self):
+        label = getattr(self.current, "value_label", None)
+        return None if label is None else label()
+
+    def drag_plane(self, viewport):
+        return self.current.drag_plane(viewport)
+
+    def on_click(self, ctx):
+        self.current.on_click(ctx)
+
+    def on_hover(self, ctx):
+        self.current.on_hover(ctx)
+
+    def on_double_click(self, ctx):
+        self.current.on_double_click(ctx)
+
+    def on_triple_click(self, ctx):
+        self.current.on_triple_click(ctx)
+
+    def on_box_select(self, viewport, rect, crossing, additive=False, mode=None):
+        self.current.on_box_select(viewport, rect, crossing, additive, mode)
+
+    def on_cancel(self, viewport):
+        self.current.on_cancel(viewport)
+
+    def on_release(self, viewport):
+        self.current.on_release(viewport)
+
+    def on_key(self, viewport, key, modifiers):
+        return self.current.on_key(viewport, key, modifiers)
+
+    def on_value(self, viewport, value):
+        return self.current.on_value(viewport, value)
+
+    def status_clause(self):
+        return self.current.status_clause()
+
+    def rubber_band_lines(self):
+        return self.current.rubber_band_lines()
+
+    def guide_preview_lines(self):
+        return self.current.guide_preview_lines()
+
+    def inference_guide_lines(self):
+        return self.current.inference_guide_lines()
+
+    def preview_faces(self):
+        return self.current.preview_faces()

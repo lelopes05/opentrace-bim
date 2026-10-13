@@ -14,8 +14,8 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QPen
-from PySide6.QtWidgets import QToolButton
+from PySide6.QtGui import QAction, QColor, QPen
+from PySide6.QtWidgets import QMenu, QToolButton
 
 from . import wall_cache
 from .commands import EditWall
@@ -34,9 +34,12 @@ from .wall_opening_edit import (
     OffsetWallOpeningTool, PushWallOpeningEdgeTool, StretchWallOpeningEdgeTool,
     execute, find_opening, linked_fill, outline, store_outline,
 )
-from .wall_opening_place import DrawWallOpeningTool, PlaceWallOpeningTool
+from .wall_opening_place import PlaceWallOpeningTool, WallOpeningTool
 
 KEY = "opentrace_wall_opening_"
+OPENING_TOOL_KEY = "opentrace_wall_opening_tool"
+DOOR_TOOL_KEY = "opentrace_wall_door_tool"
+WINDOW_TOOL_KEY = "opentrace_wall_window_tool"
 ORANGE = QColor("#e78b24")
 INACTIVE = QColor("#6997b0")
 
@@ -122,10 +125,18 @@ class WallOpeningEditor(QObject):
         self.walls = wall_controller
         self.active = None            # (wall, opening_id)
         self._radial_target = None    # (wall, opening_id, part, index, world_anchor)
-        self.place_tool = PlaceWallOpeningTool(self)
-        self.draw_tool = DrawWallOpeningTool(self)
-        register_tool(app, self.place_tool, key=KEY + "place")
-        register_tool(app, self.draw_tool, key=KEY + "draw")
+        self.opening_tool = WallOpeningTool(self)
+        self.door_tool = PlaceWallOpeningTool(self, "door")
+        self.window_tool = PlaceWallOpeningTool(self, "window")
+        self.tool_actions = tuple(
+            self._make_tool_action(key, tool, title, tip) for key, tool, title, tip in (
+                (OPENING_TOOL_KEY, self.opening_tool, "Abertura",
+                 "Abertura na parede: passe sobre a parede e clique."),
+                (DOOR_TOOL_KEY, self.door_tool, "Porta",
+                 "Porta: passe sobre a parede e clique."),
+                (WINDOW_TOOL_KEY, self.window_tool, "Janela",
+                 "Janela: passe sobre a parede e clique.")))
+        self._make_menu()
         self.tools = {}
         for action, _sym, _tip, cls, _parts, _fill in ACTIONS:
             if cls is not None:
@@ -137,17 +148,27 @@ class WallOpeningEditor(QObject):
         app.viewport.installEventFilter(self)
 
     # -- what the rest of the plugin calls -----------------------------------
-    def begin_place(self, kind, anchor="center"):
-        try:
-            self.place_tool.prepare(kind, anchor)
-        except WallError as exc:
-            self.message(str(exc), error=True)
-            return
-        activate_tool(self.app, KEY + "place")
-        self.app.viewport.setFocus()
+    def _make_tool_action(self, key, tool, title, tip):
+        action = QAction(t(title), self.app.window)
+        action.setCheckable(True)
+        action.setToolTip(t(tip))
+        action.triggered.connect(lambda _checked=False, k=key: self._start(k))
+        register_tool(self.app, tool, action, key=key)
+        return action
 
-    def begin_draw(self):
-        activate_tool(self.app, KEY + "draw")
+    def _make_menu(self):
+        """The three tools live in "Ferramentas arquitetônicas", submenu "Vãos"."""
+        menu = self.walls.arch_menu
+        if menu is None:
+            return
+        sub = QMenu(t("Vãos"), menu)
+        for action in self.tool_actions:
+            sub.addAction(action)
+        menu.insertMenu(self.walls.arch_menu_end, sub)
+
+    def _start(self, key):
+        self.walls.hide_path_palette()
+        activate_tool(self.app, key)
         self.app.viewport.setFocus()
 
     def message(self, text, error=False):

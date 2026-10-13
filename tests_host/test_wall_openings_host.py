@@ -22,7 +22,8 @@ from OpenTrace_BIM.wall_opening_edit import (
     PushWallOpeningEdgeTool,
 )
 from OpenTrace_BIM.wall_opening_place import (PRESETS, DrawWallOpeningTool,
-                                              PlaceWallOpeningTool, opening_record)
+                                              PlaceWallOpeningTool, WallOpeningTool,
+                                              opening_record)
 
 
 class Viewport:
@@ -246,7 +247,6 @@ class PlacementTests(unittest.TestCase):
         vp = Viewport(scene, wall_under_cursor=wall)
         ctl = Controller()
         tool = PlaceWallOpeningTool(ctl)
-        tool.prepare("rect")
         face = WallFace(wall)
         tool.on_click(ctx(vp, face.world(QVector3D(3.0, 1.0, 0))))
         item = model.read_wall(wall)["openings"][0]
@@ -260,9 +260,10 @@ class PlacementTests(unittest.TestCase):
         ctl = Controller()
         tool = PlaceWallOpeningTool(ctl)
         face = WallFace(wall)
-        tool.prepare("circle")
+        tool.set_kind("circle")
         tool.on_click(ctx(vp, face.world(QVector3D(2.0, 1.0, 0))))
-        tool.prepare("door", "left")
+        tool.set_kind("door")
+        tool.anchor = "left"
         tool.on_click(ctx(vp, face.world(QVector3D(5.0, 1.0, 0))))
         self.assertFalse([m for m in ctl.messages if m[1]], ctl.messages)
         ops = model.read_wall(wall)["openings"]
@@ -324,8 +325,8 @@ class SelectionTests(unittest.TestCase):
             # REAL viewport finds the wall under the cursor.
             from OpenTrace_BIM.wall_opening_place import wall_under_cursor
             ctl = window._arquitetura_parametrica_controller
-            ctl.begin_hosted_fill("opening")
-            self.assertIs(window.viewport.active_tool, ctl.openings.place_tool)
+            ctl.openings.tool_actions[0].trigger()
+            self.assertIs(window.viewport.active_tool, ctl.openings.opening_tool)
             real = window.viewport
             pixel = real._world_to_pixel(face.world(QVector3D(2.5, 1.5, 0)))
             self.assertIsNotNone(pixel, "test wall is off screen")
@@ -335,6 +336,148 @@ class SelectionTests(unittest.TestCase):
         finally:
             window.deleteLater()
             qt.processEvents()
+
+
+OPENING_KEYS = ("opentrace_wall_opening_tool", "opentrace_wall_door_tool",
+                "opentrace_wall_window_tool")
+
+
+class OpeningToolTests(unittest.TestCase):
+    """Opening, Door and Window are host tools, started only by the menu and tool row."""
+
+    def setUp(self):
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from views.extension_api import ExtensionApp
+        from views.main_window import MainWindow
+        from OpenTrace_BIM import setup
+        self.window = MainWindow()
+        self.addCleanup(self._close)
+        self.app = ExtensionApp(self.window, "OpenTrace_BIM")
+        setup(self.app)
+        self.ctl = self.window._arquitetura_parametrica_controller
+        self.editor = self.ctl.openings
+
+    def _close(self):
+        self.window.deleteLater()
+        APP.processEvents()
+
+    def _activate(self, key):
+        from OpenTrace_BIM.host import activate_tool
+        activate_tool(self.app, key)
+
+    def test_opening_tools_are_host_tools(self):
+        from OpenTrace_BIM.host import host_tool
+        expected = (WallOpeningTool, PlaceWallOpeningTool, PlaceWallOpeningTool)
+        for key, cls in zip(OPENING_KEYS, expected):
+            self.assertIsInstance(self.window._tools[key], cls)
+            action = self.window._tool_actions[key]
+            self.assertIn(action, self.window._tool_group.actions())
+            self.assertTrue(action.isCheckable())
+            self.assertFalse(action.shortcut().toString(), "tools have no keyboard shortcut")
+            self._activate(key)
+            self.assertTrue(action.isChecked())
+            self.assertIs(self.window.viewport.active_tool, host_tool(self.app, key))
+        self.assertEqual(self.window._tools[OPENING_KEYS[1]].kind, "door")
+        self.assertEqual(self.window._tools[OPENING_KEYS[2]].kind, "window")
+        self.assertEqual(self.window._tools[OPENING_KEYS[1]].anchor, "center")
+        for old in ("opentrace_wall_opening_place", "opentrace_wall_opening_draw"):
+            self.assertNotIn(old, self.window._tools)
+
+    def test_opening_tools_are_in_menu_and_f3(self):
+        from OpenTrace_BIM.i18n import t
+        from views.command_search import commands
+        found = {c.action: c for c in commands(self.window)}
+        folder = f"{t('Ferramentas arquitetônicas')} ▸ {t('Vãos')}"
+        for action, title in zip(self.editor.tool_actions, ("Abertura", "Porta", "Janela")):
+            command = found[action]
+            self.assertEqual(command.name, t(title))
+            self.assertTrue(command.path.endswith(folder), command.path)
+
+    def test_opening_shape_change_keeps_host_tool(self):
+        tool = self.editor.opening_tool
+        log = []
+        for label, inner in (("place", tool.place), ("draw", tool.draw)):
+            for event in ("on_activate", "on_deactivate"):
+                original = getattr(inner, event)
+                setattr(inner, event,
+                        lambda viewport, _o=original, _e=(label, event): (log.append(_e), _o(viewport)))
+        self._activate(OPENING_KEYS[0])
+        self.assertEqual(log, [("place", "on_activate")])
+        previous = "place"
+        for shape in ("square", "circle", "free", "rect"):
+            log.clear()
+            tool.set_shape(shape)
+            current = "draw" if shape == "free" else "place"
+            self.assertEqual(log, [(previous, "on_deactivate"), (current, "on_activate")])
+            self.assertIs(self.window.viewport.active_tool, tool)
+            self.assertTrue(self.window._tool_actions[OPENING_KEYS[0]].isChecked())
+            if shape != "free":
+                self.assertEqual(tool.place.kind, shape)
+            previous = current
+
+    def test_each_opening_tool_places_on_real_wall(self):
+        scene = self.window.viewport.scene
+        history = self.window.viewport.history
+        wall = model.make_wall_segment(QVector3D(0, 0, 0), QVector3D(8, 0, 0),
+                                       dict(model.DEFAULTS, length=8.0))
+        scene.groups.append(wall)
+        scene.version += 1
+        face = WallFace(wall)
+
+        def click():
+            viewport = self.window.viewport
+            world = face.world(QVector3D(3.0, 1.0, 0))
+            viewport.active_tool.on_click(SimpleNamespace(
+                viewport=viewport, world=world, snap=None, screen=QPointF(0, 0), modifiers=None))
+
+        def fills():
+            return [g for g in scene.groups if _fill_record(g)]
+
+        for key, shape in ((OPENING_KEYS[0], "rect"), (OPENING_KEYS[0], "square"),
+                           (OPENING_KEYS[0], "circle"), (OPENING_KEYS[1], None),
+                           (OPENING_KEYS[2], None)):
+            with self.subTest(key=key, shape=shape):
+                self._activate(key)
+                if shape is not None:
+                    self.window._tools[key].set_shape(shape)
+                click()
+                items = model.read_wall(wall)["openings"]
+                self.assertEqual(len(items), 1)
+                item = items[0]
+                if shape == "circle":
+                    self.assertEqual(item["kind"], "polygon")
+                    self.assertEqual([e["type"] for e in item["edges"]], ["arc"] * 4)
+                else:
+                    kind = shape or self.window._tools[key].kind
+                    self.assertEqual(item["kind"], "rect")
+                    self.assertAlmostEqual(item["width"], PRESETS[kind]["width"])
+                    self.assertAlmostEqual(item["height"], PRESETS[kind]["height"])
+                    self.assertAlmostEqual(item["position"], 3.0, places=6)
+                if shape is None:
+                    self.assertEqual(len(fills()), 1)
+                    self.assertEqual(item["source_id"], _fill_record(fills()[0])["id"])
+                else:
+                    self.assertEqual(fills(), [])
+                self.assertEqual(self.editor.active, (wall, item["id"]))
+                self.assertIs(self.window.viewport.active_tool, self.window._tools[key])
+                self.assertTrue(history.undo())  # one step undoes opening and fill together
+                self.assertEqual(model.read_wall(wall).get("openings", []), [])
+                self.assertEqual(fills(), [])
+
+    def test_no_widget_outside_toolrow_and_menu_starts_an_opening(self):
+        from PySide6.QtWidgets import QToolButton
+        for name in ("begin_hosted_fill", "begin_wall_polygon_from_toolbar",
+                     "opening_toolbar_action", "opening_toolbar_menu",
+                     "opening_toolbar_button", "opening_btn"):
+            self.assertFalse(hasattr(self.ctl, name), name)
+        for name in ("begin_place", "begin_draw", "place_tool", "draw_tool"):
+            self.assertFalse(hasattr(self.editor, name), name)
+        actions = set(self.editor.tool_actions)
+        suite = self.window._arquitetura_parametrica_suite_panel
+        for root in (self.ctl.toolbar, suite.panel):
+            for button in root.findChildren(QToolButton):
+                self.assertNotIn(button.defaultAction(), actions)
 
 
 if __name__ == "__main__":

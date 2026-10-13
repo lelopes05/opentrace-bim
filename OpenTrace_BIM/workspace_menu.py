@@ -52,20 +52,9 @@ def install_workspace_menu(suite):
 
     openings=create.addMenu("Vãos e esquadrias")
     openings.setObjectName("opentrace_workspace_openings")
-    # Reuse the very same opening actions as the top toolbar; no alternative
-    # implementation or stale host from a previous selection.
-    opening_menu=getattr(wall,"opening_toolbar_menu",None)
-    if opening_menu is not None:
-        for action in opening_menu.actions():
-            openings.addAction(action)
-    for kind,title in (("door","Porta"),("window","Janela")):
-        section=openings.addMenu(title)
-        for anchor,label in (("left","Âncora esquerda"),("center","Âncora central"),
-                             ("right","Âncora direita")):
-            action=QAction(label,section)
-            action.triggered.connect(
-                lambda _=False,k=kind,a=anchor:wall.begin_hosted_fill(k,a))
-            section.addAction(action)
+    # The very same tool actions as the "Vãos" submenu; none are created here.
+    for action in wall.openings.tool_actions:
+        openings.addAction(action)
 
     organize=QMenu("Organizar e inspecionar",root)
     organize.setObjectName("opentrace_workspace_organize")
