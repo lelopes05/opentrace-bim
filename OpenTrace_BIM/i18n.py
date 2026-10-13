@@ -546,6 +546,18 @@ _ES = {
     "Mova o topo e clique; digite a altura para preservar a inclinação.": "Mueva la parte superior y haga clic; escriba la altura para conservar la inclinación.",
     "Mova a base e clique ou digite a cota absoluta e pressione Enter.": "Mueva la base y haga clic, o escriba la cota absoluta y pulse Intro.",
     "Mova o topo no plano horizontal e clique; Shift trava a inferência.": "Mueva la parte superior horizontalmente y haga clic; Mayús bloquea la inferencia.",
+    "Clique no ponto de referência do pilar e depois no destino.": "Haga clic en el punto de referencia del pilar y luego en el destino.",
+    "Mova o segmento para definir a flecha e clique; digite 0 para endireitar.": "Mueva el tramo para definir la flecha y haga clic; escriba 0 para enderezar.",
+    "Mova o topo do segmento e clique para confirmar; Shift trava inferência.": "Mueva la parte superior del tramo y haga clic para confirmar; Mayús bloquea la inferencia.",
+    "Mova o vértice para a nova cota e clique.": "Mueva el vértice a la nueva cota y haga clic.",
+    "Mova o topo até a nova cota; clique ou digite e confirme.": "Mueva la parte superior hasta la nueva cota; haga clic o escriba y confirme.",
+    "Clique no ponto de referência e depois no destino da viga.": "Haga clic en el punto de referencia y luego en el destino de la viga.",
+    "Mova a flecha e clique ou digite 0 para endireitar.": "Mueva la flecha y haga clic, o escriba 0 para enderezar.",
+    "Mova a flecha vertical e clique ou digite 0 para endireitar.": "Mueva la flecha vertical y haga clic, o escriba 0 para enderezar.",
+    "Mova a ponta da viga em Z e clique; Shift trava inferência.": "Mueva el extremo de la viga en Z y haga clic; Mayús bloquea la inferencia.",
+    "Mova a ponta da viga e clique para confirmar.": "Mueva el extremo de la viga y haga clic para confirmar.",
+    "Prolongue ou encurte a viga pelo eixo e clique.": "Alargue o acorte la viga por su eje y haga clic.",
+    "Mova a ponta em Z e clique na nova altura.": "Mueva el extremo en Z y haga clic en la nueva altura.",
 }
 
 
@@ -1461,6 +1473,18 @@ _UI_EN = {
     "Mova o topo e clique; digite a altura para preservar a inclinação.": "Move the top and click; type the height to preserve the slope.",
     "Mova a base e clique ou digite a cota absoluta e pressione Enter.": "Move the base and click, or type the absolute elevation and press Enter.",
     "Mova o topo no plano horizontal e clique; Shift trava a inferência.": "Move the top horizontally and click; Shift locks the inference.",
+    "Clique no ponto de referência do pilar e depois no destino.": "Click the column reference point and then the destination.",
+    "Mova o segmento para definir a flecha e clique; digite 0 para endireitar.": "Move the segment to set the bulge and click; type 0 to straighten.",
+    "Mova o topo do segmento e clique para confirmar; Shift trava inferência.": "Move the segment top and click to confirm; Shift locks the inference.",
+    "Mova o vértice para a nova cota e clique.": "Move the vertex to the new elevation and click.",
+    "Mova o topo até a nova cota; clique ou digite e confirme.": "Move the top to its new elevation; click or type and confirm.",
+    "Clique no ponto de referência e depois no destino da viga.": "Click the reference point and then the beam destination.",
+    "Mova a flecha e clique ou digite 0 para endireitar.": "Move the bulge and click, or type 0 to straighten.",
+    "Mova a flecha vertical e clique ou digite 0 para endireitar.": "Move the vertical bulge and click, or type 0 to straighten.",
+    "Mova a ponta da viga em Z e clique; Shift trava inferência.": "Move the beam end in Z and click; Shift locks inference.",
+    "Mova a ponta da viga e clique para confirmar.": "Move the beam end and click to confirm.",
+    "Prolongue ou encurte a viga pelo eixo e clique.": "Extend or shorten the beam along its axis and click.",
+    "Mova a ponta em Z e clique na nova altura.": "Move the end in Z and click at the new height.",
 }
 
 # Ordered phrase fragments used only when an exact catalogue entry is absent.
