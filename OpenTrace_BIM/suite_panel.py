@@ -586,6 +586,13 @@ class ArchitectureSuitePanel:
         for key in ("column","beam"):
             if self._mode_buttons.get(key):self._set_mode_button(key,0)
 
+    def _show_context_settings(self,key):
+        """Open the full form for a new active tool or selected object."""
+        self.show_page(key)
+        toggle=self._property_sections.get(key)
+        if toggle is not None:
+            toggle.setChecked(True)
+
     def sync_context(self):
         """Follow a NEW tool or selection; never undo the user's page choice.
 
@@ -609,19 +616,19 @@ class ArchitectureSuitePanel:
             return
         opening_tool,opening_kind=self._opening_tool_and_kind()
         if opening_tool is not None:
-            self.show_page("wall")
+            self._show_context_settings("wall")
             return
         for key in ("wall","slab","column","beam"):
             ctrl=self.controllers.get(key)
             if ctrl is None:continue
             tool=getattr(ctrl,"draw_tool",None) or getattr(ctrl,"tool",None)
             if tool is not None and active is tool:
-                self.show_page(key)
+                self._show_context_settings(key)
                 return
         for key in ("beam","column","slab","wall"):
             ctrl=self.controllers.get(key)
             if ctrl is not None and getattr(ctrl,"target",None) is not None:
-                self.show_page(key);return
+                self._show_context_settings(key);return
 
     def refresh_home(self):
         cat=builtins();counts={k:len(v) for k,v in cat.items()};profiles=load_profiles()
