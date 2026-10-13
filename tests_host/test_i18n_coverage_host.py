@@ -146,11 +146,11 @@ def inspect_locale(lang):
     window = MainWindow(defer_extensions=True)
     try:
         set_language(lang)
-        # Explicit, test-only setup switch. Host extension discovery is still
-        # exercised, with the real Qt document and actions.
-        setup(ExtensionApp(window, "OpenTrace_BIM"), translate_widgets=False)
+        # Exercise the real host extension loader before installing the
+        # explicitly controlled OpenTrace fixture. Qt's queued initial
+        # template dialog must not run during this non-interactive audit.
         window.load_extensions()
-        qt.processEvents()
+        setup(ExtensionApp(window, "OpenTrace_BIM"), translate_widgets=False)
         if language() != lang:
             raise AssertionError(f"Host locale {lang} resolved to {language()}")
         maps = catalogs()
@@ -184,8 +184,9 @@ def inspect_locale(lang):
             "locale": ui_locale().name(),
         }
     finally:
+        # Avoid dispatching the host's first-run modal template QTimer:
+        # introspection needs constructed objects, not a running event loop.
         window.deleteLater()
-        qt.processEvents()
 
 
 def report(results):
@@ -263,7 +264,7 @@ class HostTranslationCoverageTests(unittest.TestCase):
                        "--audit-child", lang]
             env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
             finished = subprocess.run(command, env=env, cwd=str(ROOT),
-                                      capture_output=True, text=True, timeout=120)
+                                      capture_output=True, text=True, timeout=35)
             self.assertEqual(finished.returncode, 0,
                              f"{lang} audit child error:\n{finished.stderr[-3500:]}\n"
                              f"{finished.stdout[-1200:]}")
