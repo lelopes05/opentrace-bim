@@ -89,6 +89,36 @@ def curved(openings=()):
 
 APP = QApplication.instance() or QApplication([])  # edits hand back through QTimer
 
+_SHARED = {}
+
+
+def shared_window():
+    """One real IngeTrazo window with the plugin for the whole file.
+
+    Building several MainWindows in one process crashes the offscreen Qt
+    (icon refcount fatal), so every test here reuses this one.
+    """
+    if not _SHARED:
+        import os
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from views.extension_api import ExtensionApp
+        from views.main_window import MainWindow
+        from OpenTrace_BIM import setup
+        window = MainWindow()
+        app = ExtensionApp(window, "OpenTrace_BIM")
+        setup(app)
+        _SHARED.update(window=window, app=app)
+    return _SHARED["window"], _SHARED["app"]
+
+
+def tearDownModule():
+    window = _SHARED.pop("window", None)
+    _SHARED.clear()
+    if window is not None:
+        window.deleteLater()
+        APP.processEvents()
+
+
 RECT = {"id": "a", "kind": "rect", "position": 2.5, "width": 1.0, "sill": 0.9, "height": 1.2}
 
 
@@ -296,46 +326,35 @@ class PlacementTests(unittest.TestCase):
 
 class SelectionTests(unittest.TestCase):
     def test_one_click_picks_any_opening_without_selecting_its_wall(self):
-        import os
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-        from PySide6.QtWidgets import QApplication
-        from views.main_window import MainWindow
-        from views.extension_api import ExtensionApp
-        from OpenTrace_BIM import setup
-        qt = QApplication.instance() or QApplication([])
-        window = MainWindow()
-        try:
-            setup(ExtensionApp(window, "OpenTrace_BIM"))
-            editor = window._arquitetura_parametrica_controller.openings
-            scene = window.viewport.scene
-            _s, wall = straight([RECT, {"id": "b", "kind": "rect", "position": 4.2,
-                                        "width": 0.6, "sill": 1.0, "height": 1.0}])
-            scene.groups.append(wall)
-            scene.version += 1
-            vp = Viewport(scene)
-            face = WallFace(wall)
-            px, py = vp._world_to_pixel(face.world(QVector3D(2.5, 0.9, 0)))
-            self.assertEqual(editor._pick(vp, px, py), (wall.uid, "a"))
-            px, py = vp._world_to_pixel(face.world(QVector3D(4.2, 1.5, 0)))
-            self.assertEqual(editor._pick(vp, px, py), (wall.uid, "b"))  # inside the hole
-            px, py = vp._world_to_pixel(face.world(QVector3D(0.5, 0.5, 0)))
-            self.assertIsNone(editor._pick(vp, px, py))
+        window, _app = shared_window()
+        editor = window._arquitetura_parametrica_controller.openings
+        scene = window.viewport.scene
+        _s, wall = straight([RECT, {"id": "b", "kind": "rect", "position": 4.2,
+                                    "width": 0.6, "sill": 1.0, "height": 1.0}])
+        scene.groups.append(wall)
+        self.addCleanup(scene.groups.remove, wall)
+        scene.version += 1
+        vp = Viewport(scene)
+        face = WallFace(wall)
+        px, py = vp._world_to_pixel(face.world(QVector3D(2.5, 0.9, 0)))
+        self.assertEqual(editor._pick(vp, px, py), (wall.uid, "a"))
+        px, py = vp._world_to_pixel(face.world(QVector3D(4.2, 1.5, 0)))
+        self.assertEqual(editor._pick(vp, px, py), (wall.uid, "b"))  # inside the hole
+        px, py = vp._world_to_pixel(face.world(QVector3D(0.5, 0.5, 0)))
+        self.assertIsNone(editor._pick(vp, px, py))
 
-            # The toolbar path: the button activates the placement tool and the
-            # REAL viewport finds the wall under the cursor.
-            from OpenTrace_BIM.wall_opening_place import wall_under_cursor
-            ctl = window._arquitetura_parametrica_controller
-            ctl.openings.tool_actions[0].trigger()
-            self.assertIs(window.viewport.active_tool, ctl.openings.opening_tool)
-            real = window.viewport
-            pixel = real._world_to_pixel(face.world(QVector3D(2.5, 1.5, 0)))
-            self.assertIsNotNone(pixel, "test wall is off screen")
-            found = wall_under_cursor(real, SimpleNamespace(
-                screen=QPointF(*pixel), world=face.world(QVector3D(2.5, 1.5, 0))))
-            self.assertIs(found, wall)
-        finally:
-            window.deleteLater()
-            qt.processEvents()
+        # The toolbar path: the button activates the placement tool and the
+        # REAL viewport finds the wall under the cursor.
+        from OpenTrace_BIM.wall_opening_place import wall_under_cursor
+        ctl = window._arquitetura_parametrica_controller
+        ctl.openings.tool_actions[0].trigger()
+        self.assertIs(window.viewport.active_tool, ctl.openings.opening_tool)
+        real = window.viewport
+        pixel = real._world_to_pixel(face.world(QVector3D(2.5, 1.5, 0)))
+        self.assertIsNotNone(pixel, "test wall is off screen")
+        found = wall_under_cursor(real, SimpleNamespace(
+            screen=QPointF(*pixel), world=face.world(QVector3D(2.5, 1.5, 0))))
+        self.assertIs(found, wall)
 
 
 OPENING_KEYS = ("opentrace_wall_opening_tool", "opentrace_wall_door_tool",
@@ -346,21 +365,9 @@ class OpeningToolTests(unittest.TestCase):
     """Opening, Door and Window are host tools, started only by the menu and tool row."""
 
     def setUp(self):
-        import os
-        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-        from views.extension_api import ExtensionApp
-        from views.main_window import MainWindow
-        from OpenTrace_BIM import setup
-        self.window = MainWindow()
-        self.addCleanup(self._close)
-        self.app = ExtensionApp(self.window, "OpenTrace_BIM")
-        setup(self.app)
+        self.window, self.app = shared_window()
         self.ctl = self.window._arquitetura_parametrica_controller
         self.editor = self.ctl.openings
-
-    def _close(self):
-        self.window.deleteLater()
-        APP.processEvents()
 
     def _activate(self, key):
         from OpenTrace_BIM.host import activate_tool
@@ -422,6 +429,7 @@ class OpeningToolTests(unittest.TestCase):
         wall = model.make_wall_segment(QVector3D(0, 0, 0), QVector3D(8, 0, 0),
                                        dict(model.DEFAULTS, length=8.0))
         scene.groups.append(wall)
+        self.addCleanup(scene.groups.remove, wall)
         scene.version += 1
         face = WallFace(wall)
 
