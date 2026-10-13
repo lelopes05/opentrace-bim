@@ -186,6 +186,20 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
   - Trocar `page` de uma delas para uma página existente faz a seção aparecer na próxima montagem.
 - Os testes atuais de `sync_context` continuam verdes.
 
+### Etapa 4b — Formulário da Parede em três seções (após a junção da barra)
+
+**Pendente. Não implementar na branch `gpt/paleta-4-5`.** O formulário
+original fica em `ui.py`, que está reservado a outro agente.
+Depois da integração da barra, reorganizar os widgets existentes sem copiar
+estado, perder campos ou mudar handlers:
+
+- **Geometria e medidas** (aberta): Espessura e Altura.
+- **Base e topo** (aberta): Nível base, Base, Nível topo e Offset do topo.
+- **Propriedades completas** (fechada): todos os outros campos, preservados.
+
+Identificação da seção aberta por `objectName="opentrace_section_open"`.
+A faixa laranja permanece responsabilidade da etapa 6b.
+
 ### Etapa 5 — Partida e abas no IngeTrazo 0.5.8
 **Arquivos:** `__init__.py`, `suite_panel.py`, `tests_host/test_install_smoke_host.py`.
 

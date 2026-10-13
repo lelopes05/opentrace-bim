@@ -217,6 +217,13 @@ _EN = {
 }
 
 _ES = {
+    "Configurações": "Configuración",
+    "Projeto e organização": "Proyecto y organización",
+    "Ative a ferramenta na fileira do topo.": "Active la herramienta en la fila superior.",
+    "Vão": "Hueco",
+    "Plantas": "Plantas",
+    "Vistas": "Vistas",
+    "Modelagem arquitetônica paramétrica": "Modelado arquitectónico paramétrico",
     "Arquitetura": "Arquitectura",
     "Ferramentas arquitetônicas": "Herramientas de arquitectura",
     "Geometria": "Geometría",
@@ -877,6 +884,13 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "Configurações": "Settings",
+    "Projeto e organização": "Project and organization",
+    "Ative a ferramenta na fileira do topo.": "Activate the tool in the top tool row.",
+    "Vão": "Opening",
+    "Plantas": "Floor plans",
+    "Vistas": "Views",
+    "Modelagem arquitetônica paramétrica": "Parametric architectural modelling",
     # Wall panel / wall editing
     "Usa os níveis criados pela extensão Níveis. Cota livre mantém uma cota absoluta independente.": "Uses the levels created by the Levels extension. Free elevation keeps an independent absolute elevation.",
     "Livre mantém uma altura independente. Ao escolher um nível, o topo da parede acompanha esse nível mais o offset do topo.": "Free keeps an independent height. When a level is selected, the wall top follows that level plus the top offset.",

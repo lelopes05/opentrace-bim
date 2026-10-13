@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QButtonGroup, QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QButtonGroup, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QStackedWidget, QToolButton, QVBoxLayout,
     QWidget,
 )
@@ -13,6 +13,24 @@ from . import __version__
 from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
+from .i18n import t
+
+# Home entries are ordered; a missing page suppresses its entire section.
+# Keys refer to existing pages, never to modelling tool actions.
+HOME_SECTIONS = (
+    {"title": "Plantas", "page": None, "icon": "home", "entries": ()},
+    {"title": "Vistas", "page": None, "icon": "home", "entries": ()},
+    {"title": "Configurações", "page": "wall", "icon": "wall", "entries": (
+        ("Parede", "wall", "wall"), ("Laje", "slab", "slab"),
+        ("Pilar", "column", "column"), ("Viga", "beam", "beam"),
+    )},
+    {"title": "Projeto e organização", "page": "project", "icon": "bim", "entries": (
+        ("Informações", "bim", "project"),
+        ("Alinhar / distribuir", "move", "arrange"),
+        ("Perfis complexos", "profile", "profiles"),
+        ("BIM / IFC", "bim", "bim"),
+    )},
+)
 
 
 class ArchitectureSuitePanel:
@@ -26,6 +44,9 @@ class ArchitectureSuitePanel:
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
         self._mode_buttons={}
+        self._home_sections={}
+        self._opening_size_fields={}
+        self._opening_section=None
         self._property_sections={}
         self._editor_sections=[]
         self._help_dialog=None
@@ -105,16 +126,12 @@ class ArchitectureSuitePanel:
         # Membrane stays visible in the roadmap without loading any membrane
         # controller/tool code.  This page is informational only.
         self._add_page("membrane", self._make_membrane_notice())
-        self.master_dock = master_dock or getattr(
-            self.app.window, "_arquitetura_parametrica_master_dock", None)
-        if self.master_dock is None:
-            self.master_dock=self.app.add_panel(
-                "OpenTrace BIM",self.panel,name="parametric_architecture")
-        else:
-            # The host already registered this dock before restoreState.  Only
-            # swap its contents; do not remove/re-add/re-tabify docks after the
-            # main window is shown.
-            self.master_dock.setWidget(self.panel)
+        # The only dock is allocated through ExtensionApp.add_panel in setup.
+        # The host owns its placement, saved tab group and left/right side.
+        if master_dock is None:
+            raise ValueError("OpenTrace BIM requires the host-registered master dock")
+        self.master_dock=master_dock
+        self.master_dock.setWidget(self.panel)
         self.master_dock.setWindowTitle("OpenTrace BIM")
         self.master_dock.hide()
         for key in ("wall","slab","column","beam","profiles","bim"):
@@ -151,64 +168,74 @@ class ArchitectureSuitePanel:
         return w
 
     def _make_home(self):
-        """Compact launchpad grouped by actual modeling tasks, not dead cards."""
+        """Home navigation is data-driven and never selects a host tool."""
         w=QWidget()
         lay=QVBoxLayout(w)
         lay.setContentsMargins(10,8,10,8)
         lay.setSpacing(7)
-        subtitle=QLabel("Modelagem arquitetônica paramétrica")
+        subtitle=QLabel(t("Modelagem arquitetônica paramétrica"))
         subtitle.setStyleSheet("color:palette(mid);font-size:10pt;")
         lay.addWidget(subtitle)
-
-        def header(title,detail):
-            line=QHBoxLayout()
-            heading=QLabel(title)
-            heading.setStyleSheet("font-weight:700;font-size:10pt;")
-            line.addWidget(heading)
-            line.addStretch()
-            note=QLabel(detail)
-            note.setStyleSheet("color:palette(mid);font-size:9pt;")
-            line.addWidget(note)
-            lay.addLayout(line)
-
-        def options(entries):
-            grid=QGridLayout()
+        for definition in HOME_SECTIONS:
+            if definition["page"] is None:
+                continue
+            section=QFrame(w)
+            section.setObjectName("opentrace_home_section")
+            section.setProperty("home_section", definition["title"])
+            section_lay=QVBoxLayout(section)
+            section_lay.setContentsMargins(0,0,0,0)
+            section_lay.setSpacing(4)
+            toggle=QToolButton(section)
+            toggle.setCheckable(True)
+            toggle.setChecked(definition["title"]=="Configurações")
+            toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            toggle.setIcon(icon(definition["icon"]))
+            toggle.setText(t(definition["title"]))
+            toggle.setAccessibleName(t(definition["title"]))
+            body=QWidget(section)
+            grid=QGridLayout(body)
+            grid.setContentsMargins(0,0,0,0)
             grid.setSpacing(5)
-            for i,(label,ico,callback) in enumerate(entries):
-                button=QToolButton(w)
-                button.setObjectName("opentrace_home_"+str(i)+"_"+label.lower().replace(" ","_"))
+            for index,(title, glyph, page) in enumerate(definition["entries"]):
+                button=QToolButton(body)
+                button.setObjectName("opentrace_home_"+page)
                 button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-                button.setIcon(icon(ico))
+                button.setIcon(icon(glyph))
                 button.setIconSize(QSize(25,25))
-                button.setText(label)
-                button.setToolTip(label)
+                button.setText(t(title))
+                button.setToolTip(t(title))
                 button.setMinimumHeight(40)
                 button.setStyleSheet(
                     "QToolButton{border:1px solid palette(mid);"
                     "border-radius:5px;padding:5px;text-align:left;}"
                     "QToolButton:hover{background:palette(midlight);}")
-                button.clicked.connect(lambda _=False,cb=callback:cb())
-                grid.addWidget(button,i//2,i%2)
-            lay.addLayout(grid)
-
-        header("Criar elementos","Modelagem")
-        options((("Parede","wall",lambda:self.user_show_page("wall")),
-                 ("Laje","slab",lambda:self.user_show_page("slab")),
-                 ("Pilar","column",lambda:self.user_show_page("column")),
-                 ("Viga","beam",lambda:self.user_show_page("beam"))))
-        header("Projeto e organização","Gerenciamento")
-        options((("Informações","bim",lambda:self.show_page("project")),
-                 ("Alinhar / distribuir","move",self.open_arrange),
-                 ("Perfis complexos","profile",lambda:self.user_show_page("profiles")),
-                 ("BIM / IFC","bim",lambda:self.user_show_page("bim"))))
+                if page=="arrange":
+                    button.clicked.connect(self.open_arrange)
+                else:
+                    button.clicked.connect(lambda _=False,p=page:self.user_show_page(p))
+                grid.addWidget(button,index//2,index%2)
+            def expand(opened, frame=section, content=body, control=toggle):
+                frame.setObjectName("opentrace_section_open" if opened
+                                    else "opentrace_home_section")
+                content.setVisible(opened)
+                control.setArrowType(Qt.DownArrow if opened else Qt.RightArrow)
+                frame.style().unpolish(frame)
+                frame.style().polish(frame)
+            toggle.toggled.connect(expand)
+            section_lay.addWidget(toggle)
+            section_lay.addWidget(body)
+            expand(toggle.isChecked())
+            self._home_sections[definition["title"]]=(section,toggle,body)
+            lay.addWidget(section)
         self.summary=QLabel()
         self.summary.setWordWrap(True)
         self.summary.setStyleSheet("color:palette(mid);font-size:9pt;")
-        lay.addWidget(self.summary)
+        project_grid=self._home_sections["Projeto e organização"][2].layout()
+        project_grid.addWidget(self.summary,2,0,1,2)
         self.intersections=QLabel()
         self.intersections.setWordWrap(True)
         self.intersections.setStyleSheet("color:palette(mid);font-size:9pt;")
-        lay.addWidget(self.intersections)
+        project_grid.addWidget(self.intersections,3,0,1,2)
 
         update_box=QFrame();update_box.setFrameShape(QFrame.StyledPanel)
         update_lay=QVBoxLayout(update_box);update_lay.setContentsMargins(8,8,8,8);update_lay.setSpacing(6)
@@ -222,7 +249,7 @@ class ArchitectureSuitePanel:
         self.auto_update_check=QCheckBox("Verificar atualizações automaticamente")
         self.update_button=QPushButton("Verificar atualizações")
         update_lay.addWidget(self.auto_update_check);update_lay.addWidget(self.update_button)
-        lay.addWidget(update_box)
+        project_grid.addWidget(update_box,4,0,1,2)
 
         self.update_manager=None
         try:
@@ -282,6 +309,10 @@ class ArchitectureSuitePanel:
             section.setObjectName("opentrace_wall_section_"+attr)
             layout.insertWidget(index,section)
             widget.setVisible(not initial_hidden)
+            def mark_open(opened, frame=section, original="opentrace_wall_section_"+attr):
+                frame.setObjectName("opentrace_section_open" if opened else original)
+            section.toggle.toggled.connect(mark_open)
+            mark_open(section.toggle.isChecked())
             self._editor_sections.append((section,widget))
         self._sync_editor_sections()
 
@@ -320,36 +351,125 @@ class ArchitectureSuitePanel:
         toggle.setStyleSheet("QToolButton{font-weight:700;text-align:left;"
                              "border:0;border-bottom:1px solid palette(mid);"
                              "padding:7px;}")
+        toggle.toggled.connect(
+            lambda opened, frame=wrapper: frame.setObjectName(
+                "opentrace_section_open" if opened else "opentrace_properties_page"))
+        wrapper.setObjectName("opentrace_section_open")
         lay.addWidget(toggle)
+        if key=="wall":
+            self._create_opening_section(lay, wrapper)
         lay.addWidget(scroll,1)
         self._property_sections[key]=toggle
         return wrapper
 
+    def _opening_tool_and_kind(self):
+        wall=self.controllers["wall"]
+        active=self.app.viewport.active_tool
+        opening=wall.openings
+        if active is opening.opening_tool:
+            shape=opening.opening_tool.shape
+            return (opening.opening_tool.place, shape)
+        if active is opening.door_tool:
+            return (opening.door_tool, "door")
+        if active is opening.window_tool:
+            return (opening.window_tool, "window")
+        return (None,None)
+
+    def _create_opening_section(self, layout, parent):
+        """Mirror the existing tool.sizes dictionaries, never copy their state."""
+        section=QFrame(parent)
+        section.setObjectName("opentrace_wall_opening_section")
+        outer=QVBoxLayout(section)
+        outer.setContentsMargins(1,3,1,3)
+        toggle=QToolButton(section)
+        toggle.setCheckable(True)
+        toggle.setChecked(True)
+        toggle.setText(t("Vão"))
+        toggle.setAccessibleName(t("Vão"))
+        toggle.setArrowType(Qt.DownArrow)
+        body=QWidget(section)
+        grid=QGridLayout(body)
+        for index,(key,title) in enumerate((
+            ("width","Largura"), ("height","Altura"), ("sill","Peitoril"),
+        )):
+            label=QLabel(t(title),body)
+            field=QDoubleSpinBox(body)
+            field.setObjectName("opentrace_opening_"+key)
+            field.setDecimals(2)
+            field.setRange(0 if key=="sill" else 0.05,100.0)
+            field.setSingleStep(0.05)
+            field.setSuffix(" m")
+            field.setKeyboardTracking(False)
+            field.valueChanged.connect(
+                lambda value,k=key:self._set_opening_size(k,value))
+            grid.addWidget(label,index,0)
+            grid.addWidget(field,index,1)
+            self._opening_size_fields[key]=field
+        def expand(opened):
+            body.setVisible(opened)
+            section.setObjectName("opentrace_section_open" if opened
+                                  else "opentrace_wall_opening_section")
+            toggle.setArrowType(Qt.DownArrow if opened else Qt.RightArrow)
+        toggle.toggled.connect(expand)
+        outer.addWidget(toggle)
+        outer.addWidget(body)
+        expand(True)
+        layout.addWidget(section)
+        self._opening_section=(section,toggle)
+        section.hide()
+
+    def _set_opening_size(self,key,value):
+        tool,kind=self._opening_tool_and_kind()
+        if tool is None or kind is None or kind=="free":
+            return
+        tool.sizes[kind][key]=value
+        if kind in ("square","circle") and key=="width":
+            tool.sizes[kind]["height"]=value
+        self._sync_opening_section()
+        bar=self.context_bar
+        if bar is not None:
+            bar.refresh()
+        self.app.viewport.update()
+
+    def _sync_opening_section(self):
+        if self._opening_section is None:
+            return
+        tool,kind=self._opening_tool_and_kind()
+        section,toggle=self._opening_section
+        showing=tool is not None
+        section.setVisible(showing)
+        if not showing:
+            return
+        if not toggle.isChecked():
+            toggle.setChecked(True)
+        for key,field in self._opening_size_fields.items():
+            enabled=(kind!="free" and not
+                     (key=="height" and kind in ("square","circle")))
+            field.setEnabled(enabled)
+            if kind!="free":
+                blocked=field.blockSignals(True)
+                field.setValue(tool.sizes[kind][key])
+                field.blockSignals(blocked)
+
+    def _mode_tool_active(self,key):
+        active=self.app.viewport.active_tool
+        ctrl=self.controllers[key]
+        tool=ctrl.draw_tool if key=="wall" else ctrl.tool
+        return active is tool
+
     def _trigger_mode(self,key,action,index):
+        if not self._mode_tool_active(key):
+            return
         self._set_mode_button(key,index)
         action.trigger()
-        QTimer.singleShot(0,self.sync_mode_buttons)
+        self.sync_mode_buttons()
 
     def _set_mode_button(self,key,index):
         for i,b in enumerate(self._mode_buttons.get(key,())):
             blocked=b.blockSignals(True);b.setChecked(i==index);b.blockSignals(blocked)
 
-    def _activate_default(self,key):
-        ctrl=self.controllers.get(key)
-        if ctrl is None:return
-        if key=="wall":
-            self._set_mode_button(key,0);ctrl.start_structure("simple")
-        elif key=="slab":
-            self._set_mode_button(key,0);ctrl.start_structure("simple")
-        elif key in ("column","beam"):
-            self._set_mode_button(key,0);ctrl.start_drawing()
-
     def user_show_page(self,key):
         self.show_page(key)
-        # Choosing a modelling category is itself a tool choice. Start with the
-        # obvious default instead of making the user click a second control.
-        if key in ("wall","slab","column","beam"):
-            self._activate_default(key)
         self.schedule_sync_context()
 
     def open_arrange(self):
@@ -426,6 +546,7 @@ class ArchitectureSuitePanel:
         if bar is not None:
             bar.refresh()
         self._sync_editor_sections()
+        self._sync_opening_section()
 
     def show_page(self,key,show_dock=True):
         if key not in self.pages:key="home"
@@ -444,9 +565,16 @@ class ArchitectureSuitePanel:
             except Exception:self.master_dock.show()
         if key=="home":self.refresh_home()
         self._sync_editor_sections()
+        self._sync_opening_section()
         self.sync_mode_buttons()
 
     def sync_mode_buttons(self):
+        for key,buttons in self._mode_buttons.items():
+            enabled=self._mode_tool_active(key)
+            for button in buttons:
+                button.setEnabled(enabled)
+                button.setToolTip("" if enabled
+                                  else t("Ative a ferramenta na fileira do topo."))
         wall=self.controllers.get("wall")
         if wall is not None and self._mode_buttons.get("wall"):
             kind=(getattr(getattr(wall,"structure",None),"currentData",lambda:None)() or getattr(wall,"defaults",{}).get("structure","simple"))
@@ -457,6 +585,13 @@ class ArchitectureSuitePanel:
             self._set_mode_button("slab",1 if kind=="composite" else 0)
         for key in ("column","beam"):
             if self._mode_buttons.get(key):self._set_mode_button(key,0)
+
+    def _show_context_settings(self,key):
+        """Open the full form for a new active tool or selected object."""
+        self.show_page(key)
+        toggle=self._property_sections.get(key)
+        if toggle is not None:
+            toggle.setChecked(True)
 
     def sync_context(self):
         """Follow a NEW tool or selection; never undo the user's page choice.
@@ -479,16 +614,21 @@ class ArchitectureSuitePanel:
                self.stack.currentWidget() is self.pages[key]
                for key in ("bim", "project", "arrange")):
             return
+        opening_tool,opening_kind=self._opening_tool_and_kind()
+        if opening_tool is not None:
+            self._show_context_settings("wall")
+            return
         for key in ("wall","slab","column","beam"):
             ctrl=self.controllers.get(key)
             if ctrl is None:continue
             tool=getattr(ctrl,"draw_tool",None) or getattr(ctrl,"tool",None)
             if tool is not None and active is tool:
-                self.show_page(key);return
+                self._show_context_settings(key)
+                return
         for key in ("beam","column","slab","wall"):
             ctrl=self.controllers.get(key)
             if ctrl is not None and getattr(ctrl,"target",None) is not None:
-                self.show_page(key);return
+                self._show_context_settings(key);return
 
     def refresh_home(self):
         cat=builtins();counts={k:len(v) for k,v in cat.items()};profiles=load_profiles()
