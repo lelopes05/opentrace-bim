@@ -254,8 +254,9 @@ class WallOpeningEditor(QObject):
         self.app.viewport.setFocus()
 
     def message(self, text, error=False):
-        if not error and self.app.viewport.active_tool in (
-                self.opening_tool, self.door_tool, self.window_tool):
+        if not error and (self.app.viewport.active_tool in (
+                self.opening_tool, self.door_tool, self.window_tool)
+                or self.sticky.tool is self.app.viewport.active_tool):
             return  # The guided tools own their step; suppress legacy transient prompts.
         self.walls.message(text, error=error)
 
@@ -291,6 +292,8 @@ class WallOpeningEditor(QObject):
         if wall is not None and wall in self.app.scene.groups:
             self.select_opening(wall, opening_id)
         self.sticky.finished(self.app.viewport.active_tool)
+        if self.sticky.waiting:
+            show_step(self.sticky.tool, self.app.viewport, "wall_opening.edit.after")
         self.app.viewport.update()
 
     def delete_opening(self, wall, opening_id):
@@ -488,6 +491,7 @@ class WallOpeningEditor(QObject):
                 return True
             self.select_opening(wall, shape["id"])
             self.sticky.armed()
+            show_step(self.sticky.tool, viewport, self.sticky.tool.function_step_id)
             self.app.viewport.update()
             return True
         if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
@@ -550,12 +554,15 @@ class WallOpeningEditor(QObject):
             return
         try:
             self.tools[action].arm(wall, (oid, index or 0), anchor)
+            self.tools[action].function_step_id = "wall_opening.edit." + action
+            self.tools[action].step_id = self.tools[action].function_step_id
         except (SlabError, WallError) as exc:
             self.message(str(exc), error=True)
             return
         if self.app.viewport.active_tool is not self.tools[action]:
             activate_tool(self.app, KEY + action)
         self.sticky.choose(self.tools[action], part)
+        show_step(self.tools[action], self.app.viewport, self.tools[action].function_step_id)
         self.app.viewport.setFocus()
 
     def _delete_vertex(self, wall, oid, index):

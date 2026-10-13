@@ -17,6 +17,7 @@ from tools.base import AxisMagnet, Tool
 from .commands import root_edit_allowed
 from .slab_commands import EditSlab
 from .slab_edit import _distance_xy, _preview_lines, _project_to_segment
+from .step_guide import show_step, step_text
 from .slab_model import (
     ARC_EPS, MIN_DIM, SlabError, edge_length, edge_outward_normal, edge_point,
     line_edge, normalize_edge_specs, offset_boundary, sample_boundary,
@@ -80,6 +81,7 @@ class _OpeningEditBase(AxisMagnet, Tool):
 
     def __init__(self, controller):
         self.controller = controller
+        self.step_id = "slab_opening.edit.sticky"
         self.slab = None
         self.opening_index = None
         self.index = None
@@ -111,11 +113,19 @@ class _OpeningEditBase(AxisMagnet, Tool):
             return QVector3D(q.x(), q.y(), z)
         return QVector3D(ctx.world.x(), ctx.world.y(), z)
 
-    def on_activate(self, viewport): viewport.update()
+    def on_activate(self, viewport):
+        show_step(self, viewport, self.step_id)
+        viewport.update()
+
     def on_deactivate(self, viewport):
         self.reset()
         self.controller.clear_sticky()
+        self.controller.app.window.statusBar().clearMessage()
         viewport.update()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
 
     def on_cancel(self, viewport): self.reset(); QTimer.singleShot(0, self.controller.return_to_select)
 
