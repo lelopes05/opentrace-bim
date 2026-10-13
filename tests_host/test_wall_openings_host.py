@@ -186,12 +186,16 @@ class EditToolTests(unittest.TestCase):
              "polygon": [[3.0, 0.9], [4.0, 0.9], [4.0, 2.1], [3.0, 2.1]],
              "edges": [{"type": "line"}, {"type": "arc", "sagitta": -0.5},
                        {"type": "line"}, {"type": "line"}]}
-        for alignment in ("left", "center"):
+        square = dict(D, edges=[{"type": "line"}] * 4)
+        for shape, alignment in ((square, "left"), (D, "left"), (D, "center")):
             wall = model.make_arc_wall(QVector3D(0, 0, 0), QVector3D(8, 0, 0), 2.0,
-                                       dict(model.DEFAULTS, alignment=alignment, openings=[D]))
+                                       dict(model.DEFAULTS, alignment=alignment, openings=[shape]))
             for body in wall.children:
                 open_edges = [e for e in body.mesh.edges if len(e.faces) != 2]
-                self.assertEqual(open_edges, [], (alignment, len(open_edges)))
+                detail = [(round(e.v0.position.x(), 3), round(e.v1.position.x(), 3),
+                           round(e.v0.position.z(), 2),
+                           [f.attrs.get(model.FACE_KEY) for f in e.faces]) for e in open_edges]
+                self.assertEqual(open_edges, [], (shape is D, alignment, detail))
 
     def test_door_keeps_its_rectangle(self):
         scene, wall = straight()
