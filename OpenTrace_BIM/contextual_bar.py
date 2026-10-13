@@ -623,6 +623,14 @@ class ContextualBar(QWidget):
             " border: 1px solid {divider}; color: {text-disabled}; }", palette))
         for spin in self.findChildren(QDoubleSpinBox):
             spin.setFont(theme_font(QApplication.font(), "field-value"))
+        # Render state variants before any click/paint callback. A refresh
+        # only swaps cached QIcons; it never starts a QPainter in an input event.
+        for name in set(self._button_icons.values()):
+            for state in ("normal", "marked", "disabled"):
+                key = (palette.cacheKey(), name, state)
+                if key not in self._icon_cache:
+                    self._icon_cache[key] = icon(
+                        name, SIZES["icon-20"], state=state, palette=palette)
         self._update_icons(palette)
 
     def _update_icons(self, palette):
