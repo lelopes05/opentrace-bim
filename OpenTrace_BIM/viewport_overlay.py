@@ -30,6 +30,7 @@ class OverlayFrame(_BlockViewportInput, QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAcceptDrops(True)
         self.setStyleSheet(
             "OverlayFrame { background: palette(window); "
             "color: palette(window-text); border-radius: 8px; }"
@@ -45,6 +46,7 @@ class OverlayDock(_BlockViewportInput, QWidget):
         super().__init__(viewport)
         self.setObjectName("opentrace_overlay_dock")
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAcceptDrops(True)
         self.setStyleSheet("QWidget#opentrace_overlay_dock { background: transparent; }")
         self.setMinimumWidth(0)
         self.row = tool_row
