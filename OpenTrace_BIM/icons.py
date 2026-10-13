@@ -7,6 +7,8 @@ of bitmap assets.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
 
@@ -247,6 +249,7 @@ def _stroke_path(*commands):
     return path
 
 
+@lru_cache(maxsize=len(_NAMES))
 def _parts(name):
     """A distinctive primary silhouette and its one changeable accent."""
     def path(*ops):
