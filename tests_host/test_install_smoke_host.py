@@ -50,9 +50,8 @@ class InstallationSmokeTests(unittest.TestCase):
             self.assertIs(button.parent(),ctl.toolbar)
             self.assertEqual(button.defaultAction().text(),"Abertura")
             self.assertEqual(len(button.menu().actions()),4)  # rect, square, circle, free
-            self.assertTrue(getattr(ctl,"opening_btn",None))
-            self.assertTrue(getattr(ctl,"door_btn",None))
-            self.assertTrue(getattr(ctl,"window_btn",None))
+            # Openings are not created from the wall's radial palette.
+            self.assertIsNone(getattr(ctl,"opening_btn",None))
             self.assertTrue(getattr(ctl,"opening_selector",None))
             self.assertTrue(getattr(ctl,"opening_fields",None))
             self.assertIsNotNone(getattr(window,"_arquitetura_parametrica_suite_panel",None))

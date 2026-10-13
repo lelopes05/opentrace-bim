@@ -529,15 +529,6 @@ class WallController(QObject):
             "⌒",
             "Curvar/editar arco: mantém os extremos e puxa a flecha no plano horizontal.",
             self.begin_curve_arc)
-        self.opening_btn = button(
-            "▣", "Colocar abertura nesta ou em outra parede.",
-            lambda: self.begin_hosted_fill("opening"))
-        self.door_btn = button("D", "Colocar porta.", lambda: self.begin_hosted_fill("door"))
-        self.window_btn = button("J", "Colocar janela.", lambda: self.begin_hosted_fill("window"))
-        self.polygon_btn = button(
-            "⬡", "Desenhar abertura livre pelos cantos, na face da parede.",
-            self.begin_wall_polygon_from_toolbar)
-
         # Vertex-context operations.  The first is always free XY movement;
         # the second extends/trims along the current straight direction or
         # along the same circle for an arc.
@@ -667,10 +658,6 @@ class WallController(QObject):
         self.move_z_btn.setVisible(line)
         self.total_height_btn.setVisible(kind == "height")
         self.arc_btn.setVisible(line and path_kind in ("line", "arc"))
-        self.opening_btn.setVisible(line and path_kind in ("line", "arc"))
-        self.door_btn.setVisible(line and path_kind in ("line", "arc"))
-        self.window_btn.setVisible(line and path_kind in ("line", "arc"))
-        self.polygon_btn.setVisible(line and path_kind in ("line", "arc"))
         vertex = kind == "vertex" and path_kind in ("line", "arc")
         self.move_vertex_free_btn.setVisible(vertex)
         self.move_vertex_continue_btn.setVisible(vertex)
