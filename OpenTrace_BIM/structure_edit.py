@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 from core.history import MoveGroupCommand
+from .step_guide import show_step, step_text
 
 
 class MoveWholeStructureTool(AxisMagnet, Tool):
@@ -143,8 +144,7 @@ class BeamCurveTool(Tool):
         return step_text(self.step_id)
 
     def on_activate(self, viewport):
-        from .step_guide import show_step, step_text
-from .beam_model import BeamError, endpoints_world, read_beam
+        from .beam_model import BeamError, endpoints_world, read_beam
         if self.group is None or self.group not in viewport.scene.groups:
             QTimer.singleShot(0, self.controller.return_to_select)
             return
