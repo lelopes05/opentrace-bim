@@ -57,8 +57,10 @@ jobs:
         run: |
           for rev in base plugin; do
             echo "== $rev =="
-            PYTHONPATH="$GITHUB_WORKSPACE/ingetrazo:$GITHUB_WORKSPACE/$rev" \
-              python plugin/tests_host/bench_curved_walls.py | tee -a "$GITHUB_STEP_SUMMARY"
+            out=$(PYTHONPATH="$GITHUB_WORKSPACE/ingetrazo:$GITHUB_WORKSPACE/$rev" \
+              python plugin/tests_host/bench_curved_walls.py)
+            echo "$out" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=benchmark $rev::$(echo "$out" | tr '\n' ' ')"
           done
 
   package:
