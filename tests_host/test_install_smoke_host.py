@@ -44,7 +44,7 @@ class InstallationSmokeTests(unittest.TestCase):
             setup(ExtensionApp(window,"OpenTrace_BIM"))
             ctl=getattr(window,"_arquitetura_parametrica_controller",None)
             self.assertIsNotNone(ctl,"setup did not create wall controller")
-            self.assertIsNotNone(getattr(ctl,"toolbar",None))
+            self.assertFalse(hasattr(ctl, "toolbar"))
             self.assertEqual(len(ctl.openings.tool_actions),3)  # opening, door, window
             # Openings are not created from the wall's radial palette.
             self.assertIsNone(getattr(ctl,"opening_btn",None))
@@ -121,23 +121,20 @@ class InstallationSmokeTests(unittest.TestCase):
             suite.show_page("wall")
             self.assertIs(suite.stack.currentWidget(),suite.pages["wall"])
             self.assertIs(window.viewport.active_tool,old_tool)
-            # B3b is not a static row of duplicated modelling actions:
-            # a single toolbar changes its real method controls per tool.
+            # The context-sensitive options widget lives in the viewport overlay.
             bar = suite.context_bar
             self.assertEqual(bar.objectName(),"opentrace_contextual_bar")
-            self.assertIs(bar.parent(),ctl.toolbar)
-            self.assertTrue(window.toolBarBreak(ctl.toolbar),
-                            "Context Info Box must have its OWN row below native tools")
+            overlay = window._arquitetura_parametrica_overlay_dock
+            self.assertIs(overlay.parentWidget(), window.viewport)
+            self.assertIs(bar.parentWidget(), overlay.options_frame)
             self.assertIn("wall",bar.pages)
             self.assertIn("slab",bar.pages)
             self.assertIn("opening_edit",bar.pages)
             self.assertIn("polygon_edit",bar.pages)
             self.assertEqual(len([k for k in bar.pages if k.endswith("_edit") and k.startswith(("door","window"))]),0)
             self.assertEqual(bar._context_key(),"idle")
-            self.assertEqual(
-                [ctl.toolbar.widgetForAction(a) for a in ctl.toolbar.actions()
-                 if a.isVisible()],
-                [bar])
+            self.assertIs(overlay.bar, bar)
+            self.assertIs(overlay.row, window._arquitetura_parametrica_tool_row)
             ctl.action.trigger()
             bar.refresh()
             self.assertEqual(bar._context_key(),"wall")
