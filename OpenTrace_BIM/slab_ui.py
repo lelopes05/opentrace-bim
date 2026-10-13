@@ -135,7 +135,7 @@ class SlabController(QObject):
         self.refresh_level_options(); self._load_defaults()
 
     def _make_action(self):
-        self.action = QAction(slab_icon(), t("Laje paramétrica"), self.app.window); self.action.setObjectName("arquitetura_parametrica_slab_action"); self.action.setCheckable(True); self.action.setVisible(True); self.action.setToolTip(t("Laje paramétrica\nRetângulo por diagonal, base+largura ou polígono livre."))
+        self.action = QAction(slab_icon(), t("Laje"), self.app.window); self.action.setObjectName("arquitetura_parametrica_slab_action"); self.action.setCheckable(True); self.action.setVisible(True); self.action.setToolTip(t("Laje paramétrica\nRetângulo por diagonal, base+largura ou polígono livre."))
         register_tool(self.app, self.tool, self.action, key=SLAB_TOOL_KEY)
         register_tool(self.app, self.insert_tool, key=SLAB_INSERT_VERTEX_TOOL_KEY)
         register_tool(self.app, self.stretch_tool, key=SLAB_STRETCH_EDGE_TOOL_KEY)
@@ -162,8 +162,6 @@ class SlabController(QObject):
         self.type_menu=QMenu(self.app.window);self.type_menu.addAction(self.simple_action);self.type_menu.addAction(self.composite_action)
         self.menu_button=QToolButton(self.app.window);self.menu_button.setDefaultAction(self.action);self.menu_button.setMenu(self.type_menu);self.menu_button.setPopupMode(QToolButton.MenuButtonPopup);self.menu_button.setToolTip(t("Laje — use a seta para escolher simples ou composta."))
         if self.wall_controller is not None and hasattr(self.wall_controller, "toolbar"):
-            self.wall_controller.toolbar.addWidget(self.menu_button)
-            if hasattr(self.wall_controller,"fit_toolbar"): self.wall_controller.fit_toolbar()
             menu = getattr(self.wall_controller, "arch_menu", None)
             if menu is not None:
                 sub=menu.addMenu(t("Laje"));sub.addAction(self.simple_action);sub.addAction(self.composite_action)
