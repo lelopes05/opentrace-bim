@@ -22,6 +22,14 @@ class OldToolbarLayoutTests(unittest.TestCase):
             QSettings.setDefaultFormat(QSettings.IniFormat)
             QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, directory)
             old = QMainWindow()
+            # Match the host's exact stable toolbar identities in the saved
+            # layout; a blob containing only the old plugin toolbar is not
+            # representative of the observed Windows migration.
+            for name in ("main", "draw", "modify", "annotate", "sections",
+                         "solids", "walkthrough"):
+                host_bar = QToolBar(name, old)
+                host_bar.setObjectName(name)
+                old.addToolBar(Qt.TopToolBarArea, host_bar)
             legacy = QToolBar("Old Architecture", old)
             legacy.setObjectName("arquitetura_parametrica_toolbar")
             old.addToolBar(Qt.TopToolBarArea, legacy)
