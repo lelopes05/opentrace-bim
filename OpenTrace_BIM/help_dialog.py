@@ -94,10 +94,11 @@ class HelpDialog(QDialog):
         <p>Repositório e histórico de desenvolvimento:
         <a href="https://github.com/lelopes05/opentrace-bim">
         github.com/lelopes05/opentrace-bim</a>.</p>
-        <p>Esta compilação experimental não altera a versão pública
-        publicada no catálogo. O painel inicial pode <b>consultar o
-        catálogo oficial por atualizações</b> quando essa opção é habilitada.
-        Isso não equivale a instalação automática da branch de testes.</p>""",
+        <p>O OpenTrace BIM consulta o catálogo oficial para avisar quando há
+        versão nova, se essa opção estiver ligada na paleta. A consulta é
+        somente informativa: para atualizar, abra
+        <b>Extensions ▸ Manage extensions</b> no IngeTrazo.
+        O plugin não baixa, instala nem substitui arquivos.</p>""",
     }
 
     def __init__(self,parent=None):
