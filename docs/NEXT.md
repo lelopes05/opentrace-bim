@@ -1,5 +1,18 @@
 # Próximos passos
 
+## Recuperação da interface — auditoria Windows 14/10 (gpt/recupera-interface)
+
+**I-B1 (fileira):** implementada e CI verde em `9f05d57` (run `38515063490`). Fileira normal/compacta, overflow nativo, ícones e rótulos curtos, temas escuro e claro e capturas do IngeTrazo real em `OpenTrace-HOST-VISUAL`. **Aceite visual definitivo:** auditoria do responsável prevalece; reavaliar capturas no Windows, não promover só por CI.
+
+**I-B2 (barra de opções):** adaptação funcional **posterior à página 4** do PDF `OpenTrace BIM — maquetes.pdf`. Layout proposto e implementado: `Método [diagonal | base + largura | polígono]` → `Tipo [simples | composta]` → `Medidas [espessura | base]` → `Presets [Escolher ▾]`. Os três métodos chamam `slab.choose_mode()`, que delega a `SlabTool.set_mode()` no motor existente; são estados reais, não botões ilustrativos. Parede, Pilar e Viga também ganham um `Presets [Escolher ▾]` diretamente no contexto, com menu preenchido via `preset_catalog.all_for()` no momento de abertura (incorporados e pessoais) e aplicação por `preset_catalog.apply_preset()`. A página 4 original mostra apenas Tipo/Medidas; o acréscimo de Método/Presets é exigência expressa da auditoria e necessita **aprovação da composição após prints reais**. Nenhum preset ou modo paralelo foi criado.
+
+**I-B3 (a seguir):** confrontar as páginas 3–9 do PDF. Porta precisa de página própria distinguindo criação/edição. Nunca apresentar controle F01 inexistente como funcional. Escopo de geometria `door_window_core.py`, `door_window_geometry.py` e `door_window_commands.py` intocável.
+
+**I-B4 (a seguir):** navegação contextual por ferramenta ativa e seleção, com fixação exclusivamente manual. Não preservar BIM/Projeto/Organizar por exceção automática. Home deixa de ser padrão compulsório com contexto; barra, paleta e controladores continuam com estado único. Verificar em host real nas duas paletas e em português/inglês.
+
+**Pendências para aceite no Windows:** a composição acrescida da Laje; menus e aplicação de presets; estados ativos, foco, rótulos, ícones e densidade em ambos os temas; criação/edição de Porta à medida que o motor F01 ficar disponível; eventual redução de largura sem cortar o último grupo. Capturas reais do CI (não renderizações fictícias) são a evidência visual.
+
+
 Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 
 ## Barra de opções — grupos e campos (13/10)
