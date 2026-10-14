@@ -100,17 +100,22 @@ class BarTests(unittest.TestCase):
                 (t("Referência"),),
                 (t("Tipo"),),
                 (t("Medidas"), t("Espessura"), t("Altura"), t("Base"), t("Topo")),
+                (t("Presets"),),
             ],
             "slab": [
+                (t("Método"),),
                 (t("Tipo"),),
                 (t("Medidas"), t("Espessura"), t("Base")),
+                (t("Presets"),),
             ],
             "column": [
                 (t("Medidas"), t("Largura"), t("Profundidade"), t("Altura"), t("Base")),
+                (t("Presets"),),
             ],
             "beam": [
                 (t("Referência"),),
                 (t("Medidas"), t("Largura"), t("Altura"), t("Topo")),
+                (t("Presets"),),
             ],
         }
         for page, groups in expected.items():
