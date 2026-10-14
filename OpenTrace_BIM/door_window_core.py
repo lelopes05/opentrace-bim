@@ -32,6 +32,11 @@ DOOR_FAMILIES = {
 ANCHORS = ("left", "center", "right")
 KINDS = ("door", "window")
 HINGES = ("left", "right")
+F01_VARIANTS = ("plain", "grooved", "panelled")
+# A technical starting allowance, not a certified installation tolerance.
+# The moving-leaf gap is independent of the 40 mm construction clearances.
+F01_OPERATING_GAP = 0.003
+
 
 
 class FillError(ValueError):
@@ -162,6 +167,50 @@ def normalize_fill(raw):
             "plan_angle": _number(raw.get("plan_angle", 90), "Ângulo da planta"),
             "model_angle": _number(raw.get("model_angle", 0), "Ângulo do modelo"),
         })
+        # Pre-recovery schema-2 instances lack f01_layout: preserve their
+        # existing rough cuts and dimensions. Creation stamps physical layout.
+        layout = str(raw.get("f01_layout", "legacy"))
+        if layout not in ("legacy", "physical"):
+            raise FillError("Modo dimensional F01 inválido.")
+        if "f01_layout" in raw:
+            out["f01_layout"] = layout
+        if layout == "physical":
+            variant = str(raw.get("leaf_variant", "plain"))
+            if variant not in F01_VARIANTS:
+                raise FillError("Variante F01 desconhecida.")
+            out["leaf_variant"] = variant
+            for axis in ("left", "right", "top"):
+                out["operating_gap_" + axis] = _number(
+                    raw.get("operating_gap_" + axis, F01_OPERATING_GAP),
+                    "Folga operacional " + axis, minimum=0)
+            mode = str(raw.get("frame_depth_mode", "auto"))
+            if mode not in ("auto", "manual"):
+                raise FillError("Profundidade do batente: modo inválido.")
+            out["frame_depth_mode"] = mode
+            if mode == "manual":
+                out["frame_depth"] = _number(
+                    raw.get("frame_depth", 0.10),
+                    "Profundidade do batente", positive=True)
+            out["host_face"] = str(raw.get("host_face", "left"))
+            if out["host_face"] not in ("left", "right"):
+                raise FillError("Face de referência inválida.")
+            out["frame_recess"] = _number(
+                raw.get("frame_recess", 0), "Recuo do batente", minimum=0)
+            out["trim_front_enabled"] = bool(raw.get("trim_front_enabled", True))
+            out["trim_back_enabled"] = bool(raw.get("trim_back_enabled", True))
+            out["trim_width"] = _number(
+                raw.get("trim_width", 0.06), "Largura do alizar", positive=True)
+            out["trim_thickness"] = _number(
+                raw.get("trim_thickness", 0.012),
+                "Espessura do alizar", positive=True)
+            # Independent native host material dictionaries per component.
+            for component in ("leaf_front", "leaf_back", "leaf_edge", "frame",
+                              "trim_front", "trim_back", "hardware"):
+                key = "material_" + component
+                if key in raw:
+                    if raw[key] is not None and not isinstance(raw[key], dict):
+                        raise FillError("Material de componente inválido: " + key)
+                    out[key] = copy.deepcopy(raw[key])
         # Unit sizes are explicit instance overrides only. Without a key,
         # the unit follows the nominal width/height at evaluation time.
         for axis, label in (("width", "Largura do conjunto"),
@@ -173,6 +222,17 @@ def normalize_fill(raw):
             out["clearance_" + side] = _number(
                 raw.get("clearance_" + side, family["clearances"][side]),
                 "Folga " + side, minimum=0.0)
+        if layout == "physical":
+            minimum_width = (width + 2 * frame +
+                             out["operating_gap_left"] +
+                             out["operating_gap_right"])
+            minimum_height = height + frame + out["operating_gap_top"]
+            if "unit_width" in out and out["unit_width"] < minimum_width - 1e-9:
+                raise FillError("Conjunto menor que folha, marco e folgas móveis.")
+            if "unit_height" in out and out["unit_height"] < minimum_height - 1e-9:
+                raise FillError("Conjunto menor que folha e travessa superior.")
+            if out["trim_thickness"] >= out["trim_width"]:
+                raise FillError("Alizar: espessura deve ser menor que largura.")
         for angle in ("plan_angle", "model_angle"):
             if not 0 <= out[angle] <= 180:
                 raise FillError(f"{angle}: ângulo fora do intervalo de 0 a 180°.")
@@ -197,8 +257,13 @@ def station_span(raw):
     spec = normalize_fill(raw)
     if spec["kind"] == "door":
         rough_left, _rough_right = wallhole_span(spec)
-        unit_width = spec.get("unit_width", spec["width"])
-        start = rough_left + spec["clearance_left"] + (unit_width - spec["width"]) / 2
+        if spec.get("f01_layout") == "physical":
+            start = (rough_left + spec["clearance_left"]
+                     + spec["frame_thickness"] + spec["operating_gap_left"]
+                     + (f01_unit_size(spec)[0] - f01_minimum_unit(spec)[0]) / 2)
+        else:
+            unit_width = spec.get("unit_width", spec["width"])
+            start = rough_left + spec["clearance_left"] + (unit_width - spec["width"]) / 2
     else:
         shift = {"left": 0.0, "center": 0.5, "right": 1.0}[spec["anchor"]]
         start = spec["position"] - shift * spec["width"]
@@ -210,15 +275,35 @@ def center_station(raw):
     return (a+b)/2
 
 
+def f01_minimum_unit(raw):
+    """Physical assembly minimum around an unaltered nominal leaf."""
+    spec = normalize_fill(raw)
+    if spec["kind"] != "door" or spec.get("f01_layout") != "physical":
+        raise FillError("Cálculo físico exige F01 com construção física.")
+    f = spec["frame_thickness"]
+    return (spec["width"] + 2*f + spec["operating_gap_left"]
+            + spec["operating_gap_right"],
+            spec["height"] + f + spec["operating_gap_top"])
+
+
+def f01_unit_size(raw):
+    """External unit dimensions, distinct from leaf and installation gaps."""
+    spec = normalize_fill(raw)
+    if spec.get("f01_layout") == "physical":
+        width, height = f01_minimum_unit(spec)
+        return spec.get("unit_width", width), spec.get("unit_height", height)
+    return (spec.get("unit_width", spec["width"]),
+            spec.get("unit_height", spec["height"]))
+
+
 def wallhole_size(raw):
     """Physical rough opening for a door; nominal dimensions stay unchanged."""
     spec = normalize_fill(raw)
     if spec["kind"] != "door":
         raise FillError("Vão de obra calculado apenas para portas.")
-    return (
-        spec.get("unit_width", spec["width"]) + spec["clearance_left"] + spec["clearance_right"],
-        spec.get("unit_height", spec["height"]) + spec["clearance_top"] + spec["clearance_bottom"],
-    )
+    unit_width, unit_height = f01_unit_size(spec)
+    return (unit_width + spec["clearance_left"] + spec["clearance_right"],
+            unit_height + spec["clearance_top"] + spec["clearance_bottom"])
 
 
 def wallhole_span(raw):
