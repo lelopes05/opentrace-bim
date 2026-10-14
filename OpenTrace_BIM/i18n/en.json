@@ -714,6 +714,7 @@
   "Nível base": "Base level",
   "Nível topo": "Top level",
   "Núcleo": "Core",
+  "O OpenTrace BIM apenas avisa sobre versões novas. Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo. O plugin não baixa nem instala arquivos.": "OpenTrace BIM only notifies you of new versions. To update, open Extensions ▸ Manage extensions in IngeTrazo. The plugin does not download or install files.",
   "O Perfil Complexo precisa permanecer no plano 2D do editor.": "The Complex Profile must remain on the editor's 2D plane.",
   "O Perfil Complexo selecionado não contém contorno externo válido.": "The selected Complex Profile has no valid outer boundary.",
   "O Perfil Complexo selecionado não contém contornos válidos.": "The selected Complex Profile contains no valid boundaries.",
