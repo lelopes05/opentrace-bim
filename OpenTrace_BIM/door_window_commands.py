@@ -260,14 +260,18 @@ class DeleteHostedOpening(Command):
             scene.groups.insert(min(self.index, len(scene.groups)), self.group)
             scene.version += 1
 
-def _rendered_frame_depth(group):
-    """Extract the generated left-jamb depth, not additional persistent state."""
-    frame = next((part for part in group.children
-                  if part.name == "Marco esquerdo"), None)
-    if frame is None or not frame.mesh.vertices:
-        return None
-    ys = [vertex.position.y() for vertex in frame.mesh.vertices]
-    return max(ys) - min(ys)
+def _generated_shape_signature(group):
+    """Detect host-dependent vertex/trim/face changes even at constant depth.
+
+    A manually sized jamb can keep the same depth while its position within
+    the new finished wall changes. Comparing depth alone silently misses that.
+    """
+    return tuple(
+        (part.name, tuple(
+            (round(v.position.x(), 8), round(v.position.y(), 8),
+             round(v.position.z(), 8)) for v in part.mesh.vertices))
+        for part in group.children
+    )
 
 
 def sync_hosted_fill_placements(scene, *, host_id=None):
@@ -294,15 +298,13 @@ def sync_hosted_fill_placements(scene, *, host_id=None):
             # A temporarily incompatible host never deletes a saved fill.
             continue
         updated = False
-        current_depth = _rendered_frame_depth(group)
-        required_depth = _rendered_frame_depth(target)
-        if (current_depth is None or required_depth is None
-                or abs(current_depth - required_depth) > 1.0e-8):
+        if _generated_shape_signature(group) != _generated_shape_signature(target):
             old_parts = {part.name: part for part in group.children}
             for part in target.children:
                 old = old_parts.get(part.name)
                 if old is not None:
-                    part.material = copy.deepcopy(old.material)
+                    if part.material is None:
+                        part.material = copy.deepcopy(old.material)
                     part.layer = old.layer
             group.children = list(target.children)
             updated = True
