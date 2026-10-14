@@ -356,3 +356,25 @@ Nenhuma.
 4. Remover integralmente `english()`, `englishize_widget()`, `translate_widget()`, `_PHRASE_EN` e dicionários Python legados, além dos chamadores.
 5. Tornar os testes de cobertura estritos (sem `expectedFailure`) e manter relatório com zero faltas.
 6. Aplicar `ui_locale()` nos campos numéricos para vírgula decimal em português/espanhol.
+
+## Atualização — aviso somente (0.14.0, decisão de 13/10/2026)
+
+**Branch `gpt/aviso-atualizacao`; não altera release nem catálogo.**
+
+- O OpenTrace BIM nunca baixa, descompacta, valida ZIP ou sobrescreve os próprios
+  arquivos. Instalação e atualização pertencem a **Extensions ▸ Manage extensions**
+  no IngeTrazo.
+- Consulta assíncrona do `CATALOG_URL` existente por `QNetworkAccessManager`
+  ao iniciar o plugin, sem `QTimer` de partida e sem thread Python. O aviso
+  vem ligado por padrão e pode ser desligado em **Avisar quando houver versão nova**.
+- Entrada `opentrace_bim` do catálogo: quando a versão é mais nova e não foi
+  ignorada, mostra aviso discreto, **não modal**, com a versão e as notas de
+  atualização somente quando presentes. **Entendi** fecha o aviso;
+  **Não avisar mais desta versão** salva a versão em `QSettings`.
+  Sem atualização ou com erro de catálogo/rede, não mostra aviso nem diálogo.
+- `tests/test_update_notice.py`: comparação de versões inclusive sufixos,
+  leitura de catálogo JSON e ausência de funções de instalação.
+- `tests_host/test_update_notice_host.py`: host real, catálogo local `file://`
+  por URL explícita, versões nova/igual/ignorada, opção desligada e erro silencioso.
+- **Aceite no Windows pendente:** confirmar aviso não modal e discreto,
+  ligar/desligar a opção na paleta e atualização feita pelo gerenciador nativo.
