@@ -198,8 +198,9 @@ class PlaceWallOpeningTool(_OnAnyWall):
                 self._face_for(ctx.viewport, wall)
                 local = self._sheet(ctx)
                 self.station = local.x()
-                point = (ctx.snap.point if ctx.snap is not None and
-                         ctx.snap.point is not None else ctx.world)
+                # Choose the actual hovered finished face, not a snap
+                # reference that may belong to another element.
+                point = ctx.world
                 near = self.face.world(local, "near")
                 far = self.face.world(local, "far")
                 self.host_face = ("left" if (point-near).length() <=
