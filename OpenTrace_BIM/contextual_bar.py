@@ -66,6 +66,7 @@ class ContextualBar(QWidget):
         self._icon_cache = {}
         self._icon_assignments = {}
         self._preset_buttons = {}
+        self._door_rough_width = None
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
@@ -562,6 +563,12 @@ class ContextualBar(QWidget):
         for key, tool, title in (("door", openings.door_tool, "Porta"),
                                  ("window", openings.window_tool, "Janela")):
             p = self._page(key, t(title) + " · criação")
+            if key == "door":
+                self._section(p, t("Família"))
+                family_name = QLabel(t("Abrir · 1 folha"), self)
+                family_name.setObjectName("opentrace_door_family_label")
+                self._target(p).addWidget(family_name)
+            self._section(p, t("Medidas"))
             self._size_fields(p, tool, lambda k=key: k)
             self._section(p, t("Âncora"))
             for symbol, anchor, label in (
@@ -572,6 +579,40 @@ class ContextualBar(QWidget):
                                       lambda tl=tool, a=anchor: self._set_anchor(tl, a),
                                       active=lambda tl=tool, a=anchor: tl.anchor == a)
                 button.setObjectName("opentrace_opt_" + key + "_anchor_" + anchor)
+            if key == "door":
+                self._section(p, t("Largura do vão de corte"))
+                rough = QDoubleSpinBox(self)
+                rough.setObjectName("opentrace_door_wallhole_readonly")
+                rough.setDecimals(2)
+                rough.setRange(0, 200)
+                rough.setSuffix(" m")
+                rough.setButtonSymbols(QDoubleSpinBox.NoButtons)
+                rough.setReadOnly(True)
+                rough.setFocusPolicy(Qt.NoFocus)
+                rough.setToolTip(t("Calculado pela família F01 e suas folgas"))
+                self._target(p).addWidget(rough)
+                self._door_rough_width = rough
+                self._section(p, t("Método"))
+                current = QToolButton(self)
+                current.setObjectName("opentrace_door_hosted_mode")
+                current.setText(t("Na parede"))
+                current.setChecked(True)
+                current.setCheckable(True)
+                current.setFocusPolicy(Qt.NoFocus)
+                current.setEnabled(False)
+                self._target(p).addWidget(current)
+                unavailable = QToolButton(self)
+                unavailable.setObjectName("opentrace_door_free_unavailable")
+                unavailable.setText(t("Livre"))
+                unavailable.setEnabled(False)
+                unavailable.setFocusPolicy(Qt.NoFocus)
+                unavailable.setToolTip(t("Porta livre: em desenvolvimento"))
+                self._target(p).addWidget(unavailable)
+                note = QLabel(t("Orientação no segundo clique: em desenvolvimento."), self)
+                note.setObjectName("opentrace_door_orientation_pending")
+                note.setProperty("designRole", "field-label")
+                self._target(p).addWidget(note)
+        self._page("door_edit", t("Porta selecionada"))
 
     def _choose_shape(self, shape):
         self.wall.openings.opening_tool.set_shape(shape)
@@ -608,6 +649,14 @@ class ContextualBar(QWidget):
         self.app.viewport.update()
 
     def _sync_size_controls(self):
+        if self._door_rough_width is not None:
+            from .door_window_core import DOOR_FAMILIES
+            sizes = self.wall.openings.door_tool.sizes["door"]
+            clearances = DOOR_FAMILIES["swing_single"]["clearances"]
+            blocked = self._door_rough_width.blockSignals(True)
+            self._door_rough_width.setValue(
+                sizes["width"] + clearances["left"] + clearances["right"])
+            self._door_rough_width.blockSignals(blocked)
         for button in self._opening_anchor_buttons:
             button.setEnabled(self.wall.openings.opening_tool.shape != "free")
         for spin, title, tool, kind_of, key in self._size_controls:
