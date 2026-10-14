@@ -1,0 +1,74 @@
+name: Qt shutdown five-process isolation
+
+on:
+  push:
+    branches: ['gpt/tema-diag']
+  workflow_dispatch:
+
+jobs:
+  isolate:
+    name: Five Qt process exit codes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: ${{ github.workspace }}/ingetrazo:${{ github.workspace }}/plugin
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: plugin}
+      - uses: actions/checkout@v4
+        with: {repository: ingelibre/ingetrazo, path: ingetrazo}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Qt runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libegl1 libgl1 libopengl0 libxkbcommon0
+          python -m pip install -q 'PySide6>=6.9,<7' 'numpy>=1.26,<3'
+      - name: "A — QApplication only"
+        working-directory: plugin
+        run: |
+          set +e
+          python -X faulthandler scripts/diag/a_app.py
+          code=$?
+          printf 'a: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Qt diagnostic a::exit code $code"
+          exit 0
+      - name: "B — QApplication plus plugin imports"
+        working-directory: plugin
+        run: |
+          set +e
+          python -X faulthandler scripts/diag/b_imports.py
+          code=$?
+          printf 'b: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Qt diagnostic b::exit code $code"
+          exit 0
+      - name: "C — Host dark palette"
+        working-directory: plugin
+        run: |
+          set +e
+          python -X faulthandler scripts/diag/c_palette.py
+          code=$?
+          printf 'c: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Qt diagnostic c::exit code $code"
+          exit 0
+      - name: "D — Wall pixmap"
+        working-directory: plugin
+        run: |
+          set +e
+          python -X faulthandler scripts/diag/d_pixmap.py
+          code=$?
+          printf 'd: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Qt diagnostic d::exit code $code"
+          exit 0
+      - name: "E — Wall QIcon"
+        working-directory: plugin
+        run: |
+          set +e
+          python -X faulthandler scripts/diag/e_icon.py
+          code=$?
+          printf 'e: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Qt diagnostic e::exit code $code"
+          exit 0
