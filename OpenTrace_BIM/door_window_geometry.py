@@ -93,6 +93,12 @@ def _physical_f01_parts(spec, wall_thickness, wall_faces):
         part = _part(name, *bounds, **kwargs)
         part.ext = {"opentrace_component": component}
         material = spec.get("material_" + component)
+        if material is None and component in (
+                "leaf_stile", "leaf_rail", "leaf_mullion",
+                "leaf_transom", "leaf_solid", "leaf_louver"):
+            material = spec.get("material_leaf_edge")
+        if material is None and component == "leaf_glass":
+            material = {"color": (175.0, 210.0, 230.0), "opacity": 0.35}
         if material is not None:
             part.material = copy.deepcopy(material)
         result.append(part)
@@ -103,42 +109,71 @@ def _physical_f01_parts(spec, wall_thickness, wall_faces):
     add("Verga do marco", "frame", x0+frame, x1-frame,
         y0, y1, z1-frame, z1)
 
-    # Physical leaf is always EXACTLY width x height in both its 3D geometry
-    # and data contract; thin independently painted front/back skins cover it.
-    add("Folha de abrir", "leaf_edge", leaf_left, leaf_right,
-        center_y-leaf_thickness/2, center_y+leaf_thickness/2,
-        z0, leaf_top, pivot=pivot, angle=angle)
-    skin = min(0.0006, leaf_thickness/8)
-    for side, component, ya, yb in (
-        ("A", "leaf_front", center_y-leaf_thickness/2-skin,
-         center_y-leaf_thickness/2),
-        ("B", "leaf_back", center_y+leaf_thickness/2,
-         center_y+leaf_thickness/2+skin),
-    ):
-        add("Face " + side + " da folha", component,
-            leaf_left, leaf_right, ya, yb, z0, leaf_top,
-            pivot=pivot, angle=angle)
-        if spec["leaf_variant"] == "grooved":
-            # Three shallow, separately grouped face lines.
-            for i in range(1, 4):
-                x = leaf_left + spec["width"]*i/4
-                add("Friso " + side + " " + str(i), component,
-                    x-0.0015, x+0.0015,
-                    ya-skin if side == "A" else yb,
-                    ya if side == "A" else yb+skin,
-                    z0+0.10, leaf_top-0.10, pivot=pivot, angle=angle)
-        elif spec["leaf_variant"] == "panelled":
-            # Two inset-looking applied raised rectangular panels, not cuts.
-            border = min(0.09, spec["width"]/6, spec["height"]/8)
-            for i in range(2):
-                low = z0 + border + (spec["height"]-3*border)*i/2
-                high = low+(spec["height"]-3*border)/2
-                add("Almofada " + side + " " + str(i+1), component,
-                    leaf_left+border, leaf_right-border,
-                    ya-skin if side == "A" else yb,
-                    ya if side == "A" else yb+skin,
-                    low, high, pivot=pivot, angle=angle)
-
+    # Unlike a cosmetic overlay, a glazed design does NOT contain an opaque
+    # full-size slab behind its panes. Every member follows the 3D swing.
+    if spec["leaf_variant"] == "grid":
+        from .door_leaf_grid import leaf_grid_parts
+        grid = spec["leaf_grid"]
+        for name, component, xa, xb, za, zb in leaf_grid_parts(
+                grid, spec["width"], spec["height"]):
+            if component == "leaf_louver":
+                # Open slatted ventilation infill: spaced true individual bars.
+                available = zb - za
+                n = max(1, int(available / 0.065))
+                bar_height = min(0.022, available / (n * 2))
+                for i in range(n):
+                    zbar = za + (i + 0.5) * available/n
+                    add(name + " régua " + str(i+1), component,
+                        leaf_left+xa, leaf_left+xb,
+                        center_y-grid["panel_thickness"]/2,
+                        center_y+grid["panel_thickness"]/2,
+                        z0+zbar-bar_height/2, z0+zbar+bar_height/2,
+                        pivot=pivot, angle=angle)
+                continue
+            depth_here = (grid["glass_thickness"] if component == "leaf_glass"
+                          else grid["panel_thickness"] if component == "leaf_solid"
+                          else leaf_thickness)
+            add(name, component, leaf_left+xa, leaf_left+xb,
+                center_y-depth_here/2, center_y+depth_here/2,
+                z0+za, z0+zb, pivot=pivot, angle=angle)
+    else:
+        # Physical leaf is always EXACTLY width x height in both its 3D geometry
+        # and data contract; thin independently painted front/back skins cover it.
+        add("Folha de abrir", "leaf_edge", leaf_left, leaf_right,
+            center_y-leaf_thickness/2, center_y+leaf_thickness/2,
+            z0, leaf_top, pivot=pivot, angle=angle)
+        skin = min(0.0006, leaf_thickness/8)
+        for side, component, ya, yb in (
+            ("A", "leaf_front", center_y-leaf_thickness/2-skin,
+             center_y-leaf_thickness/2),
+            ("B", "leaf_back", center_y+leaf_thickness/2,
+             center_y+leaf_thickness/2+skin),
+        ):
+            add("Face " + side + " da folha", component,
+                leaf_left, leaf_right, ya, yb, z0, leaf_top,
+                pivot=pivot, angle=angle)
+            if spec["leaf_variant"] == "grooved":
+                # Three shallow, separately grouped face lines.
+                for i in range(1, 4):
+                    x = leaf_left + spec["width"]*i/4
+                    add("Friso " + side + " " + str(i), component,
+                        x-0.0015, x+0.0015,
+                        ya-skin if side == "A" else yb,
+                        ya if side == "A" else yb+skin,
+                        z0+0.10, leaf_top-0.10, pivot=pivot, angle=angle)
+            elif spec["leaf_variant"] == "panelled":
+                # Two inset-looking applied raised rectangular panels, not cuts.
+                border = min(0.09, spec["width"]/6, spec["height"]/8)
+                for i in range(2):
+                    low = z0 + border + (spec["height"]-3*border)*i/2
+                    high = low+(spec["height"]-3*border)/2
+                    add("Almofada " + side + " " + str(i+1), component,
+                        leaf_left+border, leaf_right-border,
+                        ya-skin if side == "A" else yb,
+                        ya if side == "A" else yb+skin,
+                        low, high, pivot=pivot, angle=angle)
+    
+    
     # Alizares cover both finished faces; disabling one never affects the other.
     for side, enabled, face, material in (
         ("A", spec["trim_front_enabled"], lower_face, "trim_front"),
