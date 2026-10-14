@@ -309,6 +309,7 @@ class WallController(QObject):
         for key,label,step in opening_rows:
             f=QDoubleSpinBox();f.setLocale(ui_locale());f.setDecimals(4);f.setRange(0.0,MAX_DIM);f.setSingleStep(step);f.setSuffix(" m");f.setKeyboardTracking(False);f.valueChanged.connect(self.opening_changed);self.opening_fields[key]=f;oform.addRow(label,f)
         self.opening_fields["width"].setToolTip(t("Largura livre mínima da abertura. Em paredes curvas, as faces interna e externa podem ter larguras projetadas diferentes; o valor informado é garantido no menor vão, para representar a passagem realmente disponível."))
+        self._free_opening_width_tip = self.opening_fields["width"].toolTip()
         self.opening_fields["position"].setToolTip(t("Distância da abertura medida ao longo da linha de referência da parede."))
         self.opening_fill=QComboBox(self.opening_widget);self.opening_fill.addItem("Somente abertura",None);self.opening_fill.addItem("Porta IFC","IfcDoor");self.opening_fill.addItem("Janela IFC","IfcWindow")
         self.opening_fill.setToolTip("Opcional: preenche a abertura semanticamente com IfcDoor ou IfcWindow e exporta IfcRelFillsElement.")
@@ -627,9 +628,16 @@ class WallController(QObject):
         if linked_spec is not None:
             width_caption.setText(t("Largura do vão de corte"))
             height_caption.setText(t("Altura do vão de corte"))
+            self.opening_fields["width"].setToolTip(
+                t("Largura do vão de corte"))
+            self.opening_fields["height"].setToolTip(
+                t("Altura do vão de corte"))
         else:
             width_caption.setText(t("Largura Livre no menor Vão"))
             height_caption.setText(t("Altura da abertura"))
+            self.opening_fields["width"].setToolTip(
+                self._free_opening_width_tip)
+            self.opening_fields["height"].setToolTip("")
         self.fill_properties.load(linked_spec, self.app.scene)
         self.fill_anchor_combo.setVisible(linked_spec is not None)
         anchor_label=self.opening_widget.layout().labelForField(self.fill_anchor_combo)
