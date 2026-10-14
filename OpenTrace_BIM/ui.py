@@ -40,6 +40,7 @@ from .wall_opening_ui import WallOpeningEditor
 from .overlay_safety import visible_pixel, visible_segment
 from .door_window_commands import EditHostedFill, reverse_hosted_door, sync_hosted_fill_placements, _fill_record
 from .door_window_core import normalize_fill, reanchor_fill, edit_fill_from_cut_dimension
+from .door_window_properties import FillPropertiesPanel
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
 from .i18n import t, ui_locale
 from .icons import icon as pa_icon, set_symbol_icon
@@ -322,6 +323,9 @@ class WallController(QObject):
         self.reverse_swing_btn.setToolTip("Inverter o sentido de abertura desta porta sem alterar a parede.")
         self.reverse_swing_btn.clicked.connect(self._reverse_hosted_swing)
         oform.addRow("Porta",self.reverse_swing_btn)
+        self.fill_properties = FillPropertiesPanel(
+            self.opening_widget, self._edit_fill_properties)
+        oform.addRow(self.fill_properties)
         self.polygon_label=QLabel("Abertura livre: edite pelos pontos e arestas na vista.",self.opening_widget)
         self.polygon_label.setWordWrap(True)
         oform.addRow(self.polygon_label)
@@ -615,6 +619,7 @@ class WallController(QObject):
         linked=self._find_linked_fill(item)
         self.opening_fill.setEnabled(not polygon and linked is None)
         linked_spec=normalize_fill(_fill_record(linked)["params"]) if linked else None
+        self.fill_properties.load(linked_spec, self.app.scene)
         self.fill_anchor_combo.setVisible(linked_spec is not None)
         anchor_label=self.opening_widget.layout().labelForField(self.fill_anchor_combo)
         if anchor_label is not None:anchor_label.setVisible(linked_spec is not None)
@@ -642,6 +647,31 @@ class WallController(QObject):
                     and rec.get("source_id")==opening.get("source_id")):
                 return group
         return None
+
+    def _edit_fill_properties(self, changes):
+        """Commit one selected F01/window instance property via host history."""
+        if self._loading or self.target is None or not self._active_opening_id:
+            return
+        try:
+            op = next(
+                item for item in read_wall(self.target)["openings"]
+                if item["id"] == self._active_opening_id)
+            fill = self._find_linked_fill(op)
+            if fill is None:
+                return
+            self.app.viewport.history.execute(
+                EditHostedFill(self.app.scene, self.target, fill, changes))
+            if self.app.viewport.history.last_error:
+                raise WallError(self.app.viewport.history.last_error)
+            self.app.viewport.notify_scene_changed()
+            self._state_key = None
+            self._loaded_key = None
+            self.schedule_refresh()
+        except (WallError, ValueError, StopIteration) as exc:
+            self.message(str(exc), error=True)
+            self._state_key = None
+            self._loaded_key = None
+            self.schedule_refresh()
 
     def _fill_anchor_changed(self,*_):
         if self._loading or self.target is None or not self._active_opening_id:
