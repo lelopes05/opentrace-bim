@@ -11,7 +11,7 @@ import math
 
 from PySide6.QtCore import QEvent, QObject, Qt, QSize, Slot
 from PySide6.QtWidgets import (
-    QApplication, QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
+    QApplication, QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QMenu, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
 )
 
@@ -19,6 +19,7 @@ from .icons import icon
 from .i18n import t
 from .style import SIZES, qss, theme_font
 from .model import MIN_DIM
+from .preset_catalog import all_for, apply_preset
 
 
 class _CompactStack(QStackedWidget):
@@ -64,6 +65,7 @@ class ContextualBar(QWidget):
         self._button_icons = {}
         self._icon_cache = {}
         self._icon_assignments = {}
+        self._preset_buttons = {}
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
@@ -97,6 +99,8 @@ class ContextualBar(QWidget):
         layout.setSpacing(9)
         label = QLabel(title)
         label.setObjectName("opentrace_context_name")
+        label.setAccessibleName(title)
+        label.hide()  # Context is already identified by the active tool above.
         layout.addWidget(label)
         self.stack.addWidget(w)
         self.pages[key] = (w, layout)
@@ -236,6 +240,48 @@ class ContextualBar(QWidget):
             self._target(layout).addWidget(button)
             self._segment_controls.append((button, read_value, value))
 
+    def _preset_picker(self, layout, kind):
+        """Direct access to the existing built-in and personal preset catalog."""
+        self._section(layout, t("Presets"))
+        button = QToolButton(self)
+        button.setObjectName("opentrace_preset_" + kind)
+        button.setText(t("Escolher") + " ▾")
+        button.setToolTip(t("Presets incorporados e pessoais"))
+        button.setAccessibleName(t("Presets") + " · " + t(kind))
+        button.setFocusPolicy(Qt.NoFocus)
+        button.setPopupMode(QToolButton.InstantPopup)
+        button.setFixedHeight(SIZES["option-height"])
+        menu = QMenu(button)
+        button.setMenu(menu)
+        self._preset_buttons[kind] = button
+
+        def populate():
+            menu.clear()
+            entries = all_for(kind)
+            for section, personal in (("Incorporados", False), ("Pessoais", True)):
+                group = [preset for preset in entries
+                         if bool(not preset.get("builtin", False)) == personal]
+                if group:
+                    menu.addSection(t(section))
+                for preset in group:
+                    action = menu.addAction(preset["name"])
+                    action.setToolTip(preset.get("description", ""))
+                    action.triggered.connect(
+                        lambda _checked=False, p=preset:
+                        self._apply_catalog_preset(kind, p))
+            if not entries:
+                empty = menu.addAction(t("Nenhum preset disponível"))
+                empty.setEnabled(False)
+
+        menu.aboutToShow.connect(populate)
+        self._target(layout).addWidget(button)
+
+    def _apply_catalog_preset(self, kind, preset):
+        apply_preset(kind, self.controllers[kind], preset)
+        self.suite.schedule_sync_context()
+        self.refresh()
+        self.app.viewport.setFocus()
+
     def _choose_option(self, setter, value):
         setter(value)
         self.app.viewport.setFocus()
@@ -351,12 +397,28 @@ class ContextualBar(QWidget):
             button.setObjectName("opentrace_opt_wall_geometry_" + geometry)
             geometry_group.addButton(button)
         self._wall_options(p, "wall")
+        self._preset_picker(p, "wall")
         p = self._page("wall_edit", t("Parede selecionada"))
         self._wall_options(p, "wall_edit")
 
         p = self._page("slab", t("Laje"))
         if slab is not None:
+            self._section(p, t("Método"))
+            slab_modes = QButtonGroup(self)
+            slab_modes.setExclusive(True)
+            for symbol, mode, title in (
+                ("▱", "diagonal", "Retângulo por diagonal"),
+                ("⊥", "base_width", "Retângulo por base e largura"),
+                ("⬡", "polygon", "Polígono livre"),
+            ):
+                button = self._method(
+                    p, symbol, t(title),
+                    lambda m=mode: slab.choose_mode(m),
+                    active=lambda m=mode: slab.tool.mode == m)
+                button.setObjectName("opentrace_opt_slab_method_" + mode)
+                slab_modes.addButton(button)
             self._slab_options(p, slab, "slab")
+            self._preset_picker(p, "slab")
         p = self._page("slab_edit", t("Laje selecionada"))
         if slab is not None:
             self._slab_options(p, slab, "slab_edit")
@@ -370,6 +432,7 @@ class ContextualBar(QWidget):
             ):
                 self._field(p, label, field, grouped=True,
                             name="column_" + label.lower())
+            self._preset_picker(p, "column")
 
         p = self._page("beam", t("Viga"))
         if beam is not None:
@@ -387,6 +450,7 @@ class ContextualBar(QWidget):
                 self._set_beam_top, self._beam_top_locked,
                 lambda: (t("Viga inclinada: edite na paleta")
                          if self._beam_top_locked() else t("Cota do topo no início da viga")))
+            self._preset_picker(p, "beam")
 
         self._build_opening_pages()
         p = self._page("opening_edit", t("Vão selecionado"))
