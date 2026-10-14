@@ -822,7 +822,8 @@ class ArchitectureSuitePanel:
             return None
         group = getattr(selection[0], "owner", None) or selection[0]
         record = _fill_record(group)
-        return record if record is not None and record.get("kind") == "door" else None
+        params = record.get("params") if record is not None else None
+        return params if params is not None and params.get("kind") == "door" else None
 
     def _refresh_door_edit(self):
         from .door_window_core import DOOR_FAMILIES, wallhole_size
