@@ -59,9 +59,6 @@ class ArchitectureSuitePanel:
         self._context_timer=QTimer(self.panel)
         self._context_timer.setSingleShot(True)
         self._context_timer.timeout.connect(self._run_sync_context)
-        self._auto_check_timer=QTimer(self.panel)
-        self._auto_check_timer.setSingleShot(True)
-        self._auto_check_timer.timeout.connect(self._auto_check_updates_on_startup)
         root=QVBoxLayout(self.panel);root.setContentsMargins(4,4,4,4);root.setSpacing(4)
         # Two-level HEADER: brand/actions above, legible horizontal page
         # tabs below. The host still owns the real QDockWidget and title.
@@ -149,7 +146,7 @@ class ArchitectureSuitePanel:
         # The viewport overlay creates the contextual bar with an explicit
         # overlay reference after the sidebar is ready.
         self.context_bar = None
-        self._auto_check_timer.start(1800)
+
 
     def apply_theme(self):
         """ThemeWatcher dispatches the sidebar through this single style path."""
@@ -277,34 +274,24 @@ class ArchitectureSuitePanel:
         update_lay=QVBoxLayout(update_box);update_lay.setContentsMargins(8,8,8,8);update_lay.setSpacing(6)
         update_lay.addWidget(QLabel(f"<b>OpenTrace BIM {__version__}</b>"))
         self.update_status=QLabel(
-            "Consulta apenas o catálogo oficial. Nenhum pacote é instalado sem confirmação."
+            t("Consulta o catálogo oficial. A instalação é feita pelo IngeTrazo.")
         )
         self.update_status.setWordWrap(True);self.update_status.setProperty("visualRole", "hint")
         update_lay.addWidget(self.update_status)
 
-        self.auto_update_check=QCheckBox("Verificar atualizações automaticamente")
-        self.update_button=QPushButton("Verificar atualizações")
+        self.auto_update_check=QCheckBox(t("Avisar quando houver versão nova"))
+        self.update_button=QPushButton(t("Verificar agora"))
         update_lay.addWidget(self.auto_update_check);update_lay.addWidget(self.update_button)
         project_grid.addWidget(update_box,4,0,1,2)
 
-        self.update_manager=None
-        try:
-            from .updater import (
-                UpdateManager, auto_check_enabled, set_auto_check_enabled,
-            )
-            self.update_manager=UpdateManager(w)
-            self.auto_update_check.setChecked(auto_check_enabled())
-            self.auto_update_check.toggled.connect(set_auto_check_enabled)
-            self.auto_update_check.toggled.connect(self._auto_update_toggled)
-            self.update_button.clicked.connect(
-                lambda: self.update_manager.check(manual=True)
-            )
-        except Exception as exc:
-            self.auto_update_check.setEnabled(False)
-            self.update_button.setEnabled(False)
-            self.update_status.setText(
-                f"Updates are unavailable in this installation: {type(exc).__name__}: {exc}"
-            )
+        from .updater import UpdateManager, auto_check_enabled
+        self.update_manager=UpdateManager(w)
+        self.auto_update_check.setChecked(auto_check_enabled())
+        self.auto_update_check.toggled.connect(self.update_manager.set_enabled)
+        self.update_button.clicked.connect(self.update_manager.check)
+        # QNetworkAccessManager completes the request asynchronously; no
+        # startup timer, worker thread or package installation is involved.
+        self.update_manager.check()
 
         lay.addStretch(1);return w
 
@@ -541,20 +528,6 @@ class ArchitectureSuitePanel:
         # A regular header click starts at "O que há de novo".
         self._help_dialog.show_for_context(
             context if isinstance(context,str) else None)
-
-    def _auto_update_toggled(self, enabled):
-        if enabled and self.update_manager is not None:
-            # The checkbox itself is the user's consent to perform automatic
-            # catalog checks. Still, no package is downloaded without another
-            # explicit confirmation.
-            QTimer.singleShot(0, lambda: self.update_manager.check(manual=False))
-
-    def _auto_check_updates_on_startup(self):
-        if (
-            self.update_manager is not None
-            and self.auto_update_check.isChecked()
-        ):
-            self.update_manager.check(manual=False)
 
     def _wire(self):
         for key,ctrl in self.controllers.items():
