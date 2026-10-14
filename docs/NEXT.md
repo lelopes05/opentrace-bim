@@ -383,6 +383,42 @@ alterações à interface dos outros agentes e sem aceite Windows nesta fase.
   `tests_host/test_door_p1a_host.py`, além das regressões anteriores.
   Validação visual e screenshots do Windows ficam com o responsável.
 
+### Auditoria visual e funcional complementar — 14/10 (Windows)
+
+- O responsável **retirou o relato de vão/gap superior** depois de ampliar
+  a vista: trata-se de leitura visual confundida pelo material/shader fraco.
+  NÃO aumentar nem remover folgas da travessa superior com base nessa captura.
+  O detalhamento geométrico só volta a ser alterado se houver prova dimensional.
+- Bug confirmado na paleta: os botões de subir e descer de
+  **Largura Livre no menor Vão** usavam a dimensão bruta como nova largura
+  nominal da folha. Isso adicionava novamente marco e folgas a cada clique.
+  O campo vinculado passa a exibir o rótulo **Largura do vão de corte**; a
+  alteração é convertida pela diferença entre corte atual e solicitado, com
+  o mesmo critério para a altura. `edit_fill_from_cut_dimension` testa a
+  fórmula para F01 física, overrides externos e janelas.
+- Nova seção de **propriedades da instância** em
+  `OpenTrace_BIM/door_window_properties.py`, integrada pontualmente ao
+  formulário de abertura em `ui.py`: nominal da folha separado de corte
+  bruto; conjunto externo automático/manual; folgas de instalação e móveis;
+  marco e folha; face/recuo; profundidade automática/manual; modelo, giro,
+  ângulos; alizares nas duas faces e materiais de componentes independentes.
+  Campos editáveis chamam `EditHostedFill` com Undo/Redo e nunca mudam
+  parâmetros de outra instância ou da ferramenta.
+- Janelas: os controles representam **o motor efetivamente existente**:
+  largura/altura, marco, número de painéis, espessura de vidro (override
+  opcional) e materiais independentes para marco e vidro. Não inventar
+  mecanismos de abrir/correr nem prometer famílias avançadas inexistentes.
+  Registros de janela schema 1 não recebem os novos campos por padrão.
+- Exceção de integração: `ui.py` foi alterado **somente nesta branch**, com
+  a correção dos campos e ligação do painel de esquadria solicitadas após a
+  auditoria. **Outro agente edita interface em paralelo**; conciliar com a
+  branch de recuperação visual antes do merge. `suite_panel.py`,
+  `contextual_bar.py`, `tool_row.py` e `i18n.py` continuam intactos.
+- Textos novos passam por `t()`, mas a tradução completa EN/ES e a
+  composição definitiva da paleta continuam pendentes da integração T2.
+- CI/offscreen não é aceite visual. O responsável ainda precisa confirmar
+  no Windows a legibilidade, o comportamento das setas e os materiais.
+
 ## Tradução — T1 e T2 (13/10/2026)
 
 **T1 — infraestrutura e auditoria, branch `gpt/traducao`:**
