@@ -5,6 +5,7 @@ import unittest
 from OpenTrace_BIM.door_window_core import (
     FillError, normalize_fill, f01_minimum_unit, f01_unit_size,
     station_span, wallhole_size, wallhole_span, opening_request,
+    edit_fill_from_cut_dimension,
 )
 
 
@@ -72,6 +73,46 @@ class PhysicalF01Tests(unittest.TestCase):
         self.assertNotEqual(normalized["material_leaf_front"],
                             normalized["material_leaf_back"])
         self.assertEqual(normalize_fill(normalized), normalized)
+
+    def test_cut_field_changes_both_directions_without_compounding_clearances(self):
+        current = normalize_fill(physical())
+        cut = wallhole_size(current)[0]
+        self.assertAlmostEqual(cut, 0.966)
+        down = edit_fill_from_cut_dimension(current, "width", cut - 0.10)
+        changed = normalize_fill(dict(current, **down))
+        self.assertAlmostEqual(changed["width"], 0.70)
+        self.assertAlmostEqual(wallhole_size(changed)[0], cut - 0.10)
+        up = edit_fill_from_cut_dimension(
+            changed, "width", wallhole_size(changed)[0] + 0.10)
+        restored = normalize_fill(dict(changed, **up))
+        self.assertAlmostEqual(restored["width"], 0.80)
+        self.assertAlmostEqual(wallhole_size(restored)[0], cut)
+        tall = edit_fill_from_cut_dimension(
+            current, "height", wallhole_size(current)[1] + 0.10)
+        self.assertAlmostEqual(tall["height"], 2.20)
+
+    def test_cut_field_updates_explicit_unit_not_leaf(self):
+        current = normalize_fill(physical(unit_width=0.95))
+        original = wallhole_size(current)[0]
+        adjustment = edit_fill_from_cut_dimension(
+            current, "width", original - 0.02)
+        self.assertEqual(set(adjustment), {"unit_width"})
+        revised = normalize_fill(dict(current, **adjustment))
+        self.assertAlmostEqual(revised["width"], 0.80)
+        self.assertAlmostEqual(wallhole_size(revised)[0], original - 0.02)
+        with self.assertRaises(FillError):
+            edit_fill_from_cut_dimension(current, "width", 0.60)
+
+    def test_cut_field_window_is_direct_dimension(self):
+        current = normalize_fill({
+            "kind": "window", "id": "window-1",
+            "host_id": "wall-1", "opening_id": "hole-1",
+            "position": 2.0, "width": 1.20, "height": 1.10,
+        })
+        self.assertEqual(edit_fill_from_cut_dimension(
+            current, "width", 1.10), {"width": 1.10})
+        self.assertEqual(edit_fill_from_cut_dimension(
+            current, "height", 1.20), {"height": 1.20})
 
     def test_invalid_variant_and_face_raise(self):
         for change in ({"leaf_variant": "unsupported"},
