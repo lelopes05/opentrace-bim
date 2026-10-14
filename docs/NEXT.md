@@ -306,6 +306,7 @@ Pedido de 13/10. Pode começar depois da etapa 1; não mexe em `ui.py` nem em `s
 - Os mesmos testes para a abertura da laje.
 
 ### Para o IngeTrazo
+- **13/10 — solicitação ao Marco:** fazer `views/status_hints.hint_for()` consultar também `tool.status_clause()` no fallback das ferramentas de extensão (chaves ausentes em `HINTS`). No IngeTrazo 0.5.8 o OpenTrace usa `flash_status` de dez minutos para manter o passo visível; quando o host atender ao pedido, retirar o flash longo e usar somente `status_clause()` com atualização da dica.
 - **13/10 — solicitação ao Marco:** documentar `viewport.set_extension_pick(hit)` para extensões, ou disponibilizar `app.select_pick(item)` na `ExtensionApp`. Depois que um comando de edição altera `scene.version`, a seleção de vão da parede continua visível no plugin, mas a versão guardada no `extension_pick` do host fica antiga. Até existir API pública, foi **autorizado explicitamente por Leandro em 13/10** o uso de `viewport.set_extension_pick` no OpenTrace BIM para atualizar essa seleção; `add_pickable` não retorna a entrada registrada, de modo que o plugin precisa conservar a referência da entrada interna. O comportamento deve permitir selecionar novamente sem clique e manter `on_select(None)` quando o Selecionar é usado em área vazia. As aberturas de laje derivam sua seleção da seleção nativa da laje (`scene.selection`), sem duplicá-la como `extension_pick`.
 
 ### Fora deste bloco

@@ -48,6 +48,7 @@ from .slab_model import (DEFAULTS, MAX_DIM, SlabError, line_edge, read_slab,
                          slab_edge_specs, slab_path_world, slab_polygon_world, slab_openings_world,
                          slab_record, sample_boundary, normalize_edge_specs)
 from .slab_tool import SlabTool
+from .step_guide import show_step
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
 from .i18n import t, ui_locale
 from .snap_utils import angular_snap_result
@@ -298,7 +299,7 @@ class SlabController(QObject):
         # simple/composite structure.  One click must be enough to switch.
         if self.app.viewport.active_tool is self.tool:
             self.schedule_refresh()
-            self.message("Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão.")
+            show_step(self.tool, self.app.viewport, "slab.create.start")
             self.app.viewport.setFocus()
         else:
             self.start_drawing()
@@ -356,7 +357,7 @@ class SlabController(QObject):
             root_edit_allowed(self.app.scene)
             if self.app.workspace() is not None:raise SlabError("Volte ao modelo para desenhar lajes.")
         except SlabError as exc:self.action.setChecked(False);self.app.viewport.flash_status(t(str(exc)),6000);return
-        self.app.scene.clear_selection();self.defaults["openings"]=[];self.tool.reset();activate_slab(self.app);self.schedule_refresh();self.message("Clique no primeiro ponto da laje. Retângulo por diagonal é o modo padrão.");self.app.viewport.setFocus()
+        self.app.scene.clear_selection();self.defaults["openings"]=[];self.tool.reset();activate_slab(self.app);self.schedule_refresh();self.app.viewport.setFocus()
 
     def stop_drawing(self):self.hide_mode_palette();activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
     def clear_sticky(self):
@@ -371,13 +372,17 @@ class SlabController(QObject):
     def edit_finished(self, slab, opening_index):
         """Keep the edited slab selected and wait for the next matching part."""
         self.sticky.finished(self.app.viewport.active_tool)
+        if self.sticky.waiting:
+            show_step(self.sticky.tool, self.app.viewport, "slab_opening.edit.after")
         self.schedule_refresh()
         self.app.viewport.update()
     def message(self,text,error=False):
+        if not error and self.sticky.tool is self.app.viewport.active_tool:
+            return
         shown=t(text)
         if hasattr(self,"feedback"):
             self.feedback.setText(shown);self.feedback.setStyleSheet("color:#b00020;" if error else "")
-        if text:self.app.viewport.flash_status(shown,8000 if error else 15000)
+        if text:self.app.viewport.flash_status(shown,15000)
 
     @staticmethod
     def _pixel_segment_nearest(px,py,a,b):
@@ -520,6 +525,7 @@ class SlabController(QObject):
                 self.message(str(exc), error=True)
                 return True
             self.sticky.armed()
+            show_step(self.sticky.tool, vp, self.sticky.tool.function_step_id)
             vp.update()
             return True
         if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
@@ -579,6 +585,19 @@ class SlabController(QObject):
         self.edit_palette.hide()
         try:
             tool.arm(self._edit_slab, self._edit_index, self._edit_anchor)
+            opening_steps = {
+                self.opening_insert_tool: "slab_opening.edit.insert",
+                self.opening_stretch_tool: "slab_opening.edit.stretch",
+                self.opening_move_vertex_tool: "slab_opening.edit.move_vertex",
+                self.opening_curve_tool: "slab_opening.edit.curve",
+                self.opening_chamfer_tool: "slab_opening.edit.chamfer",
+                self.opening_fillet_tool: "slab_opening.edit.fillet",
+                self.opening_offset_tool: "slab_opening.edit.offset",
+                self.opening_move_tool: "slab_opening.edit.move.start",
+            }
+            if tool in opening_steps:
+                tool.function_step_id = opening_steps[tool]
+                tool.step_id = tool.function_step_id
             if self.app.viewport.active_tool is not tool:
                 activator(self.app)
             opening_tools = (
@@ -589,6 +608,7 @@ class SlabController(QObject):
             )
             if tool in opening_tools:
                 self.sticky.choose(tool, self._edit_kind)
+                show_step(tool, self.app.viewport, tool.function_step_id)
             else:
                 self.clear_sticky()
             self.app.viewport.setFocus()

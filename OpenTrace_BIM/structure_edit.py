@@ -7,9 +7,11 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 from core.history import MoveGroupCommand
+from .step_guide import show_step, step_text
 
 
 class MoveWholeStructureTool(AxisMagnet, Tool):
+    step_id = "column.edit.move"
     """Move one parametric structural element as a whole in XY."""
     uses_snap = True
     architecture_angle_snap = True
@@ -18,6 +20,7 @@ class MoveWholeStructureTool(AxisMagnet, Tool):
     def __init__(self, controller, label):
         self.controller = controller
         self.label = label
+        self.step_id = "beam.edit.move" if label.lower().startswith("viga") else "column.edit.move"
         self.name = f"Mover {label}"
         self.description = self.name
         self.reset()
@@ -37,6 +40,10 @@ class MoveWholeStructureTool(AxisMagnet, Tool):
         self.start_point = None
         self.cursor_origin = None
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         if self.group is None or self.group not in viewport.scene.groups:
             QTimer.singleShot(0, self.controller.return_to_select)
@@ -45,10 +52,11 @@ class MoveWholeStructureTool(AxisMagnet, Tool):
         self._activated_at = time.monotonic()
         viewport.begin_groups_preview([self.group])
         self.preview = True
-        self.controller.message(f"Clique no ponto de referência para mover {self.label} inteira no plano horizontal.")
+        show_step(self, viewport, self.step_id)
         viewport.update()
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         if self.preview:
             viewport.end_groups_preview()
         self.reset()
@@ -79,7 +87,7 @@ class MoveWholeStructureTool(AxisMagnet, Tool):
             if self.cursor_origin is None:
                 self.cursor_origin = QVector3D(ctx.world)
                 self.start_point = QVector3D(ctx.world)
-                self.controller.message(f"Agora clique no ponto de destino de {self.label}.")
+                show_step(self, ctx.viewport, self.step_id)
                 ctx.viewport.update()
                 return
             self.delta = self._delta(ctx.world)
@@ -109,6 +117,7 @@ class MoveWholeStructureTool(AxisMagnet, Tool):
 
 
 class BeamCurveTool(Tool):
+    step_id = "beam.edit.curve"
     """Edit a beam's signed plan sagitta, keeping both endpoints fixed."""
     name = "Curvar viga"
     description = "Curvar a linha de referência da viga em arco."
@@ -130,6 +139,10 @@ class BeamCurveTool(Tool):
     def prepare(self, group):
         self.group = group
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         from .beam_model import BeamError, endpoints_world, read_beam
         if self.group is None or self.group not in viewport.scene.groups:
@@ -139,13 +152,14 @@ class BeamCurveTool(Tool):
             self.values = read_beam(self.group)
             self.start, self.end = (QVector3D(p) for p in endpoints_world(self.group))
             self.sagitta = float(self.values.get("curvature", 0.0))
-            self.controller.message("Mova para um lado do eixo e clique para definir a flecha. Digite 0 para endireitar.")
+            show_step(self, viewport, "beam.edit.curve")
         except BeamError as exc:
             self.controller.message(str(exc), error=True)
             QTimer.singleShot(0, self.controller.return_to_select)
         viewport.update()
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self.reset()
         viewport.update()
 
@@ -226,6 +240,7 @@ class BeamCurveTool(Tool):
 
 
 class ColumnCurveTool(Tool):
+    step_id = "column.edit.curve"
     """Edit only the selected column segment curvature."""
     name = "Curvar segmento do pilar"
     description = "Curvar somente o segmento selecionado do eixo do pilar."
@@ -251,6 +266,10 @@ class ColumnCurveTool(Tool):
         vals["curvature"]=float(stations[0].get("curvature",0.0))
         return vals
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         from .column_model import ColumnError, read_column, station_points_world
         if self.group is None or self.group not in viewport.scene.groups:
@@ -263,12 +282,12 @@ class ColumnCurveTool(Tool):
             az=math.radians(float(a.get("inclination_azimuth",self.values.get("inclination_azimuth",0.0))))
             self.direction=QVector3D(math.cos(az),math.sin(az),0.0)
             self.sagitta=float(a.get("curvature",0.0))
-            self.controller.message(f"Curve somente o segmento {self.segment_index+1}. Mova no plano do segmento e clique; digite 0 para endireitar.")
+            show_step(self, viewport, "column.edit.curve")
         except ColumnError as exc:
             self.controller.message(str(exc),error=True); QTimer.singleShot(0,self.controller.return_to_select)
         viewport.update()
 
-    def on_deactivate(self, viewport): self.reset(); viewport.update()
+    def on_deactivate(self, viewport):self.controller.app.window.statusBar().clearMessage();self.reset(); viewport.update()
     def drag_plane(self, viewport):
         if self.base is None or self.direction is None:return None
         normal=QVector3D(-self.direction.y(),self.direction.x(),0.0)
@@ -316,6 +335,7 @@ class ColumnCurveTool(Tool):
 
 
 class BeamVerticalCurveTool(Tool):
+    step_id = "beam.edit.curve_z"
     """Edit vertical beam sagitta while keeping plan projection and ends fixed."""
     name = "Curvar viga verticalmente"
     description = "Curvar o eixo da viga no plano vertical."
@@ -337,6 +357,10 @@ class BeamVerticalCurveTool(Tool):
     def prepare(self, group):
         self.group = group
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         from .beam_model import BeamError, endpoints_world, read_beam
         if self.group is None or self.group not in viewport.scene.groups:
@@ -346,13 +370,14 @@ class BeamVerticalCurveTool(Tool):
             self.values = read_beam(self.group)
             self.start, self.end = (QVector3D(p) for p in endpoints_world(self.group))
             self.sagitta = float(self.values.get("vertical_curvature", 0.0))
-            self.controller.message("Mova para cima/baixo e clique para definir a curvatura vertical. Digite 0 para endireitar.")
+            show_step(self, viewport, "beam.edit.curve_z")
         except BeamError as exc:
             self.controller.message(str(exc), error=True)
             QTimer.singleShot(0, self.controller.return_to_select)
         viewport.update()
 
     def on_deactivate(self, viewport):
+        self.controller.app.window.statusBar().clearMessage()
         self.reset(); viewport.update()
 
     def drag_plane(self, viewport):
@@ -414,6 +439,7 @@ class BeamVerticalCurveTool(Tool):
 
 
 class BeamInclineTool(Tool):
+    step_id = "beam.edit.incline"
     """Direct graphical inclination: the chosen endpoint follows the mouse Z."""
     name = "Inclinar viga"
     description = "Alterar a inclinação a partir do extremo selecionado."
@@ -434,6 +460,10 @@ class BeamInclineTool(Tool):
     def prepare(self, group, anchor=None):
         self.group=group; self.anchor=QVector3D(anchor) if anchor is not None else None
 
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
     def on_activate(self, viewport):
         from .beam_model import endpoints_world, read_beam, reference_path_world
         if self.group is None or self.group not in viewport.scene.groups:
@@ -448,7 +478,7 @@ class BeamInclineTool(Tool):
             self.start_point=QVector3D(self.refs[self.endpoint])
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: o extremo da viga acompanha a altura indicada. Clique para confirmar; Shift trava a inferência ativa.")
+            show_step(self, viewport, "beam.edit.incline")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:
@@ -463,7 +493,7 @@ class BeamInclineTool(Tool):
             restore_original_after_preview(self.group,self._preview_hidden)
         self._preview_hidden=None
 
-    def on_deactivate(self,viewport): self._show_original();self.reset();viewport.update()
+    def on_deactivate(self, viewport):self.controller.app.window.statusBar().clearMessage();self._show_original();self.reset();viewport.update()
 
     def drag_plane(self,viewport):
         if not self.refs:return None
@@ -524,6 +554,7 @@ class BeamInclineTool(Tool):
 
 
 class ColumnInclineTool(Tool):
+    step_id = "column.edit.incline"
     """Direct segment inclination: upper station follows the mouse in XY."""
     name="Inclinar segmento do pilar";description="Alterar inclinação e direção do segmento selecionado.";uses_snap=True;architecture_angle_snap=True
     wireframe_color=(0.20,0.48,0.84,1.0);vcb_label="Inclinação"
@@ -531,7 +562,11 @@ class ColumnInclineTool(Tool):
     def reset(self):
         self.group=None;self.values=None;self.base=None;self.top=None;self.angle=0.0;self.azimuth=0.0;self.segment_index=0;self.segment_height=0.0;self.start_point=None;self._preview_hidden=None
     def prepare(self,group,segment_index=None):self.group=group;self.segment_index=0 if segment_index is None else max(0,int(segment_index))
-    def on_activate(self,viewport):
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def on_activate(self, viewport):
         from .column_model import ColumnError,read_column,station_points_world
         if self.group is None or self.group not in viewport.scene.groups:QTimer.singleShot(0,self.controller.return_to_select);return
         try:
@@ -542,7 +577,7 @@ class ColumnInclineTool(Tool):
             self.start_point=QVector3D(self.top)
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message(f"Mova o mouse: o topo do segmento {self.segment_index+1} acompanha o cursor. Clique para confirmar; Shift trava a inferência ativa.")
+            show_step(self, viewport, "column.edit.incline")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:self.angle,self.azimuth=self._params_for_world(q)
@@ -552,7 +587,7 @@ class ColumnInclineTool(Tool):
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview;restore_original_after_preview(self.group,self._preview_hidden)
         self._preview_hidden=None
-    def on_deactivate(self,viewport):self._show_original();self.reset();viewport.update()
+    def on_deactivate(self, viewport):self.controller.app.window.statusBar().clearMessage();self._show_original();self.reset();viewport.update()
     def drag_plane(self,viewport):
         if self.top is None:return None
         yaw=getattr(viewport.camera,"yaw",0.0);normal=QVector3D(math.cos(yaw),math.sin(yaw),0)
@@ -608,6 +643,7 @@ class ColumnInclineTool(Tool):
 
 
 class MoveColumnStationVerticalTool(Tool):
+    step_id = "column.edit.station_z"
     """Move one intermediate pillar station only in Z."""
     name = "Mover vértice do pilar na vertical"
     description = "Altera as alturas dos segmentos imediatamente abaixo e acima."
@@ -618,7 +654,11 @@ class MoveColumnStationVerticalTool(Tool):
     def __init__(self,controller):self.controller=controller;self.reset()
     def reset(self):self.group=None;self.values=None;self.index=None;self.anchor=None;self.hover_z=None;self.reference_z=None;self.start_point=None;self._preview_hidden=None;self._activated_at=0.0
     def prepare(self,group,index,anchor):self.group=group;self.index=int(index);self.anchor=QVector3D(anchor);self.hover_z=float(anchor.z());self.reference_z=None;self.start_point=None
-    def on_activate(self,viewport):
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def on_activate(self, viewport):
         from .column_model import ColumnError,read_column
         if self.group is None or self.group not in viewport.scene.groups:
             QTimer.singleShot(0,self.controller.return_to_select);return
@@ -628,7 +668,7 @@ class MoveColumnStationVerticalTool(Tool):
             self.reference_z=0.0;self.start_point=QVector3D(self.anchor)
             from .preview_utils import hide_original_for_preview
             self._preview_hidden=hide_original_for_preview(self.group)
-            self.controller.message("Mova o mouse: o vértice do pilar acompanha a cota indicada. Clique para confirmar; Shift trava a inferência ativa.")
+            show_step(self, viewport, "column.edit.station_z")
             from .preview_utils import pointer_world_on_plane
             q=pointer_world_on_plane(viewport,self.drag_plane(viewport))
             if q is not None:self.hover_z=float(q.z())
@@ -639,7 +679,7 @@ class MoveColumnStationVerticalTool(Tool):
             from .preview_utils import restore_original_after_preview
             restore_original_after_preview(self.group,self._preview_hidden)
         self._preview_hidden=None
-    def on_deactivate(self,viewport):self._show_original();self.reset();viewport.update()
+    def on_deactivate(self, viewport):self.controller.app.window.statusBar().clearMessage();self._show_original();self.reset();viewport.update()
     def drag_plane(self,viewport):
         if self.anchor is None:return None
         yaw=getattr(viewport.camera,"yaw",0.0);normal=QVector3D(math.cos(yaw),math.sin(yaw),0)
