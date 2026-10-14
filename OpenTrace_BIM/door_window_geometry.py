@@ -212,12 +212,22 @@ def build_fill_parts(raw, *, wall_thickness=0.10, wall_faces=None):
             x = f+panel_width*i
             parts.append(_part(f"Montante {i}", x-f/2, x+f/2,
                                y0, y1, f, h-f))
-        glass_thickness = min(.006, thickness/3)
+        glass_thickness = spec.get("glass_thickness", min(.006, thickness/3))
+        if glass_thickness >= thickness:
+            raise FillError("Vidro é mais espesso que a parede.")
         for i in range(panels):
             a = f+panel_width*i + (f/2 if i else 0)
             b = f+panel_width*(i+1) - (f/2 if i+1 < panels else 0)
             parts.append(_part(f"Vidro {i+1}", a, b,
                                -glass_thickness/2, glass_thickness/2, f, h-f))
+    if spec["kind"] == "window":
+        frame_material = spec.get("material_window_frame")
+        glass_material = spec.get("material_window_glass")
+        for part in parts:
+            material = (glass_material if part.name.startswith("Vidro ")
+                        else frame_material)
+            if material is not None:
+                part.material = copy.deepcopy(material)
     return parts
 
 
