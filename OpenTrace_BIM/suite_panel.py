@@ -44,6 +44,8 @@ class ArchitectureSuitePanel:
     def __init__(self,app,wall=None,slab=None,column=None,beam=None,profiles=None,bim=None,membrane=None,master_dock=None):
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
+        self._context_signature = None
+        self._navigation_explicit = False
         self._mode_buttons={}
         self._home_sections={}
         self._opening_size_fields={}
@@ -88,8 +90,16 @@ class ArchitectureSuitePanel:
         self.project_info_button.setToolTip("Informações do Projeto")
         self.project_info_button.setAccessibleName("Informações do Projeto")
         self.project_info_button.setFixedSize(QSize(32,32))
-        self.project_info_button.clicked.connect(lambda: self.show_page("project"))
+        self.project_info_button.clicked.connect(lambda: self.user_show_page("project"))
         h.addWidget(self.project_info_button)
+        self.navigation_pin=QToolButton(header)
+        self.navigation_pin.setObjectName("opentrace_navigation_pin")
+        self.navigation_pin.setText(t("Fixar"))
+        self.navigation_pin.setCheckable(True)
+        self.navigation_pin.setFocusPolicy(Qt.NoFocus)
+        self.navigation_pin.setToolTip(t("Fixar página da paleta até desmarcar"))
+        self.navigation_pin.toggled.connect(self._pin_changed)
+        h.addWidget(self.navigation_pin)
         self.help_button=QToolButton(header)
         self.help_button.setText("?")
         self.help_button.setFixedSize(QSize(32,32))
@@ -666,8 +676,15 @@ class ArchitectureSuitePanel:
             blocked=b.blockSignals(True);b.setChecked(i==index);b.blockSignals(blocked)
 
     def user_show_page(self,key):
+        self._navigation_explicit = True
         self.show_page(key)
         self.schedule_sync_context()
+
+    def _pin_changed(self, pinned):
+        # An explicit pin is the only exception to context-following.
+        self._context_signature = None
+        if not pinned:
+            self.schedule_sync_context()
 
     def open_arrange(self):
         """Open XYZ organization IN the same anchorable OpenTrace sidebar.
@@ -682,7 +699,7 @@ class ArchitectureSuitePanel:
                 self._arrange_panel=ArrangePanel(self.app)
                 self._add_page("arrange",self._arrange_panel)
             self._arrange_panel.refresh()
-            self.show_page("arrange")
+            self.user_show_page("arrange")
         except Exception as exc:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(
@@ -714,10 +731,12 @@ class ArchitectureSuitePanel:
 
     def _wire(self):
         for key,ctrl in self.controllers.items():
-            if ctrl is None:continue
+            if ctrl is None:
+                continue
+            # The active host tool, not the last QAction callback, owns the
+            # context. Never force the sidebar onto a creation form here.
             for action in self._actions_for(key,ctrl):
-                try:action.triggered.connect(lambda _=False,k=key:self.show_page(k))
-                except Exception:pass
+                action.triggered.connect(self.schedule_sync_context)
         self.app.viewport.sceneVersionChanged.connect(self.schedule_sync_context)
         self.app.viewport.measurementChanged.connect(self.schedule_tool_sync_context)
         wall = self.controllers.get("wall")
@@ -751,7 +770,7 @@ class ArchitectureSuitePanel:
         self.stack.setCurrentWidget(self.pages[key]);b=self.buttons.get(key)
         if b is not None:
             b.setChecked(True)
-        elif key in ("project","arrange"):
+        elif key in ("project","arrange","door","door_edit"):
             # A context page without a dedicated category tab must not
             # leave the BIM or a modelling tab misleadingly selected.
             self.group.setExclusive(False)
@@ -787,47 +806,86 @@ class ArchitectureSuitePanel:
 
     def _show_context_settings(self,key):
         """Open the full form for a new active tool or selected object."""
+        self._navigation_explicit = False
         self.show_page(key)
         toggle=self._property_sections.get(key)
         if toggle is not None:
             toggle.setChecked(True)
 
-    def sync_context(self):
-        """Follow a NEW tool or selection; never undo the user's page choice.
+    def _selected_door_record(self):
+        """Return only an unambiguous, real selected hosted door fill."""
+        from .door_window_commands import _fill_record
+        selection = tuple(self.app.scene.selection)
+        if len(selection) != 1:
+            return None
+        group = getattr(selection[0], "owner", None) or selection[0]
+        record = _fill_record(group)
+        return record if record is not None and record.get("kind") == "door" else None
 
-        This runs on every document change. Re-applying the page each time
-        threw the user back to the wall page whenever a wall was selected,
-        so Home, Profiles and the other tabs looked dead.
+    def _refresh_door_edit(self):
+        from .door_window_core import DOOR_FAMILIES, wallhole_size
+        from .i18n import ui_locale
+        rec = self._selected_door_record()
+        if rec is None:
+            return
+        values = {
+            "family": t(DOOR_FAMILIES[rec.get("family_key", "swing_single")]["name"]),
+            "width": ui_locale().toString(float(rec["width"]), "f", 2) + " m",
+            "height": ui_locale().toString(float(rec["height"]), "f", 2) + " m",
+            "rough": ui_locale().toString(float(wallhole_size(rec)[0]), "f", 2) + " m",
+            "anchor": t({"left": "Esquerda", "center": "Centro",
+                         "right": "Direita"}[rec["anchor"]]),
+        }
+        for key, (label, display) in self._door_edit_fields.items():
+            display.setText(label + ": " + values[key])
+
+    def _context_identity(self):
+        active = getattr(self.app.viewport, "active_tool", None)
+        owners = tuple(sorted(
+            id(getattr(item, "owner", None) or item)
+            for item in self.app.scene.selection))
+        targets = tuple(id(getattr(self.controllers.get(key), "target", None))
+                        for key in ("wall", "slab", "column", "beam"))
+        return id(active), targets, owners
+
+    def sync_context(self):
+        """Follow tool activation and selection, except for a deliberate pin.
+
+        Manual navigation persists during document refreshes of the SAME
+        context; a new tool or selection follows its actual editor. Merely
+        selecting a group never calls any tool activation.
         """
-        active=getattr(self.app.viewport,"active_tool",None)
-        signature=(id(active),)+tuple(
-            id(getattr(self.controllers.get(k),"target",None))
-            for k in ("wall","slab","column","beam"))
-        if signature==getattr(self,"_context_signature",None):
+        signature = self._context_identity()
+        if signature == self._context_signature:
             return
-        self._context_signature=signature
-        # BIM is an inspector/export workspace. Keep it open while selection or
-        # metadata changes; otherwise selecting a wall would immediately throw
-        # the user back to the modelling page.
-        if any(self.pages.get(key) is not None and
-               self.stack.currentWidget() is self.pages[key]
-               for key in ("bim", "project", "arrange")):
+        self._context_signature = signature
+        if self.navigation_pin.isChecked():
             return
-        opening_tool,opening_kind=self._opening_tool_and_kind()
+
+        active = getattr(self.app.viewport, "active_tool", None)
+        opening_tool, opening_kind = self._opening_tool_and_kind()
         if opening_tool is not None:
-            self._show_context_settings("wall")
+            self._show_context_settings("door" if opening_kind == "door" else "wall")
             return
-        for key in ("wall","slab","column","beam"):
-            ctrl=self.controllers.get(key)
-            if ctrl is None:continue
-            tool=getattr(ctrl,"draw_tool",None) or getattr(ctrl,"tool",None)
+        for key in ("wall", "slab", "column", "beam"):
+            ctrl = self.controllers.get(key)
+            if ctrl is None:
+                continue
+            tool = getattr(ctrl, "draw_tool", None) or getattr(ctrl, "tool", None)
             if tool is not None and active is tool:
                 self._show_context_settings(key)
                 return
-        for key in ("beam","column","slab","wall"):
-            ctrl=self.controllers.get(key)
-            if ctrl is not None and getattr(ctrl,"target",None) is not None:
-                self._show_context_settings(key);return
+        if self._selected_door_record() is not None:
+            self._refresh_door_edit()
+            self._show_context_settings("door_edit")
+            return
+        for key in ("beam", "column", "slab", "wall"):
+            ctrl = self.controllers.get(key)
+            if ctrl is not None and getattr(ctrl, "target", None) is not None:
+                self._show_context_settings(key)
+                return
+        if not self._navigation_explicit:
+            self.show_page("home", show_dock=False)
 
     def refresh_home(self):
         cat=builtins();counts={k:len(v) for k,v in cat.items()};profiles=load_profiles()
