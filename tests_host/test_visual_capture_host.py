@@ -131,7 +131,9 @@ class ActualHostVisualCaptureTests(unittest.TestCase):
             APP.processEvents()
             for tool, action in actions:
                 with self.subTest(language=LANG, theme=theme, tool=tool):
-                    action.trigger()
+                    # Triggering an already-active checkable tool toggles it off.
+                    if not action.isChecked():
+                        action.trigger()
                     bar.refresh()
                     overlay.reposition()
                     APP.processEvents()
