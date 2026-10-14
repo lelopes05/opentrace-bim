@@ -13,7 +13,7 @@ from . import __version__
 from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
-from .i18n import t
+from .i18n import t, ui_locale
 from .style import SIZES, qss, theme_font
 
 # Home entries are ordered; a missing page suppresses its entire section.
@@ -232,6 +232,7 @@ class ArchitectureSuitePanel:
             spin = QDoubleSpinBox(page)
             spin.setObjectName("opentrace_door_create_" + key)
             spin.setDecimals(2)
+            spin.setLocale(ui_locale())
             spin.setRange(0.0 if key == "sill" else 0.05, 100.0)
             spin.setSingleStep(0.05)
             spin.setSuffix(" m")
@@ -242,6 +243,7 @@ class ArchitectureSuitePanel:
         rough = QDoubleSpinBox(page)
         rough.setObjectName("opentrace_door_rough_width")
         rough.setDecimals(2)
+        rough.setLocale(ui_locale())
         rough.setRange(0.0, 200.0)
         rough.setSuffix(" m")
         rough.setReadOnly(True)
