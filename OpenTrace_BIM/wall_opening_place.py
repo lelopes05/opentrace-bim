@@ -154,6 +154,7 @@ class PlaceWallOpeningTool(_OnAnyWall):
     def __init__(self, controller, kind="rect"):
         super().__init__(controller)
         self.anchor = "center"
+        self.host_face = "left"
         self.sizes = copy.deepcopy(PRESETS)
         self.item = None
         self.station = None
@@ -195,7 +196,14 @@ class PlaceWallOpeningTool(_OnAnyWall):
         else:
             try:
                 self._face_for(ctx.viewport, wall)
-                self.station = self._sheet(ctx).x()
+                local = self._sheet(ctx)
+                self.station = local.x()
+                point = (ctx.snap.point if ctx.snap is not None and
+                         ctx.snap.point is not None else ctx.world)
+                near = self.face.world(local, "near")
+                far = self.face.world(local, "far")
+                self.host_face = ("left" if (point-near).length() <=
+                                  (point-far).length() else "right")
                 self.item = self._candidate(self.station)
             except WallError:
                 self.item = None
@@ -206,13 +214,17 @@ class PlaceWallOpeningTool(_OnAnyWall):
         if self.kind in ("door", "window"):
             size = self.sizes[self.kind]
             start = item["position"] - item["width"] / 2.0
-            spec = normalize_fill({
+            raw = {
                 "schema": 2 if self.kind == "door" else 1,
                 "id": uuid.uuid4().hex, "host_id": str(self.wall.uid), "opening_id": item["id"],
                 "kind": self.kind, "anchor": self.anchor,
                 "family_key": "swing_single" if self.kind == "door" else None,
                 "position": start + ANCHOR_SHIFT[self.anchor] * item["width"],
-                "width": size["width"], "height": size["height"], "sill": size["sill"]})
+                "width": size["width"], "height": size["height"], "sill": size["sill"],
+            }
+            if self.kind == "door":
+                raw["host_face"] = self.host_face
+            spec = normalize_fill(raw)
             command = CreateHostedFill(viewport.scene, self.wall, spec)
         else:
             command = EditWall(viewport.scene, self.wall, values)
