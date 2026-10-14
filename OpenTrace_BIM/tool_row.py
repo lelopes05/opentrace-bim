@@ -17,6 +17,18 @@ from .viewport_overlay import OverlayFrame
 COMPACT_KEY = "OpenTrace_BIM/tool_row_compact"
 NORMAL_ICON = SIZES["icon-24"]
 COMPACT_ICON = SIZES["icon-16"]
+# Keep the full QAction.text() for menus and command search; the toolbar uses
+# QAction.iconText() for its short, host-localized label.
+_TOOL_LABELS = {
+    "wall": "Parede",
+    "slab": "Laje",
+    "column": "Pilar",
+    "beam": "Viga",
+    "opening": "Abertura",
+    "door": "Porta",
+    "window": "Janela",
+    "profile": "Perfil complexo",
+}
 
 
 class ToolRow(OverlayFrame):
@@ -30,10 +42,6 @@ class ToolRow(OverlayFrame):
         layout.setSpacing(SIZES["space-2"])
         self.brand = QLabel("OpenTrace BIM", self)
         self.brand.setObjectName("opentrace_tool_brand")
-        self.logo_slot = QLabel(self)
-        self.logo_slot.setObjectName("opentrace_logo_slot")
-        self.logo_slot.setFixedSize(NORMAL_ICON, NORMAL_ICON)
-        layout.addWidget(self.logo_slot)
         layout.addWidget(self.brand)
         self.toolbar = QToolBar(t("OpenTrace BIM · Ferramentas"), self)
         self.toolbar.setObjectName("opentrace_tool_strip")
@@ -41,12 +49,15 @@ class ToolRow(OverlayFrame):
         self.toolbar.setFloatable(False)
         self.toolbar.setMinimumWidth(0)
         self.toolbar.setFocusPolicy(Qt.NoFocus)
-        self.toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        layout.addWidget(self.toolbar, 1)
+        self.toolbar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        layout.addWidget(self.toolbar)
 
         self._icon_cache = {}
         self._buttons = [wall.wall_menu_button]
         self._icon_entries = [(wall.wall_menu_button, wall.wall_menu_button.defaultAction(), "wall")]
+        wall_action = wall.wall_menu_button.defaultAction()
+        if wall_action is not None:
+            wall_action.setIconText(t(_TOOL_LABELS["wall"]))
         wall.wall_menu_button.setFocusPolicy(Qt.NoFocus)
         self.toolbar.addWidget(wall.wall_menu_button)
         for controller, name in ((slab, "slab"), (column, "column"), (beam, "beam")):
@@ -84,6 +95,7 @@ class ToolRow(OverlayFrame):
         return QSettings().value(COMPACT_KEY, False, type=bool)
 
     def _add(self, action, name):
+        action.setIconText(t(_TOOL_LABELS[name]))
         self.toolbar.addAction(action)
         button = self.toolbar.widgetForAction(action)
         button.setFocusPolicy(Qt.NoFocus)
@@ -92,6 +104,13 @@ class ToolRow(OverlayFrame):
 
     def set_compact(self, compact):
         self.compact = bool(compact)
+        self.brand.setText("OT" if self.compact else "OpenTrace BIM")
+        self.layout().setContentsMargins(
+            SIZES["space-3"] if self.compact else SIZES["panel-inset"],
+            0 if self.compact else 3,
+            SIZES["space-3"] if self.compact else SIZES["panel-inset"],
+            0 if self.compact else 3,
+        )
         size = QSize(COMPACT_ICON, COMPACT_ICON) if self.compact else QSize(NORMAL_ICON, NORMAL_ICON)
         style = Qt.ToolButtonIconOnly if self.compact else Qt.ToolButtonTextBesideIcon
         self.toolbar.setIconSize(size)
@@ -124,9 +143,6 @@ class ToolRow(OverlayFrame):
         height = SIZES["tool-height-compact" if self.compact else "tool-height"]
         self.brand.setFont(theme_font(QApplication.font(), "brand"))
         self.brand.setStyleSheet(qss("QLabel { color: {text}; padding: 0 4px; }", palette))
-        self.logo_slot.setStyleSheet(qss("QLabel { background: {panel-raised}; "
-                                         "border: 1px solid {panel-edge}; border-radius: 4px; }",
-                                         palette))
         self.toolbar.setStyleSheet(qss(
             "QToolBar { background: {panel}; color: {text}; border: 0; spacing: 2px; }"
             "QToolButton { color: {text}; background: transparent; border: 1px solid transparent;"
@@ -137,6 +153,11 @@ class ToolRow(OverlayFrame):
             "QToolButton:disabled { color: {text-disabled}; background: transparent; }"
             "QToolButton:focus { border: 2px solid {focus-ring}; }", palette))
         for button, action, name in self._icon_entries:
+            # Refresh translations without changing the original menu commands.
+            if action is not None:
+                short = t(_TOOL_LABELS[name])
+                if action.iconText() != short:
+                    action.setIconText(short)
             button.setMinimumHeight(height)
             button.setMaximumHeight(height)
             button.setIcon(self._design_icon(
