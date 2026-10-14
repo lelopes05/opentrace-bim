@@ -158,6 +158,35 @@ class ActualHostVisualCaptureTests(unittest.TestCase):
                         ).text(),
                     }
 
+            # Audit addition to approved mockup page 4: all three REAL
+            # SlabTool.set_mode methods, not illustrations.
+            slab_controller = window._arquitetura_parametrica_slab_controller
+            if not slab_controller.action.isChecked():
+                slab_controller.action.trigger()
+            for mode in ("diagonal", "base_width", "polygon"):
+                slab_controller.choose_mode(mode)
+                bar.refresh()
+                APP.processEvents()
+                self.assertEqual(slab_controller.tool.mode, mode)
+                path = folder / f"slab_method_{mode}.png"
+                self._capture(bar, path)
+                manifest["screenshots"].append(str(path))
+            slab_controller.choose_mode("diagonal")
+
+            # Page 8: the dedicated F01 creation page mirrors the hosted tool.
+            if not openings[1].isChecked():
+                openings[1].trigger()
+            suite._run_sync_context()
+            self.assertIs(suite.stack.currentWidget(), suite.pages["door"])
+            path = folder / "door_create_sidebar.png"
+            self._capture(suite.panel, path)
+            manifest["screenshots"].append(str(path))
+            # The editing structure is intentionally read-only pending F01.
+            suite.show_page("door_edit", show_dock=False)
+            path = folder / "door_edit_sidebar_structure.png"
+            self._capture(suite.panel, path)
+            manifest["screenshots"].append(str(path))
+
         root.mkdir(parents=True, exist_ok=True)
         (root / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
