@@ -15,7 +15,7 @@ from PySide6.QtGui import QVector3D
 from core.group import Group
 from core.mesh import Mesh
 
-from .door_window_core import normalize_fill, FillError
+from .door_window_core import normalize_fill, FillError, f01_unit_size, f01_minimum_unit
 
 
 def _prism(x0, x1, y0, y1, z0, z1, *, pivot=None, angle=0.0):
@@ -47,7 +47,117 @@ def _part(name, *size, **kwargs):
     return part
 
 
-def build_fill_parts(raw, *, wall_thickness=0.10):
+def _physical_f01_parts(spec, wall_thickness, wall_faces):
+    """Physical F01: independent leaf, side jambs, operating/installation gaps.
+
+    X runs across the rough cut, Y spans finished wall faces, Z is above
+    the lower rough opening. The host's source station never changes here.
+    """
+    unit_width, unit_height = f01_unit_size(spec)
+    minimum_width, _minimum_height = f01_minimum_unit(spec)
+    frame = spec["frame_thickness"]
+    x0 = spec["clearance_left"]
+    x1 = x0 + unit_width
+    z0 = spec["clearance_bottom"]
+    z1 = z0 + unit_height
+    trim_width = spec["trim_width"]
+    trim_depth = spec["trim_thickness"]
+    depth = (wall_thickness if spec["frame_depth_mode"] == "auto"
+             else spec["frame_depth"])
+    if depth <= 0:
+        raise FillError("Profundidade do batente inválida.")
+    lower_face, upper_face = wall_faces
+    recess = spec["frame_recess"]
+    if spec["host_face"] == "left":
+        y0 = lower_face + recess
+        y1 = y0 + depth
+    else:
+        y1 = upper_face - recess
+        y0 = y1 - depth
+    center_y = (y0 + y1) / 2
+    leaf_thickness = spec["leaf_thickness"]
+    # A manually shallow frame cannot enclose the specified physical leaf.
+    if leaf_thickness >= depth:
+        raise FillError("O batente deve ser mais profundo que a folha.")
+    extra = (unit_width - minimum_width) / 2
+    leaf_left = x0 + frame + spec["operating_gap_left"] + extra
+    leaf_right = leaf_left + spec["width"]
+    leaf_top = z0 + spec["height"]
+    hinge = leaf_left if spec["hinge"] == "left" else leaf_right
+    direction = 1 if spec["hinge"] == "left" else -1
+    angle = direction * spec["swing"] * spec["model_angle"]
+    pivot = (hinge, center_y)
+    result = []
+
+    def add(name, component, *bounds, **kwargs):
+        part = _part(name, *bounds, **kwargs)
+        part.ext = {"opentrace_component": component}
+        material = spec.get("material_" + component)
+        if material is not None:
+            part.material = copy.deepcopy(material)
+        result.append(part)
+        return part
+
+    add("Marco esquerdo", "frame", x0, x0+frame, y0, y1, z0, z1)
+    add("Marco direito", "frame", x1-frame, x1, y0, y1, z0, z1)
+    add("Verga do marco", "frame", x0+frame, x1-frame,
+        y0, y1, z1-frame, z1)
+
+    # Physical leaf is always EXACTLY width x height in both its 3D geometry
+    # and data contract; thin independently painted front/back skins cover it.
+    add("Folha de abrir", "leaf_edge", leaf_left, leaf_right,
+        center_y-leaf_thickness/2, center_y+leaf_thickness/2,
+        z0, leaf_top, pivot=pivot, angle=angle)
+    skin = min(0.0006, leaf_thickness/8)
+    for side, component, ya, yb in (
+        ("A", "leaf_front", center_y-leaf_thickness/2-skin,
+         center_y-leaf_thickness/2),
+        ("B", "leaf_back", center_y+leaf_thickness/2,
+         center_y+leaf_thickness/2+skin),
+    ):
+        add("Face " + side + " da folha", component,
+            leaf_left, leaf_right, ya, yb, z0, leaf_top,
+            pivot=pivot, angle=angle)
+        if spec["leaf_variant"] == "grooved":
+            # Three shallow, separately grouped face lines.
+            for i in range(1, 4):
+                x = leaf_left + spec["width"]*i/4
+                add("Friso " + side + " " + str(i), component,
+                    x-0.0015, x+0.0015,
+                    ya-skin if side == "A" else yb,
+                    ya if side == "A" else yb+skin,
+                    z0+0.10, leaf_top-0.10, pivot=pivot, angle=angle)
+        elif spec["leaf_variant"] == "panelled":
+            # Two inset-looking applied raised rectangular panels, not cuts.
+            border = min(0.09, spec["width"]/6, spec["height"]/8)
+            for i in range(2):
+                low = z0 + border + (spec["height"]-3*border)*i/2
+                high = low+(spec["height"]-3*border)/2
+                add("Almofada " + side + " " + str(i+1), component,
+                    leaf_left+border, leaf_right-border,
+                    ya-skin if side == "A" else yb,
+                    ya if side == "A" else yb+skin,
+                    low, high, pivot=pivot, angle=angle)
+
+    # Alizares cover both finished faces; disabling one never affects the other.
+    for side, enabled, face, material in (
+        ("A", spec["trim_front_enabled"], lower_face, "trim_front"),
+        ("B", spec["trim_back_enabled"], upper_face, "trim_back"),
+    ):
+        if not enabled:
+            continue
+        ya, yb = ((face-trim_depth, face) if side == "A"
+                  else (face, face+trim_depth))
+        add("Alizar " + side + " esquerdo", material,
+            x0-trim_width, x0, ya, yb, z0, z1+trim_width)
+        add("Alizar " + side + " direito", material,
+            x1, x1+trim_width, ya, yb, z0, z1+trim_width)
+        add("Alizar " + side + " superior", material,
+            x0, x1, ya, yb, z1, z1+trim_width)
+    return result
+
+
+def build_fill_parts(raw, *, wall_thickness=0.10, wall_faces=None):
     """Build one opening-filling object as named parametric geometric parts.
 
     A door has three frame parts plus one swinging leaf. A window has a
@@ -58,6 +168,10 @@ def build_fill_parts(raw, *, wall_thickness=0.10):
     thickness = float(wall_thickness)
     if not math.isfinite(thickness) or thickness <= 0.002:
         raise FillError("Espessura da parede inválida.")
+    if wall_faces is None:
+        wall_faces = (-thickness/2, thickness/2)
+    if spec["kind"] == "door" and spec.get("f01_layout") == "physical":
+        return _physical_f01_parts(spec, thickness, wall_faces)
     f = spec["frame_thickness"]
     if spec["kind"] == "door":
         x0 = spec["clearance_left"]
@@ -107,7 +221,7 @@ def build_fill_parts(raw, *, wall_thickness=0.10):
     return parts
 
 
-def make_fill_group(raw, *, wall_thickness=0.10):
+def make_fill_group(raw, *, wall_thickness=0.10, wall_faces=None):
     """A free, unplaced fill assembly ready for hosted placement.
 
     No global ID is generated here: the caller chooses persistent identifiers
@@ -115,7 +229,8 @@ def make_fill_group(raw, *, wall_thickness=0.10):
     """
     spec = normalize_fill(raw)
     group = Group(name=spec["name"])
-    group.adopt(build_fill_parts(spec, wall_thickness=wall_thickness))
+    group.adopt(build_fill_parts(
+        spec, wall_thickness=wall_thickness, wall_faces=wall_faces))
     group.component = False
     group.ext = {
         "arquitetura_parametrica": {
@@ -203,7 +318,9 @@ def place_fill_on_wall(raw, wall_group):
     # Use the overall finished faces, including every composite finish layer.
     finished_depth = hi - lo
     b, _t, _xy = profile_at_fraction(values, left/L)
-    assembly = make_fill_group(spec, wall_thickness=finished_depth)
+    assembly = make_fill_group(
+        spec, wall_thickness=finished_depth,
+        wall_faces=(lo-offset, hi-offset))
     matrix = QMatrix4x4()
     matrix.translate(point.x()+normal.x()*offset,
                      point.y()+normal.y()*offset,
