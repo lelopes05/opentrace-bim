@@ -7,7 +7,7 @@ never registered with QMainWindow and retains Qt's native overflow chevron.
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
 
 from .icons import icon
 from .i18n import t
@@ -44,6 +44,10 @@ class ToolRow(OverlayFrame):
         self.brand.setObjectName("opentrace_tool_brand")
         self.brand.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         layout.addWidget(self.brand)
+        self.brand_divider = QFrame(self)
+        self.brand_divider.setObjectName("opentrace_brand_divider")
+        self.brand_divider.setFixedSize(1, 24)
+        layout.addWidget(self.brand_divider, 0, Qt.AlignVCenter)
         self.toolbar = QToolBar(t("OpenTrace BIM · Ferramentas"), self)
         self.toolbar.setObjectName("opentrace_tool_strip")
         self.toolbar.setMovable(False)
@@ -52,6 +56,10 @@ class ToolRow(OverlayFrame):
         self.toolbar.setFocusPolicy(Qt.NoFocus)
         self.toolbar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         layout.addWidget(self.toolbar)
+        self.tools_divider = QFrame(self)
+        self.tools_divider.setObjectName("opentrace_tools_divider")
+        self.tools_divider.setFixedSize(1, 24)
+        layout.addWidget(self.tools_divider, 0, Qt.AlignVCenter)
 
         self._icon_cache = {}
         self._buttons = [wall.wall_menu_button]
@@ -106,6 +114,8 @@ class ToolRow(OverlayFrame):
     def set_compact(self, compact):
         self.compact = bool(compact)
         self.brand.setText("OT" if self.compact else "OpenTrace BIM")
+        self.brand_divider.setFixedHeight(18 if self.compact else 24)
+        self.tools_divider.setFixedHeight(18 if self.compact else 24)
         self.layout().setContentsMargins(
             SIZES["space-3"] if self.compact else SIZES["panel-inset"],
             0 if self.compact else 3,
@@ -144,6 +154,8 @@ class ToolRow(OverlayFrame):
         height = SIZES["tool-height-compact" if self.compact else "tool-height"]
         self.brand.setFont(theme_font(QApplication.font(), "brand"))
         self.brand.setStyleSheet(qss("QLabel { color: {text}; padding: 0 4px; }", palette))
+        for divider in (self.brand_divider, self.tools_divider):
+            divider.setStyleSheet(qss("QFrame { background: {divider}; border: 0; }", palette))
         self.toolbar.setStyleSheet(qss(
             "QToolBar { background: {panel}; color: {text}; border: 0; spacing: 2px; }"
             "QToolButton { color: {text}; background: transparent; border: 1px solid transparent;"
@@ -172,12 +184,19 @@ class ToolRow(OverlayFrame):
         extension = self.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
         if extension is not None:
             extension.setArrowType(Qt.NoArrow)
-            extension.setIcon(self._design_icon(palette, "overflow", COMPACT_ICON))
-            extension.setIconSize(QSize(COMPACT_ICON, COMPACT_ICON))
+            extension.setText("»")
+            extension.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            extension.setMinimumWidth(22)
             extension.setToolTip(t("Mais ferramentas"))
+            extension.setStyleSheet(qss(
+                "QToolButton { color: {text}; border: 0; padding: 0;"
+                " font-size: 19px; font-weight: 600; background: transparent; }"
+                "QToolButton:hover { background: {hover-wash}; }", palette))
         for button, name in ((self.help_button, "help"),
                              (self.compact_button, "expand" if self.compact else "collapse")):
-            button.setIcon(self._design_icon(palette, name, COMPACT_ICON))
+            button_size = COMPACT_ICON if self.compact else SIZES["icon-20"]
+            button.setIcon(self._design_icon(palette, name, button_size))
+            button.setIconSize(QSize(button_size, button_size))
             button.setStyleSheet(qss(
                 "QToolButton { background: transparent; color: {text}; border: 0; }"
                 "QToolButton:hover { background: {hover-wash}; }", palette))
