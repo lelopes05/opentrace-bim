@@ -340,6 +340,49 @@ Nenhuma.
 - **Limite remanescente:** `IfcOpeningElement` ainda não possui representação geométrica própria. Essa implementação e a validação IFC em visualizador externo pertencem a etapa posterior, sem anunciar suporte inexistente.
 - **P1b — Interface da porta:** inserção em **dois cliques** (primeiro fixa parede, posição e face automática; segundo define dobradiça e sentido); `Tab` inverte a face na prévia; barra da Porta preserva os campos editáveis existentes, exibe **“Largura do vão de corte” apenas para leitura** e incorpora ajuda contextual do procedimento. A barra não troca ferramenta. Revisão visual no IngeTrazo Windows continua obrigatória.
 
+## Recuperação P-A1 / F01 — auditoria funcional de 14/10/2026
+
+**Branch isolada:** `gpt/recupera-portas-f01`; sem merge na oficial, sem
+alterações à interface dos outros agentes e sem aceite Windows nesta fase.
+
+- A auditoria revelou um conflito de dimensões: `width=0.80` é a largura
+  **física** da folha, portanto um marco lateral de 0,04 m por lado não cabe
+  num conjunto de 0,80 m. A fórmula antiga do corte de 0,88 m não atende
+  simultaneamente folha física, marco e instalação. O limite físico SEM
+  folgas móveis seria conjunto 0,88 m + instalação 0,08 m = corte 0,96 m.
+- **Hipótese técnica explícita, ajustável por instância:** iniciar com folga
+  operacional de 0,003 m à esquerda, à direita e acima da folha. Ela NÃO
+  substitui a folga de instalação de 0,04 m. Com folha 0,80 × 2,10 m,
+  batente aparente 0,04 m e sem soleira, o conjunto mínimo fica
+  0,886 × 2,143 m e o recorte 0,966 × 2,183 m. Nenhuma cota é norma
+  de acessibilidade ou prescrita pelo fabricante.
+- `f01_layout="physical"` marca **novas** F01. Registros schema-1
+  migrados e schema-2 anteriores, sem essa marca, preservam corte,
+  posição, geometria e GUID legados. Conversão de modelo antigo precisa
+  ser explícita: não existe migração geométrica automática silenciosa.
+- Profundidade automática acompanha espessura **acabada** da parede; a
+  manual e o recuo ficam na instância. `host_face` alinha o marco à
+  face escolhida, inclusive em parede composta. Alizares A/B podem
+  ser desligados independentemente. `plain`, `grooved`, `panelled`
+  são três variantes geométricas básicas da F01, sem biblioteca visual.
+- Os materiais nativos dos componentes são dicionários independentes
+  persistentes. As faces da folha, batente e alizares têm grupos de
+  geometria próprios. A variante almofadada usa painéis aplicados; ainda
+  não implementa corte/moldura ornamental de fabricante.
+- A P-A1 regenera os filhos geométricos de portas e janelas no mesmo
+  comando `EditWall`, inclusive quando só muda o alinhamento local de
+  um batente manual. Testes de parede reta, curva e composta verificam
+  que não há deslocamento longitudinal nem troca de identidade.
+- A edição de **contorno** de um vão associado converte delta bruto em
+  delta de folha no motor `wall_opening_edit.py`. Campos do editor visual
+  anterior (`ui.py`) continuam fora de escopo e exigem posterior
+  integração para diferenciar claramente cota de folha e de recorte.
+- Testes: `tests/test_door_physical_f01.py`,
+  `tests_host/test_door_physical_f01_host.py`,
+  `tests_host/test_hosted_wall_dependencies_host.py`,
+  `tests_host/test_door_p1a_host.py`, além das regressões anteriores.
+  Validação visual e screenshots do Windows ficam com o responsável.
+
 ## Tradução — T1 e T2 (13/10/2026)
 
 **T1 — infraestrutura e auditoria, branch `gpt/traducao`:**
