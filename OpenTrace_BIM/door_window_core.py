@@ -237,17 +237,16 @@ def normalize_fill(raw):
             if not 0 <= out[angle] <= 180:
                 raise FillError(f"{angle}: ângulo fora do intervalo de 0 a 180°.")
     else:
-        panes = raw.get("panes", 1)
-        if isinstance(panes, bool) or int(panes) != panes:
-            raise FillError("Quantidade de folhas inválida.")
-        out["panes"] = int(panes)
+        out["panes"] = int(raw.get("panes", 1))
         if not 1 <= out["panes"] <= 16:
             raise FillError("Quantidade de folhas inválida.")
-        out["glass_thickness"] = _number(
-            raw.get("glass_thickness", 0.006),
-            "Espessura do vidro", positive=True)
-        if out["glass_thickness"] >= frame:
-            raise FillError("Vidro não pode ser mais espesso que o marco.")
+        # Window schema-1 records remain byte-compatible by default.
+        # New glazing overrides are optional, never retroactively inserted.
+        if "glass_thickness" in raw:
+            out["glass_thickness"] = _number(
+                raw["glass_thickness"], "Espessura do vidro", positive=True)
+            if out["glass_thickness"] >= frame:
+                raise FillError("Vidro não pode ser mais espesso que o marco.")
         for component in ("window_frame", "window_glass"):
             key = "material_" + component
             if key in raw:
