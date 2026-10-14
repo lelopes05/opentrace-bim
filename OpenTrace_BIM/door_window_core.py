@@ -11,6 +11,7 @@ anchor fixed. One swing switch flips the *direction*, not the host opening.
 """
 from __future__ import annotations
 
+from .door_leaf_grid import normalize_leaf_grid
 import math
 import copy
 
@@ -32,7 +33,7 @@ DOOR_FAMILIES = {
 ANCHORS = ("left", "center", "right")
 KINDS = ("door", "window")
 HINGES = ("left", "right")
-F01_VARIANTS = ("plain", "grooved", "panelled")
+F01_VARIANTS = ("plain", "grooved", "panelled", "grid")
 # A technical starting allowance, not a certified installation tolerance.
 # The moving-leaf gap is independent of the 40 mm construction clearances.
 F01_OPERATING_GAP = 0.003
@@ -179,6 +180,13 @@ def normalize_fill(raw):
             if variant not in F01_VARIANTS:
                 raise FillError("Variante F01 desconhecida.")
             out["leaf_variant"] = variant
+            if variant == "grid" or "leaf_grid" in raw:
+                try:
+                    out["leaf_grid"] = normalize_leaf_grid(
+                        raw.get("leaf_grid"), width, height,
+                        out["leaf_thickness"])
+                except ValueError as exc:
+                    raise FillError(str(exc)) from exc
             for axis in ("left", "right", "top"):
                 out["operating_gap_" + axis] = _number(
                     raw.get("operating_gap_" + axis, F01_OPERATING_GAP),
@@ -204,7 +212,10 @@ def normalize_fill(raw):
                 raw.get("trim_thickness", 0.012),
                 "Espessura do alizar", positive=True)
             # Independent native host material dictionaries per component.
-            for component in ("leaf_front", "leaf_back", "leaf_edge", "frame",
+            for component in ("leaf_front", "leaf_back", "leaf_edge",
+                              "leaf_stile", "leaf_rail", "leaf_mullion",
+                              "leaf_transom", "leaf_glass", "leaf_solid",
+                              "leaf_louver", "frame",
                               "trim_front", "trim_back", "hardware"):
                 key = "material_" + component
                 if key in raw:
