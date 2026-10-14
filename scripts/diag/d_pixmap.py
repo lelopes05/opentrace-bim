@@ -1,3 +1,5 @@
+import gc
+from PySide6.QtGui import QPixmapCache
 from PySide6.QtWidgets import QApplication
 
 app = QApplication([])
@@ -19,3 +21,9 @@ pixmaps = [
     for size in sizes
 ]
 print(f"Produced {len(pixmaps)} pixmaps across {len(OpenTrace_BIM.icons._NAMES)} icons", flush=True)
+
+gc.collect()
+QPixmapCache.clear()
+QApplication.processEvents()
+QApplication.shutdown()
+print("Shutdown sequence completed", flush=True)
