@@ -29,6 +29,8 @@ class FillPropertiesPanel(QWidget):
         ("material_trim_front", "Alizar face A"),
         ("material_trim_back", "Alizar face B"),
         ("material_hardware", "Ferragens"),
+        ("material_window_frame", "Marco da janela"),
+        ("material_window_glass", "Vidro da janela"),
     )
 
     def __init__(self, parent, submit):
@@ -40,6 +42,7 @@ class FillPropertiesPanel(QWidget):
         self._rows = {}
         self._groups = {}
         self._catalog = {}
+        self._material_names = ()
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 4, 0, 4)
         root.setSpacing(4)
@@ -122,6 +125,8 @@ class FillPropertiesPanel(QWidget):
             self._number("geometry", key, label, 0, 5, maximum=180, suffix="°")
         self._number("geometry", "panes", "Quantidade de folhas da janela",
                      1, 1, maximum=16, decimals=0, suffix="")
+        self._number("installation", "glass_thickness", "Espessura do vidro",
+                     0.001, 0.001)
         self._bool("geometry", "trim_front_enabled", "Alizar face A")
         self._bool("geometry", "trim_back_enabled", "Alizar face B")
         self._number("geometry", "trim_width", "Largura do alizar", 0.005, 0.005)
@@ -182,10 +187,12 @@ class FillPropertiesPanel(QWidget):
             if value is None:
                 self.submit({name: None})
             elif recipe is not None:
-                material = {key: item for key, item in recipe.items()
-                            if key in ("color", "texture", "opacity")
-                            and item is not None}
-                self.submit({name: material or {"mat": value}})
+                material = {"mat": value}
+                material.update({
+                    key: item for key, item in recipe.items()
+                    if key in ("color", "texture", "opacity") and item is not None
+                })
+                self.submit({name: material})
             return
         self.submit({name: value})
 
@@ -209,7 +216,7 @@ class FillPropertiesPanel(QWidget):
                 f01_unit_size(spec) if door else (spec["width"], spec["height"]))
             rough_width, rough_height = (
                 wallhole_size(spec) if door else (spec["width"], spec["height"]))
-            values = dict(spec,
+            values = dict(spec, glass_thickness=spec.get("glass_thickness", 0.006),
                           unit_width=unit_width, unit_height=unit_height,
                           rough_width=rough_width, rough_height=rough_height,
                           unit_width_manual="unit_width" in spec,
@@ -233,23 +240,26 @@ class FillPropertiesPanel(QWidget):
                 physical and spec["frame_depth_mode"] == "manual")
             materials = material_catalog(scene)
             self._catalog = materials
+            names = tuple(materials)
+            if names != self._material_names:
+                self._material_names = names
+                for key, _title in self._MATERIALS:
+                    field = self._fields[key]
+                    field.clear()
+                    field.addItem(t("Padrão"), None)
+                    for name in names:
+                        field.addItem(name, name)
+                field = self._fields["material_name"]
+                field.clear()
+                field.addItem(t("Padrão"), None)
+                for name in names:
+                    field.addItem(name, name)
             for key, _title in self._MATERIALS:
                 field = self._fields[key]
                 saved = spec.get(key)
-                current = next((name for name, recipe in materials.items()
-                                if isinstance(saved, dict)
-                                and all(saved.get(p) == recipe.get(p)
-                                        for p in saved if p != "mat")), None)
-                field.clear()
-                field.addItem(t("Padrão"), None)
-                for name in materials:
-                    field.addItem(name, name)
+                current = saved.get("mat") if isinstance(saved, dict) else None
                 field.setCurrentIndex(max(0, field.findData(current)))
             field = self._fields["material_name"]
-            field.clear()
-            field.addItem(t("Padrão"), None)
-            for name in materials:
-                field.addItem(name, name)
             field.setCurrentIndex(max(0, field.findData(spec.get("material_name"))))
             for key in ("width", "height", "frame_thickness",
                         "rough_width", "rough_height"):
@@ -265,8 +275,10 @@ class FillPropertiesPanel(QWidget):
                         "trim_back_enabled", "trim_width", "trim_thickness"):
                 self._show(key, physical)
             self._show("panes", not door)
+            self._show("glass_thickness", not door)
             for key, _title in self._MATERIALS:
-                self._show(key, physical)
+                self._show(key, (not door) if key.startswith("material_window_")
+                           else physical)
             self._show("material_name", not door)
             self._groups["installation"][0].setVisible(physical or not door)
             self._groups["geometry"][0].setVisible(physical or not door)
