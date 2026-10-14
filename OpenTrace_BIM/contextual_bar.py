@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QSize, Slot
 from PySide6.QtWidgets import (
-    QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
+    QApplication, QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
 )
 
-from .icons import set_symbol_icon
+from .icons import icon
 from .i18n import t
+from .style import SIZES, qss, theme_font
 from .model import MIN_DIM
 
 
@@ -60,6 +61,9 @@ class ContextualBar(QWidget):
         self._mode_controls = []
         self._segment_controls = []
         self._derived_controls = []
+        self._button_icons = {}
+        self._icon_cache = {}
+        self._icon_assignments = {}
         self._collapsed = False
         self._key = None
         self._opening_kind = "opening"
@@ -93,7 +97,6 @@ class ContextualBar(QWidget):
         layout.setSpacing(9)
         label = QLabel(title)
         label.setObjectName("opentrace_context_name")
-        label.setStyleSheet("font-weight:600; padding-right:5px;")
         layout.addWidget(label)
         self.stack.addWidget(w)
         self.pages[key] = (w, layout)
@@ -104,14 +107,11 @@ class ContextualBar(QWidget):
         # and dimensions, not inline fragments mixed with buttons.
         group = QFrame(self)
         group.setObjectName("opentrace_context_section")
-        group.setStyleSheet(
-            "QFrame#opentrace_context_section {"
-            " border-left:1px solid palette(mid); padding-left:5px; }")
         v = QVBoxLayout(group)
         v.setContentsMargins(4,0,3,0)
         v.setSpacing(2)
         label = QLabel(title,group)
-        label.setStyleSheet("font-size:9pt; color:palette(mid);")
+        label.setObjectName("opentrace_context_group_label")
         v.addWidget(label)
         controls=QHBoxLayout()
         controls.setContentsMargins(0,0,0,0)
@@ -131,26 +131,19 @@ class ContextualBar(QWidget):
         button.setAutoRaise(True)
         button.setToolTip(title)
         button.setAccessibleName(title)
-        button.setFixedSize(34, 32)
-        button.setIconSize(QSize(22, 22))
-        from .icons import icon as pa_icon
-        names={
-            "／":"wall","▱":"rect",
-            "⊥":"wall_base","⌒":"wall_curve","⊙":"center_arc",
-            "∴":"three_points","⬡":"polygon","◧":"anchor_left",
-            "⊕":"anchor_center","◨":"anchor_right",
-            "↶":"swing","⊘":"delete","ⓘ":"bim"}
-        chosen=names.get(symbol)
-        if chosen:
-            button.setIcon(pa_icon(chosen,32))
-            button.setText("")
-        else:
-            set_symbol_icon(button,symbol,22)
-        button.setStyleSheet(
-            "QToolButton {border:1px solid transparent; border-radius:4px;}"
-            "QToolButton:hover {background:palette(midlight);}"
-            "QToolButton:checked {background:palette(highlight);"
-            "border:1px solid palette(highlight);}")
+        button.setFixedHeight(SIZES["option-height"])
+        button.setMinimumWidth(SIZES["option-height"])
+        button.setIconSize(QSize(SIZES["icon-20"], SIZES["icon-20"]))
+        names = {
+            "／": "geo_segment", "▱": "geo_rect_diagonal",
+            "⊥": "geo_rect_base_width", "⌒": "geo_arc_normal",
+            "⊙": "geo_arc_center", "∴": "geo_arc_three",
+            "▭": "opening_rect", "□": "opening_square",
+            "◯": "opening_circle", "⬡": "opening_free",
+            "◧": "anchor_left", "⊕": "anchor_center",
+            "◨": "anchor_right", "↶": "swing", "⊘": "delete",
+        }
+        self._button_icons[button] = names[symbol]
         if active is not None:
             button.setCheckable(True)
             self._mode_controls.append((button, active))
@@ -159,9 +152,12 @@ class ContextualBar(QWidget):
         return button
 
     def _run(self, callback):
+        # Refresh synchronously. An unparented singleShot retained self after
+        # the bar's Qt widgets were deleted, then touched dead QToolButtons in
+        # _sync_size_controls when the queued callback eventually ran.
         callback()
         self.app.viewport.setFocus()
-        QTimer.singleShot(0, self.refresh)
+        self.refresh()
 
     def _field(self, layout, text, source, *, width=90, grouped=False, name=None):
         if source is None:
@@ -173,11 +169,11 @@ class ContextualBar(QWidget):
             vertical.setSpacing(2)
             label = QLabel(t(text), container)
             label.setObjectName("opentrace_label_" + name)
+            label.setProperty("designRole", "field-label")
             vertical.addWidget(label)
         else:
             label = self._section(layout, text)
         mirror = QDoubleSpinBox(self)
-        mirror.editingFinished.connect(self.app.viewport.setFocus)
         mirror.setLocale(source.locale())
         mirror.setDecimals(source.decimals())
         mirror.setRange(source.minimum(), source.maximum())
@@ -189,7 +185,9 @@ class ContextualBar(QWidget):
         # A direct QObject-to-QObject Qt connection avoids referencing
         # destroyed mirrors from Python signal closures during teardown.
         mirror.valueChanged.connect(source.setValue)
-        source.valueChanged.connect(self.suite.schedule_sync_context)
+        # Bind to this bar as the Qt receiver; Qt disconnects when the bar is
+        # destroyed, unlike a connection to a non-QObject suite callback.
+        source.valueChanged.connect(self._on_source_value_changed)
         mirror.setToolTip(source.toolTip() or t(text))
         mirror.setAccessibleName(t(text))
         if name is not None:
@@ -204,6 +202,11 @@ class ContextualBar(QWidget):
             self._target(layout).addWidget(mirror)
         return label, mirror
 
+    @Slot(float)
+    def _on_source_value_changed(self, _value):
+        """Schedule controller sync only while this bar's QObject exists."""
+        self.suite.schedule_sync_context()
+
     def _segment(self, layout, group_name, source_values, read_value, write_value):
         """An exclusive control mirroring a controller option, never a tool action."""
         buttons = QButtonGroup(self)
@@ -217,6 +220,16 @@ class ContextualBar(QWidget):
             button.setToolTip(t(caption))
             button.setCheckable(True)
             button.setAutoRaise(True)
+            button.setFixedHeight(SIZES["option-height"])
+            button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            button.setIconSize(QSize(SIZES["icon-20"], SIZES["icon-20"]))
+            icon_name = ("anchor_" + {"l": "left", "c": "center", "r": "right"}[value]
+                         if group_name == "beam_reference" else
+                         "anchor_" + value if group_name.endswith("_reference") else
+                         "wall_composite" if group_name.startswith("wall") and value == "composite" else
+                         "wall" if group_name.startswith("wall") else
+                         "slab_composite" if value == "composite" else "slab")
+            self._button_icons[button] = icon_name
             buttons.addButton(button)
             button.clicked.connect(
                 lambda _checked=False, v=value, cb=write_value: self._choose_option(cb, v))
@@ -243,6 +256,7 @@ class ContextualBar(QWidget):
         vertical.setSpacing(2)
         heading = QLabel(t(label), container)
         heading.setObjectName("opentrace_label_" + name)
+        heading.setProperty("designRole", "field-label")
         vertical.addWidget(heading)
         spin = QDoubleSpinBox(self)
         spin.setObjectName("opentrace_field_" + name)
@@ -254,7 +268,6 @@ class ContextualBar(QWidget):
         spin.setSuffix(" m")
         spin.setKeyboardTracking(False)
         spin.setMinimumWidth(90)
-        spin.editingFinished.connect(self.app.viewport.setFocus)
         spin.valueChanged.connect(setter)
         spin.installEventFilter(self._focus_return)
         spin.lineEdit().installEventFilter(self._focus_return)
@@ -462,9 +475,10 @@ class ContextualBar(QWidget):
             ("▭", "Retangular", "rect"), ("□", "Quadrada", "square"),
             ("◯", "Circular", "circle"), ("⬡", "Livre", "free"),
         ):
-            self._method(p, symbol, t(title),
-                         lambda s=shape: self._choose_shape(s),
-                         active=lambda s=shape: openings.opening_tool.shape == s)
+            button = self._method(p, symbol, t(title),
+                                  lambda s=shape: self._choose_shape(s),
+                                  active=lambda s=shape: openings.opening_tool.shape == s)
+            button.setObjectName("opentrace_opt_opening_shape_" + shape)
         self._size_fields(p, openings.opening_tool.place,
                           lambda: None if openings.opening_tool.shape == "free"
                           else openings.opening_tool.shape)
@@ -476,10 +490,11 @@ class ContextualBar(QWidget):
             ("⊕", "center", "Âncora central"),
             ("◨", "right", "Âncora direita"),
         ):
-            self._opening_anchor_buttons.append(
-                self._method(p, symbol, t(title),
-                             lambda a=anchor: self._set_anchor(openings.opening_tool.place, a),
-                             active=lambda a=anchor: openings.opening_tool.place.anchor == a))
+            button = self._method(p, symbol, t(title),
+                                  lambda a=anchor: self._set_anchor(openings.opening_tool.place, a),
+                                  active=lambda a=anchor: openings.opening_tool.place.anchor == a)
+            button.setObjectName("opentrace_opt_opening_anchor_" + anchor)
+            self._opening_anchor_buttons.append(button)
         for key, tool, title in (("door", openings.door_tool, "Porta"),
                                  ("window", openings.window_tool, "Janela")):
             p = self._page(key, t(title) + " · criação")
@@ -489,9 +504,10 @@ class ContextualBar(QWidget):
                 ("◧", "left", "Âncora esquerda"), ("⊕", "center", "Âncora central"),
                 ("◨", "right", "Âncora direita"),
             ):
-                self._method(p, symbol, t(label),
-                             lambda tl=tool, a=anchor: self._set_anchor(tl, a),
-                             active=lambda tl=tool, a=anchor: tl.anchor == a)
+                button = self._method(p, symbol, t(label),
+                                      lambda tl=tool, a=anchor: self._set_anchor(tl, a),
+                                      active=lambda tl=tool, a=anchor: tl.anchor == a)
+                button.setObjectName("opentrace_opt_" + key + "_anchor_" + anchor)
 
     def _choose_shape(self, shape):
         self.wall.openings.opening_tool.set_shape(shape)
@@ -502,7 +518,6 @@ class ContextualBar(QWidget):
         for key, label in (("width", "Largura"), ("height", "Altura"), ("sill", "Peitoril")):
             title = self._section(layout, t(label))
             spin = QDoubleSpinBox(self)
-            spin.editingFinished.connect(self.app.viewport.setFocus)
             spin.installEventFilter(self._focus_return)
             spin.lineEdit().installEventFilter(self._focus_return)
             spin.setDecimals(2)
@@ -511,6 +526,7 @@ class ContextualBar(QWidget):
             spin.setSuffix(" m")
             spin.setKeyboardTracking(False)
             spin.setAccessibleName(t(label))
+            spin.setObjectName('opentrace_size_' + key)
             spin.valueChanged.connect(
                 lambda value, tl=tool, k=key, f=kind_of: self._set_size(tl, f(), k, value))
             self._target(layout).addWidget(spin)
@@ -594,6 +610,54 @@ class ContextualBar(QWidget):
                 return "slab_edit" if key == "slab" else key
         return "idle"
 
+    def apply_theme(self):
+        """Apply one tokenized stylesheet and refresh icon states."""
+        palette = QApplication.palette()
+        self.setStyleSheet(qss(
+            "QLabel#opentrace_context_name { color: {text}; font-size: 12px; font-weight: 600; }"
+            "QFrame#opentrace_context_section { border-left: 1px solid {divider}; padding-left: 5px; }"
+            "QLabel#opentrace_context_group_label { color: {text-muted}; font-size: 12px; font-weight: 600; }"
+            "QLabel[designRole='field-label'] { color: {text-muted}; font-size: 11px; font-weight: 500; }"
+            "QToolButton { background: {panel-raised}; border: 0px; border-radius: 4px;"
+            " padding: 3px; color: {text}; }"
+            "QToolButton:hover:!checked { background: {hover-wash}; }"
+            "QToolButton:checked { background: {panel}; border: 2px solid {orange}; }"
+            "QToolButton:focus { border: 2px solid {focus-ring}; }"
+            "QToolButton:disabled { background: transparent; color: {text-disabled}; }"
+            "QDoubleSpinBox { background: {field}; border: 1px solid {border};"
+            " border-radius: 4px; color: {text}; padding: 3px; min-height: 20px; font-size: 12px; }"
+            "QDoubleSpinBox:hover { background: {panel-raised}; }"
+            "QDoubleSpinBox:focus { border: 2px solid {focus-ring}; }"
+            "QDoubleSpinBox:read-only { background: {panel-raised}; border: 0px; }"
+            "QDoubleSpinBox:disabled { background: transparent;"
+            " border: 1px solid {divider}; color: {text-disabled}; }", palette))
+        for spin in self.findChildren(QDoubleSpinBox):
+            spin.setFont(theme_font(QApplication.font(), "field-value"))
+        # Render state variants before any click/paint callback. A refresh
+        # only swaps cached QIcons; it never starts a QPainter in an input event.
+        for name in set(self._button_icons.values()):
+            for state in ("normal", "marked", "disabled"):
+                key = (palette.cacheKey(), name, state)
+                if key not in self._icon_cache:
+                    self._icon_cache[key] = icon(
+                        name, SIZES["icon-20"], state=state, palette=palette)
+        self._update_icons(palette)
+
+    def _update_icons(self, palette):
+        palette_key = palette.cacheKey()
+        for button, name in self._button_icons.items():
+            state = ("disabled" if not button.isEnabled() else
+                     "marked" if button.isCheckable() and button.isChecked()
+                     else "normal")
+            key = (palette_key, name, state)
+            if self._icon_assignments.get(button) == key:
+                continue
+            if key not in self._icon_cache:
+                self._icon_cache[key] = icon(
+                    name, SIZES["icon-20"], state=state, palette=palette)
+            button.setIcon(self._icon_cache[key])
+            self._icon_assignments[button] = key
+
     def toggle_collapsed(self):
         self._collapsed = not self._collapsed
         self.stack.setVisible(not self._collapsed)
@@ -663,6 +727,7 @@ class ContextualBar(QWidget):
             old = button.blockSignals(True)
             button.setChecked(checked)
             button.blockSignals(old)
+        self._update_icons(QApplication.palette())
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
         # Options are methods of the active construction tool. Selection and
         # native editing keep their properties in the sidebar / radial palette.

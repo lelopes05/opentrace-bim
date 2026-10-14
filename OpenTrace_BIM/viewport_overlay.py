@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QApplication, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QVBoxLayout, QWidget,
+)
+
+from .style import SIZES, ThemeWatcher, luminance, qss, tokens
 
 
 _POINTER_EVENTS = frozenset((
@@ -31,10 +36,25 @@ class OverlayFrame(_BlockViewportInput, QFrame):
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAcceptDrops(True)
-        self.setStyleSheet(
-            "OverlayFrame { background: palette(window); "
-            "color: palette(window-text); border-radius: 8px; }"
-        )
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setOffset(0, SIZES["panel-shadow-y"])
+        self._shadow.setBlurRadius(SIZES["panel-shadow-blur"])
+        self.setGraphicsEffect(self._shadow)
+        # Do not dispatch to ToolRow.apply_theme before ToolRow is initialized.
+        OverlayFrame.apply_theme(self)
+
+    def apply_theme(self):
+        palette = QApplication.palette()
+        self.setStyleSheet(qss(
+            "OverlayFrame { background: {panel}; color: {text};"
+            " border: 1px solid {panel-edge};"
+            f" border-radius: {SIZES['radius-panel']}px; }}", palette))
+        colors = tokens(palette)
+        dark = luminance(colors["panel"]) < luminance(colors["text"])
+        shade = QColor(Qt.black)
+        shade.setAlphaF(SIZES["panel-shadow-dark-alpha" if dark
+                              else "panel-shadow-light-alpha"])
+        self._shadow.setColor(shade)
 
 
 class OverlayDock(_BlockViewportInput, QWidget):
@@ -53,10 +73,11 @@ class OverlayDock(_BlockViewportInput, QWidget):
         self._repositioning = False
         self._layout_request_queued = False
         self.row = tool_row
+        self.suite = suite
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(SIZES["space-4"])
         layout.addWidget(tool_row)
         self.options_frame = OverlayFrame(self)
         self.options_frame.setFocusPolicy(Qt.NoFocus)
@@ -78,9 +99,24 @@ class OverlayDock(_BlockViewportInput, QWidget):
         for widget in self._layout_sources:
             widget.installEventFilter(self)
         viewport.installEventFilter(self)
+        # The single application watcher dispatches all visual reapplication.
+        app = QApplication.instance()
+        if hasattr(app, "_opentrace_theme_watcher") and app._opentrace_theme_watcher is not None:
+            self._theme_watcher = app._opentrace_theme_watcher
+        else:
+            self._theme_watcher = ThemeWatcher()
+        self._theme_watcher.changed.connect(self.apply_theme)
+        self.apply_theme()
         self.reposition()
         self.show()
         self.raise_()
+
+    def apply_theme(self):
+        self.row.apply_theme()
+        self.options_frame.apply_theme()
+        self.bar.apply_theme()
+        self.suite.apply_theme()
+        self.reposition()
 
     def event(self, event):
         # The layout request is handled AFTER Qt updates this widget's layout.
