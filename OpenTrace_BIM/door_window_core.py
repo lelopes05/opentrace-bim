@@ -237,9 +237,23 @@ def normalize_fill(raw):
             if not 0 <= out[angle] <= 180:
                 raise FillError(f"{angle}: ângulo fora do intervalo de 0 a 180°.")
     else:
-        out["panes"] = int(raw.get("panes", 1))
+        panes = raw.get("panes", 1)
+        if isinstance(panes, bool) or int(panes) != panes:
+            raise FillError("Quantidade de folhas inválida.")
+        out["panes"] = int(panes)
         if not 1 <= out["panes"] <= 16:
             raise FillError("Quantidade de folhas inválida.")
+        out["glass_thickness"] = _number(
+            raw.get("glass_thickness", 0.006),
+            "Espessura do vidro", positive=True)
+        if out["glass_thickness"] >= frame:
+            raise FillError("Vidro não pode ser mais espesso que o marco.")
+        for component in ("window_frame", "window_glass"):
+            key = "material_" + component
+            if key in raw:
+                if raw[key] is not None and not isinstance(raw[key], dict):
+                    raise FillError("Material de janela inválido: " + key)
+                out[key] = copy.deepcopy(raw[key])
     for key in ("ifc_global_id", "type_name", "material_name"):
         if raw.get(key):
             out[key] = str(raw[key])
