@@ -1,17 +1,20 @@
 # Próximos passos
 
-## Recuperação da interface — auditoria Windows 14/10 (gpt/recupera-interface)
+## 14/10 — tentativa de recuperação da interface desfeita; trabalho suspenso
 
-**I-B1 (fileira):** implementada e CI verde em `9f05d57` (run `38515063490`). Fileira normal/compacta, overflow nativo, ícones e rótulos curtos, temas escuro e claro e capturas do IngeTrazo real em `OpenTrace-HOST-VISUAL`. **Aceite visual definitivo:** auditoria do responsável prevalece; reavaliar capturas no Windows, não promover só por CI.
+A tentativa em `gpt/recupera-interface`, até `eacfc7a`, foi rejeitada pelo responsável após teste no Windows. Suas alterações de código, traduções, testes e workflow foram retiradas em conjunto, restaurando esses arquivos exatamente à base `0eb6775`. O histórico permanece no Git; não reaplicar essa série nem tratar seus relatórios de implementação como aceite visual.
 
-**I-B2 (barra de opções):** adaptação funcional **posterior à página 4** do PDF `OpenTrace BIM — maquetes.pdf`. Layout proposto e implementado: `Método [diagonal | base + largura | polígono]` → `Tipo [simples | composta]` → `Medidas [espessura | base]` → `Presets [Escolher ▾]`. Os três métodos chamam `slab.choose_mode()`, que delega a `SlabTool.set_mode()` no motor existente; são estados reais, não botões ilustrativos. Parede, Pilar e Viga também ganham um `Presets [Escolher ▾]` diretamente no contexto, com menu preenchido via `preset_catalog.all_for()` no momento de abertura (incorporados e pessoais) e aplicação por `preset_catalog.apply_preset()`. A página 4 original mostra apenas Tipo/Medidas; o acréscimo de Método/Presets é exigência expressa da auditoria e necessita **aprovação da composição após prints reais**. Nenhum preset ou modo paralelo foi criado.
+Referências vigentes para evitar nova troca de pacote incorreta:
 
-**I-B3 (implementada, aceite Windows pendente):** a Porta possui páginas próprias `door` (criação com tamanhos e âncora ligados a `door_tool`) e `door_edit` (dados reais do preenchimento `record["params"]` somente leitura). Largura de corte derivada da família F01. Porta livre e orientação no segundo clique aparecem explicitamente indisponíveis; não existem comandos simulados. Os três módulos protegidos do motor F01 permaneceram intocados. Capturas por idioma/tema e testes de seleção do preenchimento na suíte do host.
+- **Oficial preservada:** [`claude/b1-curved-wall-perf`, `0eb6775`](https://github.com/lelopes05/opentrace-bim/tree/0eb67754a053ad38df6111c38a100159a5d31ef1). Esta reversão não atualiza a oficial.
+- **Portas preservadas:** [`gpt/recupera-portas-f01`, `671f444`](https://github.com/lelopes05/opentrace-bim/tree/671f444). É a linha do TEST-406 citada pelo responsável como melhor que a tentativa de interface; não representa aceite completo de todos os recursos. Suas correções não estão nesta branch e não foram integradas agora.
+- **Investigação visual preservada:** [`gpt/investiga-visual`, `4e5a0f8`](https://github.com/lelopes05/opentrace-bim/tree/4e5a0f8). Reutilização futura depende da nova orientação; não há implementação nova autorizada nesta limpeza.
+- **Contratos preservados:** `DECISIONS.md`, `DESIGN.md`, `PORTAS.md` e PDF aprovado `OpenTrace BIM — maquetes.pdf`. Desfazer a implementação não cancela os requisitos de métodos da Laje, presets, sincronização ou interface de Porta.
+- **TEST-340 e TEST-385:** pacotes da tentativa rejeitada, não substituem o TEST-406. Números do CI não estabelecem uma sequência funcional entre branches. Um pacote gerado por esta reversão também não substitui o TEST-406.
 
-**I-B4 (implementada, aceite Windows pendente):** `sync_context()` segue a ferramenta ativa, os alvos e a seleção real; seleção de objeto não ativa criação. BIM/Projeto/Organizar não interrompem a navegação contextual por exceção automática. Só a opção explícita `Fixar` mantém uma página durante a mudança de contexto; ao desfixar, volta a acompanhar a seleção. Home permanece como acesso manual e estado ocioso sem contexto. Testes do host cobrem a nova seleção e a fixação. Relatório de comparação com as 11 páginas em `docs/INTERFACE_AUDIT_2026-10-14.md`.
+A recuperação está **suspensa**. Não fazer merge, redesenhar ícones ou retomar a interface a partir das etapas históricas abaixo sem uma nova orientação do responsável. Detalhes da retirada em [INTERFACE_AUDIT_2026-10-14.md](INTERFACE_AUDIT_2026-10-14.md).
 
-**Pendências para aceite no Windows:** a composição acrescida da Laje; menus e aplicação de presets; estados ativos, foco, rótulos, ícones e densidade em ambos os temas; criação/edição de Porta à medida que o motor F01 ficar disponível; eventual redução de largura sem cortar o último grupo. Capturas reais do CI (não renderizações fictícias) são a evidência visual.
-
+---
 
 Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 

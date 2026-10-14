@@ -264,38 +264,39 @@ def _shape_spec(name):
     E = lambda x, y, w, h: ("E", (x, y, w, h))
     Z = ("Z", ())
     shapes = {
-        "wall": (path(R(2, 8, 20, 8)),
-                 path(M(7, 8), L(4, 16), M(13, 8), L(10, 16),
-                      M(19, 8), L(16, 16))),
+        "wall": (path(R(3, 6, 18, 12), M(3, 12), L(21, 12),
+                      M(9, 6), L(9, 12), M(15, 12), L(15, 18)),
+                 path(M(3, 18), L(9, 18))),
         "wall_composite": (path(R(3, 4, 18, 4), R(3, 10, 18, 4), R(3, 16, 18, 4)),
                            path(M(7, 8), L(7, 10), M(17, 14), L(17, 16))),
         "wall_curved": (path(M(4, 20), C(5, 8, 11, 3, 21, 4),
                              M(9, 21), C(10, 13, 14, 10, 21, 10)),
                         path(M(4, 20), L(9, 21))),
-        "slab": (path(M(2, 11), L(13, 5), L(22, 11), L(11, 17), Z),
-                 path(M(2, 11), L(2, 15), L(11, 21), L(22, 15),
-                      L(22, 11), M(11, 17), L(11, 21))),
+        "slab": (path(M(3, 11), L(16, 6), L(21, 10), L(8, 16), Z,
+                      M(8, 16), L(8, 20), L(3, 15), L(3, 11)),
+                 path(M(8, 20), L(21, 14), L(21, 10))),
         "slab_composite": (path(M(3, 7), L(15, 3), L(21, 7), L(9, 11), Z,
                                 M(3, 12), L(9, 16), L(21, 12),
                                 M(3, 17), L(9, 21), L(21, 17)),
                            path(M(9, 11), L(9, 16))),
-        "column": (path(R(7, 7, 10, 10), M(12, 2), L(12, 22),
-                        M(2, 12), L(22, 12)),
-                   path(E(10.5, 10.5, 3, 3), M(6, 4), L(8, 6),
-                        M(16, 18), L(18, 20))),
-        "beam": (path(R(3, 5, 18, 4), M(6, 9), L(6, 19),
-                      M(18, 9), L(18, 19), M(4, 19), L(20, 19)),
-                 path(M(3, 12), L(9, 12), M(15, 12), L(21, 12))),
-        "profile": (path(M(20, 4), L(5, 4), L(5, 20), L(20, 20),
-                         M(20, 10), L(11, 10), L(11, 14), L(20, 14)),
-                    path()),
-        "opening": (path(R(2, 9, 6, 6), R(16, 9, 6, 6)),
-                    path(M(8, 12), L(16, 12))),
-        "door": (path(M(4, 19), L(4, 9), Q(18, 9, 18, 19),
-                      M(2, 19), L(22, 19)),
-                 path(M(4, 9), L(4, 19))),
-        "window": (path(R(4, 4, 16, 16), R(7, 7, 10, 10)),
-                   path(M(10, 7), L(10, 17), M(14, 7), L(14, 17))),
+        "column": (path(M(6, 6), L(15, 3), L(20, 7), L(11, 10), Z,
+                        M(6, 6), L(6, 19), L(11, 22), L(11, 10),
+                        M(11, 22), L(20, 19), L(20, 7)),
+                   path(M(15, 3), L(15, 16))),
+        "beam": (path(M(3, 5), L(21, 5), M(6, 8), L(18, 8), M(12, 8),
+                      L(12, 18), M(6, 20), L(18, 20), M(3, 22), L(21, 22)),
+                 path(M(12, 5), L(12, 8))),
+        "profile": (path(M(5, 20), L(5, 5), L(15, 5), L(20, 9), L(15, 13),
+                         L(10, 13), L(10, 20), Z),
+                    path(E(13, 7, 4, 4))),
+        "opening": (path(R(3, 5, 18, 15), M(3, 11), L(7, 11),
+                         M(17, 11), L(21, 11)),
+                    path(R(7, 9, 10, 11))),
+        "door": (path(M(5, 20), L(5, 5), M(5, 20), L(19, 20),
+                      M(5, 20), L(17, 8)),
+                 path(M(19, 20), Q(19, 9, 5, 6))),
+        "window": (path(R(4, 5, 16, 15), R(7, 8, 10, 9), M(12, 8), L(12, 17)),
+                   path(M(7, 17), L(12, 12), L(17, 17))),
         "opening_rect": (path(R(3, 7, 18, 10)),
                          path(M(6, 17), L(18, 17))),
         "opening_square": (path(R(6, 5, 12, 12)),
@@ -325,10 +326,10 @@ def _shape_spec(name):
         "help": (path(E(3, 3, 18, 18), M(8, 9), Q(9, 5, 13, 7),
                       Q(18, 10, 12, 14), L(12, 16)),
                  path(M(12, 19), L(12, 20))),
-        "collapse": (path(M(5, 16), L(12, 9), L(19, 16)), path()),
-        "expand": (path(M(5, 9), L(12, 16), L(19, 9)), path()),
-        "overflow": (path(M(4, 5), L(11, 12), L(4, 19),
-                          M(12, 5), L(19, 12), L(12, 19)), path()),
+        "collapse": (path(R(4, 4, 16, 16)), path(M(8, 14), L(12, 10), L(16, 14))),
+        "expand": (path(R(4, 4, 16, 16)), path(M(8, 10), L(12, 14), L(16, 10))),
+        "overflow": (path(E(4, 10, 3, 3), E(10.5, 10, 3, 3)),
+                     path(E(17, 10, 3, 3))),
     }
     return shapes[name]
 
@@ -367,8 +368,9 @@ def pixmap(name, size=24, state="normal", palette=None):
     primary, accent = _paths(name)
     painter.setPen(pen)
     painter.drawPath(primary)
-    # Normal/active icons are monochrome per DESIGN.md and approved mockup.
-    # Orange belongs to the distinct "marked" option state only.
+    if state == "normal":
+        pen.setColor(colors["icon-accent"])
+        painter.setPen(pen)
     painter.drawPath(accent)
     painter.end()
     return QPixmap.fromImage(image)

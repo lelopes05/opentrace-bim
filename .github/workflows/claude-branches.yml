@@ -124,53 +124,6 @@ jobs:
         if: steps.icon_sheet.outputs.artifact-url != ''
         run: echo "::notice title=Folha de ícones::${{ steps.icon_sheet.outputs.artifact-url }}"
 
-  capture_visual:
-    name: Real host PNGs — English and Portuguese, both themes
-    needs: test
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with: {path: plugin}
-      - uses: actions/checkout@v4
-        with: {repository: ingelibre/ingetrazo, path: ingetrazo}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - name: Qt runtime
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libegl1 libgl1 libopengl0 libxkbcommon0
-          python -m pip install -q 'PySide6==6.11.2' 'numpy>=1.26,<3'
-      - name: Capture actual viewport tool row and contextual bar
-        working-directory: plugin
-        env:
-          PYTHONPATH: ${{ github.workspace }}/ingetrazo:${{ github.workspace }}/plugin
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          status=0
-          for lang in en pt-BR; do
-            echo "::group::Host screenshots ($lang)"
-            OPENTRACE_VISUAL_LANG="$lang" \
-              python -X faulthandler -m unittest discover -s tests_host -p 'test_visual_capture_host.py' -v || status=1
-            echo "::endgroup::"
-          done
-          exit "$status"
-      - id: capture
-        name: Upload actual Qt PNGs and locale manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenTrace-HOST-VISUAL-${{ github.run_number }}
-          path: plugin/visual_captures/
-          if-no-files-found: error
-          retention-days: 30
-      - name: Screenshot review link
-        if: steps.capture.outputs.artifact-url != ''
-        run: echo "::notice title=Capturas reais de interface::${{ steps.capture.outputs.artifact-url }}"
-
   package:
     needs: test
     runs-on: ubuntu-latest

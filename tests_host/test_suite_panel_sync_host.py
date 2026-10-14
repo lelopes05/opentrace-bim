@@ -32,8 +32,6 @@ class SuiteContextSyncTests(unittest.TestCase):
     def setUp(self):
         activate_select(self.app)
         self.suite._context_signature=None
-        self.suite._navigation_explicit=False
-        self.suite.navigation_pin.setChecked(False)
         self.suite.show_page("home",show_dock=False)
         self.suite._run_sync_context()
 
@@ -93,109 +91,6 @@ class SuiteContextSyncTests(unittest.TestCase):
         select(wall_b)
         suite._run_sync_context()
         self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
-
-    def test_door_has_independent_live_creation_and_separate_edit_page(self):
-        from OpenTrace_BIM.door_window_core import DOOR_FAMILIES
-        wall = self.window._arquitetura_parametrica_controller
-        tool = wall.openings.door_tool
-        original = dict(tool.sizes["door"])
-        original_anchor = tool.anchor
-        try:
-            activate_tool(self.app, "opentrace_wall_door_tool")
-            self.suite.show_page("door", show_dock=False)
-            self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door"])
-            self.assertIsNot(self.suite.pages["door"], self.suite.pages["wall"])
-            field = self.suite._door_create_fields["width"]
-            field.setValue(0.90)
-            self.assertAlmostEqual(tool.sizes["door"]["width"], 0.90)
-            offsets = DOOR_FAMILIES["swing_single"]["clearances"]
-            self.assertTrue(self.suite._door_rough_width.isReadOnly())
-            self.assertAlmostEqual(self.suite._door_rough_width.value(),
-                                   0.90 + offsets["left"] + offsets["right"])
-            self.suite._door_anchor_buttons["right"].click()
-            self.assertEqual(tool.anchor, "right")
-            self.assertIs(self.app.viewport.active_tool, tool)
-            unavailable = self.suite.pages["door"].findChild(
-                QToolButton, "opentrace_door_free_disabled")
-            self.assertIsNotNone(unavailable)
-            self.assertFalse(unavailable.isEnabled())
-            self.suite.show_page("door_edit", show_dock=False)
-            self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door_edit"])
-            self.assertIsNotNone(self.suite.pages["door_edit"].findChild(
-                type(self.suite.sidebar_brand), "opentrace_door_edit_pending"))
-        finally:
-            tool.sizes["door"].update(original)
-            tool.anchor = original_anchor
-            self.suite._sync_door_editor()
-            activate_select(self.app)
-
-    def test_door_tool_opens_its_own_creation_page(self):
-        activate_tool(self.app, "opentrace_wall_door_tool")
-        self.suite._run_sync_context()
-        self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door"])
-        self.assertIsNot(self.suite.stack.currentWidget(), self.suite.pages["wall"])
-        self.assertIs(self.app.viewport.active_tool,
-                      self.window._arquitetura_parametrica_controller.openings.door_tool)
-
-    def test_bim_project_arrange_do_not_block_new_selection(self):
-        from PySide6.QtGui import QVector3D
-        from OpenTrace_BIM.model import DEFAULTS, make_wall_segment
-
-        suite = self.suite
-        scene = self.app.scene
-        wall_ctrl = self.window._arquitetura_parametrica_controller
-        wall_a = make_wall_segment(QVector3D(0, 20, 0), QVector3D(3, 20, 0),
-                                   dict(DEFAULTS, length=3.0))
-        wall_b = make_wall_segment(QVector3D(0, 23, 0), QVector3D(3, 23, 0),
-                                   dict(DEFAULTS, length=3.0))
-        scene.groups.extend((wall_a, wall_b))
-        try:
-            def select(group):
-                scene.selection.clear()
-                scene.selection.add(group)
-                scene.version += 1
-                wall_ctrl._state_key = None
-                wall_ctrl.refresh()
-                suite._run_sync_context()
-
-            activate_select(self.app)
-            select(wall_a)
-            self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
-            for key in ("bim", "project", "arrange"):
-                with self.subTest(page=key):
-                    if key == "arrange":
-                        suite.open_arrange()
-                    else:
-                        suite.user_show_page(key)
-                    self.assertIs(suite.stack.currentWidget(), suite.pages[key])
-                    select(wall_b if key != "project" else wall_a)
-                    # The same selection keeps an explicit manual page, but
-                    # a distinct selection must follow its actual editor.
-                    if key == "project":
-                        self.assertIs(suite.stack.currentWidget(), suite.pages[key])
-                        select(wall_b)
-                    self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
-                    # Reestablish another signature for the next iteration.
-                    select(wall_a)
-            suite.user_show_page("project")
-            suite.navigation_pin.click()
-            self.assertTrue(suite.navigation_pin.isChecked())
-            select(wall_b)
-            self.assertIs(suite.stack.currentWidget(), suite.pages["project"])
-            suite.navigation_pin.click()
-            suite._run_sync_context()
-            self.assertFalse(suite.navigation_pin.isChecked())
-            self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
-            self.assertIsNot(self.app.viewport.active_tool, wall_ctrl.draw_tool)
-        finally:
-            suite.navigation_pin.setChecked(False)
-            scene.selection.clear()
-            for wall in (wall_a, wall_b):
-                scene.groups.remove(wall)
-            scene.version += 1
-            wall_ctrl._state_key = None
-            wall_ctrl.refresh()
-            suite._context_signature = None
 
     def test_home_shows_settings_and_project_only(self):
         section_names=list(self.suite._home_sections)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QApplication, QButtonGroup, QCheckBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QApplication, QButtonGroup, QCheckBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QStackedWidget, QToolButton, QVBoxLayout,
     QWidget,
 )
@@ -13,7 +13,7 @@ from . import __version__
 from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
-from .i18n import t, ui_locale
+from .i18n import t
 from .style import SIZES, qss, theme_font
 
 # Home entries are ordered; a missing page suppresses its entire section.
@@ -44,15 +44,10 @@ class ArchitectureSuitePanel:
     def __init__(self,app,wall=None,slab=None,column=None,beam=None,profiles=None,bim=None,membrane=None,master_dock=None):
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
-        self._context_signature = None
-        self._navigation_explicit = False
         self._mode_buttons={}
         self._home_sections={}
         self._opening_size_fields={}
         self._opening_section=None
-        self._door_create_fields={}
-        self._door_anchor_buttons={}
-        self._door_edit_fields={}
         self._property_sections={}
         self._editor_sections=[]
         self._help_dialog=None
@@ -90,16 +85,8 @@ class ArchitectureSuitePanel:
         self.project_info_button.setToolTip("Informações do Projeto")
         self.project_info_button.setAccessibleName("Informações do Projeto")
         self.project_info_button.setFixedSize(QSize(32,32))
-        self.project_info_button.clicked.connect(lambda: self.user_show_page("project"))
+        self.project_info_button.clicked.connect(lambda: self.show_page("project"))
         h.addWidget(self.project_info_button)
-        self.navigation_pin=QToolButton(header)
-        self.navigation_pin.setObjectName("opentrace_navigation_pin")
-        self.navigation_pin.setText(t("Fixar"))
-        self.navigation_pin.setCheckable(True)
-        self.navigation_pin.setFocusPolicy(Qt.NoFocus)
-        self.navigation_pin.setToolTip(t("Fixar página da paleta até desmarcar"))
-        self.navigation_pin.toggled.connect(self._pin_changed)
-        h.addWidget(self.navigation_pin)
         self.help_button=QToolButton(header)
         self.help_button.setText("?")
         self.help_button.setFixedSize(QSize(32,32))
@@ -151,11 +138,6 @@ class ArchitectureSuitePanel:
             wrapped=self._wrap_controller_page(key,ctrl,page)
             self._add_page(key,wrapped)
             ctrl.dock=self.master_dock
-        # Door-specific views reuse the existing hosted door tool and fill
-        # records. No wall-form reparenting, copied model or F01 controls.
-        if wall is not None:
-            self._add_page("door", self._make_door_create_page())
-            self._add_page("door_edit", self._make_door_edit_page())
         bim_ctrl=self.controllers.get("bim")
         if bim_ctrl is not None and getattr(bim_ctrl, "project_panel", None) is not None:
             self._add_page("project", bim_ctrl.project_panel)
@@ -188,13 +170,7 @@ class ArchitectureSuitePanel:
             "QToolButton[visualRole='section-toggle'] { color: {text};"
             " font-size: 12px; font-weight: 600; text-align: left;"
             " border: 0px; border-bottom: 1px solid {divider}; padding: 7px; }"
-            "QLabel[visualRole='hint'] { color: {text-muted}; font-size: 11px; }"
-            "QToolButton[visualRole='door-anchor'] { border: 0; background: {panel-raised};"
-            " border-radius: 4px; color: {text}; padding: 4px; }"
-            "QToolButton[visualRole='door-anchor']:checked { background: {panel};"
-            " border: 2px solid {orange}; }"
-            "QDoubleSpinBox[visualRole='door-readonly'] { background: {panel-raised};"
-            " color: {text}; border: 0; }",
+            "QLabel[visualRole='hint'] { color: {text-muted}; font-size: 11px; }",
             palette))
         for key, button in self.buttons.items():
             name = next(ico for page, _label, ico in self.PAGE_INFO if page == key)
@@ -212,150 +188,6 @@ class ArchitectureSuitePanel:
         from .palette import RadialPalette
         for radial in self.app.window.findChildren(RadialPalette):
             radial.apply_theme()
-
-    def _make_door_create_page(self):
-        """Existing F01 hosted placement values, never the wall properties form."""
-        from .door_window_core import DOOR_FAMILIES
-
-        page = QWidget()
-        page.setObjectName("opentrace_door_create_page")
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(SIZES["space-4"])
-        family = QLabel(t("Família") + ": " + t(DOOR_FAMILIES["swing_single"]["name"]))
-        family.setObjectName("opentrace_door_family")
-        lay.addWidget(family)
-        form = QFormLayout()
-        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        for key, label in (("width", "Largura da folha"),
-                           ("height", "Altura"), ("sill", "Peitoril")):
-            spin = QDoubleSpinBox(page)
-            spin.setObjectName("opentrace_door_create_" + key)
-            spin.setDecimals(2)
-            spin.setLocale(ui_locale())
-            spin.setRange(0.0 if key == "sill" else 0.05, 100.0)
-            spin.setSingleStep(0.05)
-            spin.setSuffix(" m")
-            spin.setKeyboardTracking(False)
-            spin.valueChanged.connect(lambda value, k=key: self._set_door_size(k, value))
-            form.addRow(t(label), spin)
-            self._door_create_fields[key] = spin
-        rough = QDoubleSpinBox(page)
-        rough.setObjectName("opentrace_door_rough_width")
-        rough.setDecimals(2)
-        rough.setLocale(ui_locale())
-        rough.setRange(0.0, 200.0)
-        rough.setSuffix(" m")
-        rough.setReadOnly(True)
-        rough.setButtonSymbols(QDoubleSpinBox.NoButtons)
-        rough.setFocusPolicy(Qt.NoFocus)
-        rough.setProperty("visualRole", "door-readonly")
-        rough.setToolTip(t("Calculado pela família F01 e suas folgas"))
-        form.addRow(t("Largura do vão de corte"), rough)
-        self._door_rough_width = rough
-        lay.addLayout(form)
-        anchors = QHBoxLayout()
-        anchors.addWidget(QLabel(t("Âncora"), page))
-        for anchor, label in (("left", "Esquerda"), ("center", "Centro"),
-                              ("right", "Direita")):
-            button = QToolButton(page)
-            button.setObjectName("opentrace_door_create_anchor_" + anchor)
-            button.setProperty("visualRole", "door-anchor")
-            button.setText(t(label))
-            button.setCheckable(True)
-            button.setFocusPolicy(Qt.NoFocus)
-            button.clicked.connect(lambda _=False, a=anchor: self._set_door_anchor(a))
-            anchors.addWidget(button)
-            self._door_anchor_buttons[anchor] = button
-        lay.addLayout(anchors)
-        method = QHBoxLayout()
-        method.addWidget(QLabel(t("Método"), page))
-        on_wall = QToolButton(page)
-        on_wall.setObjectName("opentrace_door_hosted")
-        on_wall.setText(t("Na parede"))
-        on_wall.setCheckable(True)
-        on_wall.setChecked(True)
-        on_wall.setFocusPolicy(Qt.NoFocus)
-        on_wall.setEnabled(False)  # Informational: hosted is the only F01 mode.
-        method.addWidget(on_wall)
-        free = QToolButton(page)
-        free.setObjectName("opentrace_door_free_disabled")
-        free.setText(t("Livre"))
-        free.setEnabled(False)
-        free.setToolTip(t("Porta livre: em desenvolvimento"))
-        method.addWidget(free)
-        method.addStretch(1)
-        lay.addLayout(method)
-        pending = QLabel(t("Giro e dobradiça: integração F01 em desenvolvimento."), page)
-        pending.setProperty("visualRole", "hint")
-        pending.setWordWrap(True)
-        lay.addWidget(pending)
-        lay.addStretch(1)
-        self._sync_door_editor()
-        return page
-
-    def _make_door_edit_page(self):
-        """A selected hosted door gets its own explicit, non-editing page."""
-        page = QWidget()
-        page.setObjectName("opentrace_door_edit_page")
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(SIZES["space-4"])
-        title = QLabel(t("Porta selecionada"), page)
-        title.setObjectName("opentrace_door_edit_title")
-        lay.addWidget(title)
-        for field, label in (("family", "Família"), ("width", "Largura da folha"),
-                             ("height", "Altura"), ("rough", "Largura do vão de corte"),
-                             ("anchor", "Âncora")):
-            display = QLabel(page)
-            display.setObjectName("opentrace_door_edit_" + field)
-            display.setProperty("visualRole", "hint")
-            self._door_edit_fields[field] = (t(label), display)
-            lay.addWidget(display)
-        pending = QLabel(t("Edição paramétrica F01: em desenvolvimento."), page)
-        pending.setObjectName("opentrace_door_edit_pending")
-        pending.setProperty("visualRole", "hint")
-        pending.setWordWrap(True)
-        lay.addWidget(pending)
-        lay.addStretch(1)
-        return page
-
-    def _set_door_size(self, key, value):
-        tool = self.controllers["wall"].openings.door_tool
-        if self.app.viewport.active_tool is not tool:
-            return
-        tool.sizes["door"][key] = value
-        self._sync_door_editor()
-        if self.context_bar is not None:
-            self.context_bar.refresh()
-        self.app.viewport.update()
-
-    def _set_door_anchor(self, anchor):
-        tool = self.controllers["wall"].openings.door_tool
-        if self.app.viewport.active_tool is not tool:
-            return
-        tool.anchor = anchor
-        self._sync_door_editor()
-        if self.context_bar is not None:
-            self.context_bar.refresh()
-        self.app.viewport.update()
-
-    def _sync_door_editor(self):
-        if not self._door_create_fields:
-            return
-        from .door_window_core import DOOR_FAMILIES
-        tool = self.controllers["wall"].openings.door_tool
-        sizes = tool.sizes["door"]
-        for key, field in self._door_create_fields.items():
-            blocked = field.blockSignals(True)
-            field.setValue(sizes[key])
-            field.blockSignals(blocked)
-        offsets = DOOR_FAMILIES["swing_single"]["clearances"]
-        blocked = self._door_rough_width.blockSignals(True)
-        self._door_rough_width.setValue(sizes["width"] + offsets["left"] + offsets["right"])
-        self._door_rough_width.blockSignals(blocked)
-        for anchor, button in self._door_anchor_buttons.items():
-            button.setChecked(tool.anchor == anchor)
 
     def _add_page(self,key,widget):
         self.pages[key]=widget;self.stack.addWidget(widget)
@@ -678,15 +510,8 @@ class ArchitectureSuitePanel:
             blocked=b.blockSignals(True);b.setChecked(i==index);b.blockSignals(blocked)
 
     def user_show_page(self,key):
-        self._navigation_explicit = True
         self.show_page(key)
         self.schedule_sync_context()
-
-    def _pin_changed(self, pinned):
-        # An explicit pin is the only exception to context-following.
-        self._context_signature = None
-        if not pinned:
-            self.schedule_sync_context()
 
     def open_arrange(self):
         """Open XYZ organization IN the same anchorable OpenTrace sidebar.
@@ -701,7 +526,7 @@ class ArchitectureSuitePanel:
                 self._arrange_panel=ArrangePanel(self.app)
                 self._add_page("arrange",self._arrange_panel)
             self._arrange_panel.refresh()
-            self.user_show_page("arrange")
+            self.show_page("arrange")
         except Exception as exc:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(
@@ -733,12 +558,10 @@ class ArchitectureSuitePanel:
 
     def _wire(self):
         for key,ctrl in self.controllers.items():
-            if ctrl is None:
-                continue
-            # The active host tool, not the last QAction callback, owns the
-            # context. Never force the sidebar onto a creation form here.
+            if ctrl is None:continue
             for action in self._actions_for(key,ctrl):
-                action.triggered.connect(self.schedule_sync_context)
+                try:action.triggered.connect(lambda _=False,k=key:self.show_page(k))
+                except Exception:pass
         self.app.viewport.sceneVersionChanged.connect(self.schedule_sync_context)
         self.app.viewport.measurementChanged.connect(self.schedule_tool_sync_context)
         wall = self.controllers.get("wall")
@@ -765,14 +588,13 @@ class ArchitectureSuitePanel:
             bar.refresh()
         self._sync_editor_sections()
         self._sync_opening_section()
-        self._sync_door_editor()
 
     def show_page(self,key,show_dock=True):
         if key not in self.pages:key="home"
         self.stack.setCurrentWidget(self.pages[key]);b=self.buttons.get(key)
         if b is not None:
             b.setChecked(True)
-        elif key in ("project","arrange","door","door_edit"):
+        elif key in ("project","arrange"):
             # A context page without a dedicated category tab must not
             # leave the BIM or a modelling tab misleadingly selected.
             self.group.setExclusive(False)
@@ -785,7 +607,6 @@ class ArchitectureSuitePanel:
         if key=="home":self.refresh_home()
         self._sync_editor_sections()
         self._sync_opening_section()
-        self._sync_door_editor()
         self.sync_mode_buttons()
 
     def sync_mode_buttons(self):
@@ -808,87 +629,47 @@ class ArchitectureSuitePanel:
 
     def _show_context_settings(self,key):
         """Open the full form for a new active tool or selected object."""
-        self._navigation_explicit = False
         self.show_page(key)
         toggle=self._property_sections.get(key)
         if toggle is not None:
             toggle.setChecked(True)
 
-    def _selected_door_record(self):
-        """Return only an unambiguous, real selected hosted door fill."""
-        from .door_window_commands import _fill_record
-        selection = tuple(self.app.scene.selection)
-        if len(selection) != 1:
-            return None
-        group = getattr(selection[0], "owner", None) or selection[0]
-        record = _fill_record(group)
-        params = record.get("params") if record is not None else None
-        return params if params is not None and params.get("kind") == "door" else None
-
-    def _refresh_door_edit(self):
-        from .door_window_core import DOOR_FAMILIES, wallhole_size
-        from .i18n import ui_locale
-        rec = self._selected_door_record()
-        if rec is None:
-            return
-        values = {
-            "family": t(DOOR_FAMILIES[rec.get("family_key", "swing_single")]["name"]),
-            "width": ui_locale().toString(float(rec["width"]), "f", 2) + " m",
-            "height": ui_locale().toString(float(rec["height"]), "f", 2) + " m",
-            "rough": ui_locale().toString(float(wallhole_size(rec)[0]), "f", 2) + " m",
-            "anchor": t({"left": "Esquerda", "center": "Centro",
-                         "right": "Direita"}[rec["anchor"]]),
-        }
-        for key, (label, display) in self._door_edit_fields.items():
-            display.setText(label + ": " + values[key])
-
-    def _context_identity(self):
-        active = getattr(self.app.viewport, "active_tool", None)
-        owners = tuple(sorted(
-            id(getattr(item, "owner", None) or item)
-            for item in self.app.scene.selection))
-        targets = tuple(id(getattr(self.controllers.get(key), "target", None))
-                        for key in ("wall", "slab", "column", "beam"))
-        return id(active), targets, owners
-
     def sync_context(self):
-        """Follow tool activation and selection, except for a deliberate pin.
+        """Follow a NEW tool or selection; never undo the user's page choice.
 
-        Manual navigation persists during document refreshes of the SAME
-        context; a new tool or selection follows its actual editor. Merely
-        selecting a group never calls any tool activation.
+        This runs on every document change. Re-applying the page each time
+        threw the user back to the wall page whenever a wall was selected,
+        so Home, Profiles and the other tabs looked dead.
         """
-        signature = self._context_identity()
-        if signature == self._context_signature:
+        active=getattr(self.app.viewport,"active_tool",None)
+        signature=(id(active),)+tuple(
+            id(getattr(self.controllers.get(k),"target",None))
+            for k in ("wall","slab","column","beam"))
+        if signature==getattr(self,"_context_signature",None):
             return
-        self._context_signature = signature
-        if self.navigation_pin.isChecked():
+        self._context_signature=signature
+        # BIM is an inspector/export workspace. Keep it open while selection or
+        # metadata changes; otherwise selecting a wall would immediately throw
+        # the user back to the modelling page.
+        if any(self.pages.get(key) is not None and
+               self.stack.currentWidget() is self.pages[key]
+               for key in ("bim", "project", "arrange")):
             return
-
-        active = getattr(self.app.viewport, "active_tool", None)
-        opening_tool, opening_kind = self._opening_tool_and_kind()
+        opening_tool,opening_kind=self._opening_tool_and_kind()
         if opening_tool is not None:
-            self._show_context_settings("door" if opening_kind == "door" else "wall")
+            self._show_context_settings("wall")
             return
-        for key in ("wall", "slab", "column", "beam"):
-            ctrl = self.controllers.get(key)
-            if ctrl is None:
-                continue
-            tool = getattr(ctrl, "draw_tool", None) or getattr(ctrl, "tool", None)
+        for key in ("wall","slab","column","beam"):
+            ctrl=self.controllers.get(key)
+            if ctrl is None:continue
+            tool=getattr(ctrl,"draw_tool",None) or getattr(ctrl,"tool",None)
             if tool is not None and active is tool:
                 self._show_context_settings(key)
                 return
-        if self._selected_door_record() is not None:
-            self._refresh_door_edit()
-            self._show_context_settings("door_edit")
-            return
-        for key in ("beam", "column", "slab", "wall"):
-            ctrl = self.controllers.get(key)
-            if ctrl is not None and getattr(ctrl, "target", None) is not None:
-                self._show_context_settings(key)
-                return
-        if not self._navigation_explicit:
-            self.show_page("home", show_dock=False)
+        for key in ("beam","column","slab","wall"):
+            ctrl=self.controllers.get(key)
+            if ctrl is not None and getattr(ctrl,"target",None) is not None:
+                self._show_context_settings(key);return
 
     def refresh_home(self):
         cat=builtins();counts={k:len(v) for k,v in cat.items()};profiles=load_profiles()

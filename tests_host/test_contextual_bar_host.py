@@ -100,22 +100,17 @@ class BarTests(unittest.TestCase):
                 (t("Referência"),),
                 (t("Tipo"),),
                 (t("Medidas"), t("Espessura"), t("Altura"), t("Base"), t("Topo")),
-                (t("Presets"),),
             ],
             "slab": [
-                (t("Método"),),
                 (t("Tipo"),),
                 (t("Medidas"), t("Espessura"), t("Base")),
-                (t("Presets"),),
             ],
             "column": [
                 (t("Medidas"), t("Largura"), t("Profundidade"), t("Altura"), t("Base")),
-                (t("Presets"),),
             ],
             "beam": [
                 (t("Referência"),),
                 (t("Medidas"), t("Largura"), t("Altura"), t("Topo")),
-                (t("Presets"),),
             ],
         }
         for page, groups in expected.items():
@@ -125,73 +120,6 @@ class BarTests(unittest.TestCase):
                 self.assertNotIn("Alinham.", labels)
                 self.assertNotIn(t("Nível base"), labels)
                 self.assertNotIn(t("Nível topo"), labels)
-
-    def test_slab_methods_in_bar_execute_existing_tool(self):
-        from OpenTrace_BIM.host import activate_select
-        slab = self.suite.controllers["slab"]
-        previous = slab.tool.mode
-        try:
-            activate_select(self.app)
-            slab.action.trigger()
-            self.assertIs(self.app.viewport.active_tool, slab.tool)
-            for mode in ("diagonal", "base_width", "polygon"):
-                button = self.bar.findChild(
-                    QToolButton, "opentrace_opt_slab_method_" + mode)
-                self.assertIsNotNone(button)
-                self.assertFalse(button.icon().isNull())
-                button.click()
-                self.assertEqual(slab.tool.mode, mode)
-                self.assertTrue(button.isChecked())
-                self.assertIs(self.app.viewport.active_tool, slab.tool)
-        finally:
-            slab.tool.set_mode(previous)
-            activate_select(self.app)
-            self.bar.refresh()
-
-    def test_each_tool_has_real_builtin_and_personal_preset_menu(self):
-        from OpenTrace_BIM.preset_catalog import (
-            all_for, upsert_personal, delete_personal,
-        )
-        for key in ("wall", "slab", "column", "beam"):
-            with self.subTest(tool=key):
-                button = self.bar.findChild(QToolButton, "opentrace_preset_" + key)
-                self.assertIsNotNone(button)
-                self.assertIsNotNone(button.menu())
-                self.assertEqual(button.focusPolicy(), Qt.NoFocus)
-                menu = button.menu()
-                menu.aboutToShow.emit()
-                names = [action.text() for action in menu.actions()]
-                self.assertIn(all_for(key)[0]["name"], names)
-                personal = upsert_personal(key, {
-                    "name": "Audit personal preset",
-                    "config": all_for(key)[0]["config"],
-                    "group": "Meus Presets",
-                })
-                try:
-                    menu.aboutToShow.emit()
-                    self.assertIn(personal["name"],
-                                  [action.text() for action in menu.actions()])
-                finally:
-                    delete_personal(key, personal["id"])
-        slab = self.suite.controllers["slab"]
-        before = slab.defaults.copy()
-        try:
-            self.assertIsNone(slab.target)
-            menu = self.bar._preset_buttons["slab"].menu()
-            menu.aboutToShow.emit()
-            builtin = next(p for p in all_for("slab")
-                           if p["id"] == "builtin:slab:generic12")
-            item = next(action for action in menu.actions()
-                        if action.text() == builtin["name"])
-            item.trigger()
-            self.assertAlmostEqual(slab.thickness.value(), 0.12)
-            self.assertEqual(slab.defaults["structure"], "simple")
-        finally:
-            slab.defaults.clear()
-            slab.defaults.update(before)
-            slab._load_defaults()
-            slab.apply_current_values()
-            self.bar.refresh()
 
     def test_bar_fields_are_controller_fields(self):
         controllers = self.suite.controllers
@@ -590,19 +518,6 @@ class BarTests(unittest.TestCase):
         fills = [g for g in scene.groups if _fill_record(g)]
         self.assertEqual(len(fills), 1)
         self.assertEqual(_fill_record(fills[0])["params"]["anchor"], "left")
-        # Selection of the REAL hosted door must open its own read-only F01
-        # inspector. Merely selecting may not reactivate the Door tool.
-        from OpenTrace_BIM.host import activate_select
-        self.addCleanup(scene.selection.clear)
-        activate_select(self.app)
-        scene.selection.clear()
-        scene.selection.add(fills[0])
-        self.wall.refresh()
-        self.suite._run_sync_context()
-        self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door_edit"])
-        self.assertIsNot(self.window.viewport.active_tool, self.openings.door_tool)
-        self.assertIn(
-            "m", self.suite._door_edit_fields["rough"][1].text())
         item = model.read_wall(wall)["openings"][0]
         self.assertAlmostEqual(item["position"] - item["width"] / 2.0, 3.0, places=6)
         self.assertTrue(self.window.viewport.history.undo())

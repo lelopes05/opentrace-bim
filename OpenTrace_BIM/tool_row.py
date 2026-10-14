@@ -7,7 +7,7 @@ never registered with QMainWindow and retains Qt's native overflow chevron.
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QToolBar, QToolButton
 
 from .icons import icon
 from .i18n import t
@@ -17,18 +17,6 @@ from .viewport_overlay import OverlayFrame
 COMPACT_KEY = "OpenTrace_BIM/tool_row_compact"
 NORMAL_ICON = SIZES["icon-24"]
 COMPACT_ICON = SIZES["icon-16"]
-# Keep the full QAction.text() for menus and command search; the toolbar uses
-# QAction.iconText() for its short, host-localized label.
-_TOOL_LABELS = {
-    "wall": "Parede",
-    "slab": "Laje",
-    "column": "Pilar",
-    "beam": "Viga",
-    "opening": "Abertura",
-    "door": "Porta",
-    "window": "Janela",
-    "profile": "Perfil complexo",
-}
 
 
 class ToolRow(OverlayFrame):
@@ -42,31 +30,23 @@ class ToolRow(OverlayFrame):
         layout.setSpacing(SIZES["space-2"])
         self.brand = QLabel("OpenTrace BIM", self)
         self.brand.setObjectName("opentrace_tool_brand")
-        self.brand.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.logo_slot = QLabel(self)
+        self.logo_slot.setObjectName("opentrace_logo_slot")
+        self.logo_slot.setFixedSize(NORMAL_ICON, NORMAL_ICON)
+        layout.addWidget(self.logo_slot)
         layout.addWidget(self.brand)
-        self.brand_divider = QFrame(self)
-        self.brand_divider.setObjectName("opentrace_brand_divider")
-        self.brand_divider.setFixedSize(1, 24)
-        layout.addWidget(self.brand_divider, 0, Qt.AlignVCenter)
         self.toolbar = QToolBar(t("OpenTrace BIM · Ferramentas"), self)
         self.toolbar.setObjectName("opentrace_tool_strip")
         self.toolbar.setMovable(False)
         self.toolbar.setFloatable(False)
         self.toolbar.setMinimumWidth(0)
         self.toolbar.setFocusPolicy(Qt.NoFocus)
-        self.toolbar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        layout.addWidget(self.toolbar)
-        self.tools_divider = QFrame(self)
-        self.tools_divider.setObjectName("opentrace_tools_divider")
-        self.tools_divider.setFixedSize(1, 24)
-        layout.addWidget(self.tools_divider, 0, Qt.AlignVCenter)
+        self.toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        layout.addWidget(self.toolbar, 1)
 
         self._icon_cache = {}
         self._buttons = [wall.wall_menu_button]
         self._icon_entries = [(wall.wall_menu_button, wall.wall_menu_button.defaultAction(), "wall")]
-        wall_action = wall.wall_menu_button.defaultAction()
-        if wall_action is not None:
-            wall_action.setIconText(t(_TOOL_LABELS["wall"]))
         wall.wall_menu_button.setFocusPolicy(Qt.NoFocus)
         self.toolbar.addWidget(wall.wall_menu_button)
         for controller, name in ((slab, "slab"), (column, "column"), (beam, "beam")):
@@ -104,7 +84,6 @@ class ToolRow(OverlayFrame):
         return QSettings().value(COMPACT_KEY, False, type=bool)
 
     def _add(self, action, name):
-        action.setIconText(t(_TOOL_LABELS[name]))
         self.toolbar.addAction(action)
         button = self.toolbar.widgetForAction(action)
         button.setFocusPolicy(Qt.NoFocus)
@@ -113,15 +92,6 @@ class ToolRow(OverlayFrame):
 
     def set_compact(self, compact):
         self.compact = bool(compact)
-        self.brand.setText("OT" if self.compact else "OpenTrace BIM")
-        self.brand_divider.setFixedHeight(18 if self.compact else 24)
-        self.tools_divider.setFixedHeight(18 if self.compact else 24)
-        self.layout().setContentsMargins(
-            SIZES["space-3"] if self.compact else SIZES["panel-inset"],
-            0 if self.compact else 3,
-            SIZES["space-3"] if self.compact else SIZES["panel-inset"],
-            0 if self.compact else 3,
-        )
         size = QSize(COMPACT_ICON, COMPACT_ICON) if self.compact else QSize(NORMAL_ICON, NORMAL_ICON)
         style = Qt.ToolButtonIconOnly if self.compact else Qt.ToolButtonTextBesideIcon
         self.toolbar.setIconSize(size)
@@ -154,8 +124,9 @@ class ToolRow(OverlayFrame):
         height = SIZES["tool-height-compact" if self.compact else "tool-height"]
         self.brand.setFont(theme_font(QApplication.font(), "brand"))
         self.brand.setStyleSheet(qss("QLabel { color: {text}; padding: 0 4px; }", palette))
-        for divider in (self.brand_divider, self.tools_divider):
-            divider.setStyleSheet(qss("QFrame { background: {divider}; border: 0; }", palette))
+        self.logo_slot.setStyleSheet(qss("QLabel { background: {panel-raised}; "
+                                         "border: 1px solid {panel-edge}; border-radius: 4px; }",
+                                         palette))
         self.toolbar.setStyleSheet(qss(
             "QToolBar { background: {panel}; color: {text}; border: 0; spacing: 2px; }"
             "QToolButton { color: {text}; background: transparent; border: 1px solid transparent;"
@@ -166,11 +137,6 @@ class ToolRow(OverlayFrame):
             "QToolButton:disabled { color: {text-disabled}; background: transparent; }"
             "QToolButton:focus { border: 2px solid {focus-ring}; }", palette))
         for button, action, name in self._icon_entries:
-            # Refresh translations without changing the original menu commands.
-            if action is not None:
-                short = t(_TOOL_LABELS[name])
-                if action.iconText() != short:
-                    action.setIconText(short)
             button.setMinimumHeight(height)
             button.setMaximumHeight(height)
             button.setIcon(self._design_icon(
@@ -178,25 +144,9 @@ class ToolRow(OverlayFrame):
                 state="active" if action is not None and action.isChecked() else "normal"))
             button.setIconSize(QSize(COMPACT_ICON, COMPACT_ICON) if self.compact else
                                QSize(NORMAL_ICON, NORMAL_ICON))
-        # The Qt overflow extension is a real button, but its platform arrow
-        # disappears against some offscreen/host palettes. Keep its native
-        # popup behavior while painting the approved library glyph.
-        extension = self.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
-        if extension is not None:
-            extension.setArrowType(Qt.NoArrow)
-            extension.setText("»")
-            extension.setToolButtonStyle(Qt.ToolButtonTextOnly)
-            extension.setMinimumWidth(22)
-            extension.setToolTip(t("Mais ferramentas"))
-            extension.setStyleSheet(qss(
-                "QToolButton { color: {text}; border: 0; padding: 0;"
-                " font-size: 19px; font-weight: 600; background: transparent; }"
-                "QToolButton:hover { background: {hover-wash}; }", palette))
         for button, name in ((self.help_button, "help"),
                              (self.compact_button, "expand" if self.compact else "collapse")):
-            button_size = COMPACT_ICON if self.compact else SIZES["icon-20"]
-            button.setIcon(self._design_icon(palette, name, button_size))
-            button.setIconSize(QSize(button_size, button_size))
+            button.setIcon(self._design_icon(palette, name, COMPACT_ICON))
             button.setStyleSheet(qss(
                 "QToolButton { background: transparent; color: {text}; border: 0; }"
                 "QToolButton:hover { background: {hover-wash}; }", palette))

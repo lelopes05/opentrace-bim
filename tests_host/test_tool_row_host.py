@@ -8,7 +8,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QPoint, QSettings, QSize, Qt
-from PySide6.QtWidgets import QApplication, QSizePolicy, QToolBar, QToolButton
+from PySide6.QtWidgets import QApplication, QToolBar, QToolButton
 from PySide6.QtTest import QTest
 
 # Settings of their own: the compact state is written by these tests.
@@ -102,45 +102,6 @@ class ToolRowTests(unittest.TestCase):
         self.row.help_button.click()
         self.assertIsNotNone(suite._help_dialog)
         suite._help_dialog.close()
-
-    def test_short_labels_preserve_host_actions_and_menus(self):
-        from OpenTrace_BIM.i18n import t
-        from PySide6.QtWidgets import QLabel
-        labels = ("Parede", "Laje", "Pilar", "Viga", "Abertura",
-                  "Porta", "Janela", "Perfil complexo")
-        entries = [action for action in self.entries() if action is not None]
-        self.assertEqual([action.iconText() for action in entries],
-                         [t(label) for label in labels])
-        self.assertEqual([button.text() for button in self.row._buttons],
-                         [t(label) for label in labels])
-        self.assertEqual(self.wall.action.text(), t("Parede paramétrica"))
-        self.assertIs(self.wall.wall_menu_button.defaultAction(), self.wall.action)
-        self.assertIsNone(self.row.findChild(QLabel, "opentrace_logo_slot"))
-        self.assertEqual(self.row.toolbar.sizePolicy().horizontalPolicy(),
-                         QSizePolicy.Preferred)
-
-    def test_compact_brand_matches_mockup_and_can_expand(self):
-        from OpenTrace_BIM.i18n import t
-        row = self.row
-        row.set_compact(False)
-        self.assertEqual(row.brand.text(), "OpenTrace BIM")
-        row.set_compact(True)
-        self.assertEqual(row.brand.text(), "OT")
-        self.assertEqual(row.compact_button.toolTip(),
-                         t("Expandir a fileira de ferramentas"))
-        row.set_compact(False)
-        self.assertEqual(row.brand.text(), "OpenTrace BIM")
-
-    def test_real_host_keeps_brand_next_to_tools(self):
-        self.show_window()
-        self.wall.action.trigger()
-        APP.processEvents()
-        brand_right = self.row.brand.mapTo(self.row, QPoint(
-            self.row.brand.width(), 0)).x()
-        wall_left = self.wall.wall_menu_button.mapTo(self.row, QPoint(0, 0)).x()
-        self.assertGreater(wall_left, brand_right)
-        self.assertLessEqual(wall_left - brand_right, 25)
-        self.assertLessEqual(self.row.width(), self.row.sizeHint().width() + 4)
 
     def test_panels_are_not_host_toolbars(self):
         w = self.window
@@ -297,10 +258,6 @@ class ToolRowTests(unittest.TestCase):
         extension = self.row.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
         self.assertIsNotNone(extension, "Qt's native toolbar overflow button must exist")
         self.assertTrue(extension.isVisible(), "The tool strip must overflow in a narrow viewport")
-        self.assertEqual(extension.text(), "»")
-        self.assertEqual(extension.toolButtonStyle(), Qt.ToolButtonTextOnly)
-        self.assertEqual(extension.arrowType(), Qt.NoArrow)
-        self.assertGreaterEqual(extension.width(), 22)
         w.resize(1500, 900)
         APP.processEvents()
 
