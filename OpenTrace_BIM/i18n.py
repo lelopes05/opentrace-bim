@@ -217,6 +217,8 @@ _EN = {
 }
 
 _ES = {
+    "Fixar": "Fijar",
+    "Fixar página da paleta até desmarcar": "Mantener esta página hasta quitar la fijación",
     "Família": "Familia",
     "Abrir · 1 folha": "Abatible · 1 hoja",
     "Largura da folha": "Anchura de hoja",
@@ -1060,6 +1062,8 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "Fixar": "Pin",
+    "Fixar página da paleta até desmarcar": "Keep this sidebar page until unpinned",
     "Família": "Family",
     "Abrir · 1 folha": "Swing · 1 leaf",
     "Largura da folha": "Leaf width",
