@@ -78,7 +78,10 @@ class OverlayDock(_BlockViewportInput, QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(SIZES["space-4"])
-        layout.addWidget(tool_row)
+        # Keep each floating panel at its natural width. Otherwise the
+        # contextual bar's larger size hint stretches the tool-row label
+        # and puts a large blank gap before the first tool.
+        layout.addWidget(tool_row, 0, Qt.AlignLeft)
         self.options_frame = OverlayFrame(self)
         self.options_frame.setFocusPolicy(Qt.NoFocus)
         self.options_frame.setObjectName("opentrace_options_frame")

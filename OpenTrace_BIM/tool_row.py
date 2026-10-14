@@ -42,6 +42,7 @@ class ToolRow(OverlayFrame):
         layout.setSpacing(SIZES["space-2"])
         self.brand = QLabel("OpenTrace BIM", self)
         self.brand.setObjectName("opentrace_tool_brand")
+        self.brand.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         layout.addWidget(self.brand)
         self.toolbar = QToolBar(t("OpenTrace BIM · Ferramentas"), self)
         self.toolbar.setObjectName("opentrace_tool_strip")
@@ -165,6 +166,15 @@ class ToolRow(OverlayFrame):
                 state="active" if action is not None and action.isChecked() else "normal"))
             button.setIconSize(QSize(COMPACT_ICON, COMPACT_ICON) if self.compact else
                                QSize(NORMAL_ICON, NORMAL_ICON))
+        # The Qt overflow extension is a real button, but its platform arrow
+        # disappears against some offscreen/host palettes. Keep its native
+        # popup behavior while painting the approved library glyph.
+        extension = self.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
+        if extension is not None:
+            extension.setArrowType(Qt.NoArrow)
+            extension.setIcon(self._design_icon(palette, "overflow", COMPACT_ICON))
+            extension.setIconSize(QSize(COMPACT_ICON, COMPACT_ICON))
+            extension.setToolTip(t("Mais ferramentas"))
         for button, name in ((self.help_button, "help"),
                              (self.compact_button, "expand" if self.compact else "collapse")):
             button.setIcon(self._design_icon(palette, name, COMPACT_ICON))

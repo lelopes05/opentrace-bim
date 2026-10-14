@@ -131,6 +131,17 @@ class ToolRowTests(unittest.TestCase):
         row.set_compact(False)
         self.assertEqual(row.brand.text(), "OpenTrace BIM")
 
+    def test_real_host_keeps_brand_next_to_tools(self):
+        self.show_window()
+        self.wall.action.trigger()
+        APP.processEvents()
+        brand_right = self.row.brand.mapTo(self.row, QPoint(
+            self.row.brand.width(), 0)).x()
+        wall_left = self.wall.wall_menu_button.mapTo(self.row, QPoint(0, 0)).x()
+        self.assertGreater(wall_left, brand_right)
+        self.assertLessEqual(wall_left - brand_right, 25)
+        self.assertLessEqual(self.row.width(), self.row.sizeHint().width() + 4)
+
     def test_panels_are_not_host_toolbars(self):
         w = self.window
         strip = self.row.toolbar
@@ -286,6 +297,8 @@ class ToolRowTests(unittest.TestCase):
         extension = self.row.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
         self.assertIsNotNone(extension, "Qt's native toolbar overflow button must exist")
         self.assertTrue(extension.isVisible(), "The tool strip must overflow in a narrow viewport")
+        self.assertFalse(extension.icon().isNull(), "Overflow must have a legible vector icon")
+        self.assertEqual(extension.arrowType(), Qt.NoArrow)
         w.resize(1500, 900)
         APP.processEvents()
 
