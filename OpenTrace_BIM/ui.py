@@ -619,6 +619,17 @@ class WallController(QObject):
         linked=self._find_linked_fill(item)
         self.opening_fill.setEnabled(not polygon and linked is None)
         linked_spec=normalize_fill(_fill_record(linked)["params"]) if linked else None
+        # A hosted F01 uses this row for its ROUGH CUT, not for the clear
+        # passage or the physical leaf nominal dimensions shown below.
+        form = self.opening_widget.layout()
+        width_caption = form.labelForField(self.opening_fields["width"])
+        height_caption = form.labelForField(self.opening_fields["height"])
+        if linked_spec is not None:
+            width_caption.setText(t("Largura do vão de corte"))
+            height_caption.setText(t("Altura do vão de corte"))
+        else:
+            width_caption.setText(t("Largura Livre no menor Vão"))
+            height_caption.setText(t("Altura da abertura"))
         self.fill_properties.load(linked_spec, self.app.scene)
         self.fill_anchor_combo.setVisible(linked_spec is not None)
         anchor_label=self.opening_widget.layout().labelForField(self.fill_anchor_combo)
