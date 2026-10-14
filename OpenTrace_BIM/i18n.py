@@ -217,6 +217,15 @@ _EN = {
 }
 
 _ES = {
+    "Método": "Método",
+    "Presets": "Preajustes",
+    "Escolher": "Elegir",
+    "Presets incorporados e pessoais": "Preajustes incluidos y personales",
+    "Incorporados": "Incluidos",
+    "Pessoais": "Personales",
+    "Nenhum preset disponível": "No hay preajustes disponibles",
+    "Polígono livre": "Polígono libre",
+    "Retângulo por base e largura": "Rectángulo por base y anchura",
     "Configurações": "Configuración",
     "Projeto e organização": "Proyecto y organización",
     "Ative a ferramenta na fileira do topo.": "Active la herramienta en la fila superior.",
@@ -1038,6 +1047,15 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "Método": "Method",
+    "Presets": "Presets",
+    "Escolher": "Choose",
+    "Presets incorporados e pessoais": "Built-in and personal presets",
+    "Incorporados": "Built-in",
+    "Pessoais": "Personal",
+    "Nenhum preset disponível": "No presets available",
+    "Polígono livre": "Free polygon",
+    "Retângulo por base e largura": "Rectangle by base and width",
     "Configurações": "Settings",
     "Projeto e organização": "Project and organization",
     "Ative a ferramenta na fileira do topo.": "Activate the tool in the top tool row.",
