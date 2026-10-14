@@ -146,7 +146,12 @@ class EditHostedFill(Command):
         if old["host_id"] != wall.uid or rec.get("source_id") != old["id"]:
             raise FillError("Referência da esquadria à parede inconsistente.")
         updated = dict(old)
-        updated.update(changes)
+        for key, value in changes.items():
+            if key in ("unit_width", "unit_height") and value is None:
+                # Switch back from manufacturer override to derived unit size.
+                updated.pop(key, None)
+            else:
+                updated[key] = value
         self.spec = normalize_fill(updated)
         for key in ("id", "host_id", "opening_id", "kind", "ifc_global_id"):
             if self.spec.get(key) != old.get(key):
