@@ -126,6 +126,73 @@ class BarTests(unittest.TestCase):
                 self.assertNotIn(t("Nível base"), labels)
                 self.assertNotIn(t("Nível topo"), labels)
 
+    def test_slab_methods_in_bar_execute_existing_tool(self):
+        from OpenTrace_BIM.host import activate_select
+        slab = self.suite.controllers["slab"]
+        previous = slab.tool.mode
+        try:
+            activate_select(self.app)
+            slab.action.trigger()
+            self.assertIs(self.app.viewport.active_tool, slab.tool)
+            for mode in ("diagonal", "base_width", "polygon"):
+                button = self.bar.findChild(
+                    QToolButton, "opentrace_opt_slab_method_" + mode)
+                self.assertIsNotNone(button)
+                self.assertFalse(button.icon().isNull())
+                button.click()
+                self.assertEqual(slab.tool.mode, mode)
+                self.assertTrue(button.isChecked())
+                self.assertIs(self.app.viewport.active_tool, slab.tool)
+        finally:
+            slab.tool.set_mode(previous)
+            activate_select(self.app)
+            self.bar.refresh()
+
+    def test_each_tool_has_real_builtin_and_personal_preset_menu(self):
+        from OpenTrace_BIM.preset_catalog import (
+            all_for, upsert_personal, delete_personal,
+        )
+        for key in ("wall", "slab", "column", "beam"):
+            with self.subTest(tool=key):
+                button = self.bar.findChild(QToolButton, "opentrace_preset_" + key)
+                self.assertIsNotNone(button)
+                self.assertIsNotNone(button.menu())
+                self.assertEqual(button.focusPolicy(), Qt.NoFocus)
+                menu = button.menu()
+                menu.aboutToShow.emit()
+                names = [action.text() for action in menu.actions()]
+                self.assertIn(all_for(key)[0]["name"], names)
+                personal = upsert_personal(key, {
+                    "name": "Audit personal preset",
+                    "config": all_for(key)[0]["config"],
+                    "group": "Meus Presets",
+                })
+                try:
+                    menu.aboutToShow.emit()
+                    self.assertIn(personal["name"],
+                                  [action.text() for action in menu.actions()])
+                finally:
+                    delete_personal(key, personal["id"])
+        slab = self.suite.controllers["slab"]
+        before = slab.defaults.copy()
+        try:
+            self.assertIsNone(slab.target)
+            menu = self.bar._preset_buttons["slab"].menu()
+            menu.aboutToShow.emit()
+            builtin = next(p for p in all_for("slab")
+                           if p["id"] == "slab:generic12")
+            item = next(action for action in menu.actions()
+                        if action.text() == builtin["name"])
+            item.trigger()
+            self.assertAlmostEqual(slab.thickness.value(), 0.12)
+            self.assertEqual(slab.defaults["structure"], "simple")
+        finally:
+            slab.defaults.clear()
+            slab.defaults.update(before)
+            slab._load_defaults()
+            slab.apply_current_values()
+            self.bar.refresh()
+
     def test_bar_fields_are_controller_fields(self):
         controllers = self.suite.controllers
         pairs = (
