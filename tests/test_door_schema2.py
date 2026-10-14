@@ -222,6 +222,25 @@ class DoorSchema2Tests(unittest.TestCase):
         legacy = old(vendor_data=extension)
         self.assertEqual(normalize_fill(legacy)["vendor_data"], extension)
 
+    def test_window_optional_glazing_and_materials_preserve_schema1(self):
+        raw = {"kind": "window", "id": "window-a",
+               "host_id": "wall-a", "opening_id": "hole-a",
+               "position": 2.0, "width": 1.20, "height": 1.0}
+        original = normalize_fill(raw)
+        self.assertNotIn("glass_thickness", original)
+        self.assertNotIn("material_window_glass", original)
+        with_options = normalize_fill(dict(raw,
+            glass_thickness=0.008,
+            material_window_frame={"mat": "F frame", "color": [100, 50, 20]},
+            material_window_glass={"mat": "G glass", "color": [30, 80, 120]}))
+        self.assertEqual(with_options["schema"], 1)
+        self.assertAlmostEqual(with_options["glass_thickness"], 0.008)
+        self.assertNotEqual(with_options["material_window_frame"],
+                            with_options["material_window_glass"])
+        self.assertEqual(normalize_fill(with_options), with_options)
+        with self.assertRaises(FillError):
+            normalize_fill(dict(raw, glass_thickness=0.1))
+
     def test_window_record_unchanged(self):
         source = {"id": "window-1", "kind": "window", "host_id": "wall-1",
                   "opening_id": "opening-1", "position": 2.0, "unknown": "discard"}
