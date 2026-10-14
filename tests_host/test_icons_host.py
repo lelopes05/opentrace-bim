@@ -43,7 +43,6 @@ def opaque_mean(pm):
 
 class IconHostTests(unittest.TestCase):
     def tearDown(self):
-        APP.processEvents()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
 
@@ -58,7 +57,6 @@ class IconHostTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         del cls.dark, cls.light
-        APP.processEvents()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         APP.processEvents()
         gc.collect()

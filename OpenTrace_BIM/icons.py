@@ -12,13 +12,13 @@ from functools import lru_cache
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QGuiApplication, QPalette
 
-BLUE = QColor("#42658d")
-BLUE_LIGHT = QColor("#a9bfd7")
-BLUE_MID = QColor("#7e9fbe")
-ORANGE = QColor("#c46b2d")
-SAND = QColor("#d8c49e")
-GREEN = QColor("#6e9872")
-INK = QColor("#34404b")
+BLUE = "#42658d"
+BLUE_LIGHT = "#a9bfd7"
+BLUE_MID = "#7e9fbe"
+ORANGE = "#c46b2d"
+SAND = "#d8c49e"
+GREEN = "#6e9872"
+INK = "#34404b"
 
 
 def _pm(size=32):
@@ -35,7 +35,7 @@ def _painter(pm):
 
 
 def _pen(color=BLUE, width=2.0):
-    pen = QPen(color, width)
+    pen = QPen(QColor(color), width)
     pen.setCapStyle(Qt.RoundCap)
     pen.setJoinStyle(Qt.RoundJoin)
     return pen
@@ -56,9 +56,9 @@ def _legacy_icon(name: str, size: int = 32) -> QIcon:
         INK = QColor("#d3e1ed")
     else:
         BLUE, BLUE_LIGHT, BLUE_MID, ORANGE, SAND, INK = (
-            globals()["BLUE"], globals()["BLUE_LIGHT"],
-            globals()["BLUE_MID"], globals()["ORANGE"],
-            globals()["SAND"], globals()["INK"])
+            QColor(globals()["BLUE"]), QColor(globals()["BLUE_LIGHT"]),
+            QColor(globals()["BLUE_MID"]), QColor(globals()["ORANGE"]),
+            QColor(globals()["SAND"]), QColor(globals()["INK"]))
     pm = _pm(size)
     p = _painter(pm)
     s = float(size) / 32.0
@@ -250,11 +250,10 @@ def _stroke_path(*commands):
 
 
 @lru_cache(maxsize=len(_NAMES))
-def _parts(name):
-    """A distinctive primary silhouette and its one changeable accent."""
+def _shape_spec(name):
+    """Cache immutable Python-only commands for each icon silhouette."""
     def path(*ops):
-        # Keep the reusable spec as immutable Python data. Construct only the
-        # requested icon's two QPainterPaths, never all 56 on every repaint.
+        # Only immutable Python tuples may survive in this cache.
         return ops
 
     M = lambda x, y: ("M", (x, y))
@@ -332,7 +331,12 @@ def _parts(name):
         "overflow": (path(E(4, 10, 3, 3), E(10.5, 10, 3, 3)),
                      path(E(17, 10, 3, 3))),
     }
-    return tuple(_stroke_path(*commands) for commands in shapes[name])
+    return shapes[name]
+
+
+def _paths(name):
+    """Construct fresh Qt paths; never keep native Qt wrappers in a cache."""
+    return tuple(_stroke_path(*commands) for commands in _shape_spec(name))
 
 
 def pixmap(name, size=24, state="normal", palette=None):
@@ -361,7 +365,7 @@ def pixmap(name, size=24, state="normal", palette=None):
     pen.setCapStyle(Qt.RoundCap)
     pen.setJoinStyle(Qt.RoundJoin)
     painter.setBrush(Qt.NoBrush)
-    primary, accent = _parts(name)
+    primary, accent = _paths(name)
     painter.setPen(pen)
     painter.drawPath(primary)
     if state == "normal":
