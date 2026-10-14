@@ -135,6 +135,51 @@ class F01GeometryHostTests(unittest.TestCase):
         self.assertEqual(read_wall(next(g for g in reopened.groups
                                         if g.uid==wall.uid))["openings"][0], opening)
 
+    def test_window_separate_frame_glass_materials_and_panes_survive_igz(self):
+        wall = make_wall_segment(
+            QVector3D(0, 0, 0), QVector3D(7, 0, 0),
+            dict(DEFAULTS, length=7.0))
+        scene = Scene()
+        scene.groups.append(wall)
+        raw = {
+            "kind": "window", "id": "window-a", "host_id": wall.uid,
+            "opening_id": "win-opening", "position": 3.0,
+            "width": 1.20, "height": 1.10, "sill": 0.8, "panes": 2,
+            "frame_thickness": 0.04, "glass_thickness": 0.008,
+            "material_window_frame": {"mat": "Steel", "color": [70, 75, 80]},
+            "material_window_glass": {"mat": "Glass", "color": [60, 130, 170]},
+        }
+        created = CreateHostedFill(scene, wall, raw)
+        created.do(scene)
+        window = created.group
+        frame = named(window.children, "Marco esquerdo")
+        glazing = named(window.children, "Vidro 1")
+        self.assertEqual(frame.material["mat"], "Steel")
+        self.assertEqual(glazing.material["mat"], "Glass")
+        self.assertAlmostEqual(bounds(glazing)[1][1] -
+                               bounds(glazing)[1][0], 0.008)
+        original_guid = window.ifc["global_id"]
+        edited = EditHostedFill(scene, wall, window,
+                                {"panes": 3, "glass_thickness": 0.01})
+        edited.do(scene)
+        self.assertEqual(window.ext[KEY]["params"]["panes"], 3)
+        self.assertEqual(window.ifc["global_id"], original_guid)
+        edited.undo(scene)
+        self.assertEqual(window.ext[KEY]["params"]["panes"], 2)
+        edited.do(scene)
+        with tempfile.TemporaryDirectory() as folder:
+            file_path = Path(folder) / "window.igz"
+            igz.save_scene(scene, file_path)
+            recovered = Scene()
+            igz.load_into(recovered, file_path)
+        loaded = next(group for group in recovered.groups
+                      if group.uid == window.uid)
+        self.assertEqual(loaded.ext[KEY]["params"]["panes"], 3)
+        self.assertEqual(loaded.ext[KEY]["params"]["material_window_frame"],
+                         raw["material_window_frame"])
+        self.assertEqual(loaded.ext[KEY]["params"]["material_window_glass"],
+                         raw["material_window_glass"])
+
     def test_manual_depth_follows_wall_face_after_thickness_undo(self):
         wall=make_wall_segment(QVector3D(0,0,0), QVector3D(7,0,0),
                                dict(DEFAULTS, length=7.0, alignment="left"))
