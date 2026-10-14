@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QEvent, QObject, Qt, QSize
+from PySide6.QtCore import QEvent, QObject, Qt, QSize, Slot
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
@@ -185,7 +185,9 @@ class ContextualBar(QWidget):
         # A direct QObject-to-QObject Qt connection avoids referencing
         # destroyed mirrors from Python signal closures during teardown.
         mirror.valueChanged.connect(source.setValue)
-        source.valueChanged.connect(self.suite.schedule_sync_context)
+        # Bind to this bar as the Qt receiver; Qt disconnects when the bar is
+        # destroyed, unlike a connection to a non-QObject suite callback.
+        source.valueChanged.connect(self._on_source_value_changed)
         mirror.setToolTip(source.toolTip() or t(text))
         mirror.setAccessibleName(t(text))
         if name is not None:
@@ -199,6 +201,11 @@ class ContextualBar(QWidget):
         else:
             self._target(layout).addWidget(mirror)
         return label, mirror
+
+    @Slot(float)
+    def _on_source_value_changed(self, _value):
+        """Schedule controller sync only while this bar's QObject exists."""
+        self.suite.schedule_sync_context()
 
     def _segment(self, layout, group_name, source_values, read_value, write_value):
         """An exclusive control mirroring a controller option, never a tool action."""
