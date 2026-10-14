@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QEvent, QObject, Qt, QSize, QTimer
+from PySide6.QtCore import QEvent, QObject, Qt, QSize
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QDoubleSpinBox, QHBoxLayout, QLabel, QStackedWidget,
     QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
@@ -152,9 +152,12 @@ class ContextualBar(QWidget):
         return button
 
     def _run(self, callback):
+        # Refresh synchronously. An unparented singleShot retained self after
+        # the bar's Qt widgets were deleted, then touched dead QToolButtons in
+        # _sync_size_controls when the queued callback eventually ran.
         callback()
         self.app.viewport.setFocus()
-        QTimer.singleShot(0, self.refresh)
+        self.refresh()
 
     def _field(self, layout, text, source, *, width=90, grouped=False, name=None):
         if source is None:
