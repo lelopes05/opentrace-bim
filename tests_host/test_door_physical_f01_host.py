@@ -90,6 +90,7 @@ class F01GeometryHostTests(unittest.TestCase):
         create=CreateHostedFill(scene, wall, raw)
         create.do(scene)
         door=create.group
+        scene.selection.add(door)
         uid=door.uid
         guid=door.ifc["global_id"]
         opening=copy.deepcopy(read_wall(wall)["openings"][0])
@@ -105,12 +106,14 @@ class F01GeometryHostTests(unittest.TestCase):
         })
         edit.do(scene)
         self.assertEqual(door.uid, uid)
+        self.assertIn(door, scene.selection)
         self.assertEqual(door.ifc["global_id"], guid)
         self.assertEqual(read_wall(wall)["openings"][0], opening)
         self.assertEqual(door.ext[KEY]["params"]["leaf_variant"], "panelled")
         self.assertFalse(any(p.name.startswith("Alizar B")
                              for p in door.children))
         edit.undo(scene)
+        self.assertIn(door, scene.selection)
         self.assertEqual(door.ext[KEY]["params"]["leaf_variant"], "plain")
         self.assertTrue(any(p.name.startswith("Alizar B")
                             for p in door.children))
