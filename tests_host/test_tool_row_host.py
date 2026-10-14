@@ -297,8 +297,10 @@ class ToolRowTests(unittest.TestCase):
         extension = self.row.toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
         self.assertIsNotNone(extension, "Qt's native toolbar overflow button must exist")
         self.assertTrue(extension.isVisible(), "The tool strip must overflow in a narrow viewport")
-        self.assertFalse(extension.icon().isNull(), "Overflow must have a legible vector icon")
+        self.assertEqual(extension.text(), "»")
+        self.assertEqual(extension.toolButtonStyle(), Qt.ToolButtonTextOnly)
         self.assertEqual(extension.arrowType(), Qt.NoArrow)
+        self.assertGreaterEqual(extension.width(), 22)
         w.resize(1500, 900)
         APP.processEvents()
 
