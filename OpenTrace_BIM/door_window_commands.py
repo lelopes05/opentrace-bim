@@ -81,7 +81,9 @@ class CreateHostedFill(Command):
         # dimensions. Saved pre-recovery schema-2 and schema-1 instances
         # have no marker and keep their original cut until explicit migration.
         created = copy.deepcopy(raw)
-        if created.get("kind") == "door" and "f01_layout" not in created:
+        if (created.get("kind") == "door"
+                and created.get("schema") not in (1, "1")
+                and "f01_layout" not in created):
             created["f01_layout"] = "physical"
         self.spec = normalize_fill(created)
         _assert_unique(scene, self.spec)
