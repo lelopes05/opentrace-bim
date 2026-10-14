@@ -225,6 +225,28 @@ class DoorP1aHostTests(unittest.TestCase):
         self.assertTrue(self.viewport.history.redo())
         self.assertNotIn("unit_width", group.ext[KEY]["params"])
 
+    def test_auto_to_manual_jamb_depth_keeps_current_finished_thickness(self):
+        opening, group = self._place()
+        from OpenTrace_BIM.commands import EditWall
+        from OpenTrace_BIM.model import wall_offsets
+        changed = read_wall(self.wall)
+        changed["thickness"] = 0.30
+        self.viewport.history.execute(EditWall(self.scene, self.wall, changed))
+        controller = self.window._arquitetura_parametrica_controller
+        controller.target = self.wall
+        controller._active_opening_wall = self.wall
+        controller._active_opening_id = opening["id"]
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        lo, hi = wall_offsets(read_wall(self.wall))
+        expected = hi - lo
+        mode = controller.fill_properties._fields["frame_depth_mode"]
+        mode.setCurrentIndex(mode.findData("manual"))
+        params = group.ext[KEY]["params"]
+        self.assertEqual(params["frame_depth_mode"], "manual")
+        self.assertAlmostEqual(params["frame_depth"], expected, places=6)
+        self.assertTrue(self.viewport.history.undo())
+        self.assertEqual(group.ext[KEY]["params"]["frame_depth_mode"], "auto")
+
     def test_window_instance_controls_change_panes_glass_and_both_width_arrows(self):
         create = CreateHostedFill(self.scene, self.wall, {
             "kind": "window", "id": "test-window",
