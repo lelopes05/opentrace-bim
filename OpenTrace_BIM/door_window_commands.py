@@ -77,7 +77,13 @@ class CreateHostedFill(Command):
 
     def __init__(self, scene, wall, raw):
         root_edit_allowed(scene)
-        self.spec = normalize_fill(raw)
+        # Only newly created F01 instances use the physically coherent
+        # dimensions. Saved pre-recovery schema-2 and schema-1 instances
+        # have no marker and keep their original cut until explicit migration.
+        created = copy.deepcopy(raw)
+        if created.get("kind") == "door" and "f01_layout" not in created:
+            created["f01_layout"] = "physical"
+        self.spec = normalize_fill(created)
         _assert_unique(scene, self.spec)
         self.wall = wall
         if not self.spec.get("ifc_global_id"):
