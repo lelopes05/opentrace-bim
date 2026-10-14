@@ -92,6 +92,41 @@ class SuiteContextSyncTests(unittest.TestCase):
         suite._run_sync_context()
         self.assertIs(suite.stack.currentWidget(), suite.pages["wall"])
 
+    def test_door_has_independent_live_creation_and_separate_edit_page(self):
+        from OpenTrace_BIM.door_window_core import DOOR_FAMILIES
+        wall = self.window._arquitetura_parametrica_controller
+        tool = wall.openings.door_tool
+        original = dict(tool.sizes["door"])
+        original_anchor = tool.anchor
+        try:
+            activate_tool(self.app, "opentrace_wall_door_tool")
+            self.suite.show_page("door", show_dock=False)
+            self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door"])
+            self.assertIsNot(self.suite.pages["door"], self.suite.pages["wall"])
+            field = self.suite._door_create_fields["width"]
+            field.setValue(0.90)
+            self.assertAlmostEqual(tool.sizes["door"]["width"], 0.90)
+            offsets = DOOR_FAMILIES["swing_single"]["clearances"]
+            self.assertTrue(self.suite._door_rough_width.isReadOnly())
+            self.assertAlmostEqual(self.suite._door_rough_width.value(),
+                                   0.90 + offsets["left"] + offsets["right"])
+            self.suite._door_anchor_buttons["right"].click()
+            self.assertEqual(tool.anchor, "right")
+            self.assertIs(self.app.viewport.active_tool, tool)
+            unavailable = self.suite.pages["door"].findChild(
+                QToolButton, "opentrace_door_free_disabled")
+            self.assertIsNotNone(unavailable)
+            self.assertFalse(unavailable.isEnabled())
+            self.suite.show_page("door_edit", show_dock=False)
+            self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door_edit"])
+            self.assertIsNotNone(self.suite.pages["door_edit"].findChild(
+                type(self.suite.sidebar_brand), "opentrace_door_edit_pending"))
+        finally:
+            tool.sizes["door"].update(original)
+            tool.anchor = original_anchor
+            self.suite._sync_door_editor()
+            activate_select(self.app)
+
     def test_home_shows_settings_and_project_only(self):
         section_names=list(self.suite._home_sections)
         self.assertEqual(section_names,["Configurações","Projeto e organização"])
