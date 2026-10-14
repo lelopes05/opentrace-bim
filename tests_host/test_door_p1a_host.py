@@ -169,6 +169,62 @@ class DoorP1aHostTests(unittest.TestCase):
                 self.assertTrue(self.viewport.history.undo())
                 self.assertEqual(read_wall(self.wall)["openings"], [])
 
+    def test_rough_width_buttons_move_both_directions_without_changing_frame(self):
+        opening, group = self._place()
+        controller = self.window._arquitetura_parametrica_controller
+        controller.target = self.wall
+        controller._active_opening_wall = self.wall
+        controller._active_opening_id = opening["id"]
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        widget = controller.opening_fields["width"]
+        initial_cut = opening["width"]
+        initial_leaf = group.ext[KEY]["params"]["width"]
+        widget.stepDown()
+        self.assertAlmostEqual(self._opening()["width"], initial_cut - 0.10, places=5)
+        self.assertAlmostEqual(group.ext[KEY]["params"]["width"], initial_leaf - 0.10, places=5)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        widget.stepUp()
+        self.assertAlmostEqual(self._opening()["width"], initial_cut, places=5)
+        self.assertAlmostEqual(group.ext[KEY]["params"]["width"], initial_leaf, places=5)
+        height = controller.opening_fields["height"]
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        original_height = self._opening()["height"]
+        height.stepDown()
+        self.assertAlmostEqual(self._opening()["height"], original_height - 0.10, places=5)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        height.stepUp()
+        self.assertAlmostEqual(self._opening()["height"], original_height, places=5)
+        self.assertTrue(self.viewport.history.undo())
+        self.assertAlmostEqual(self._opening()["height"], original_height - 0.10, places=5)
+        self.assertTrue(self.viewport.history.redo())
+        self.assertAlmostEqual(self._opening()["height"], original_height, places=5)
+
+    def test_instance_controls_update_nominal_width_and_reversible_unit_override(self):
+        opening, group = self._place()
+        controller = self.window._arquitetura_parametrica_controller
+        controller.target = self.wall
+        controller._active_opening_wall = self.wall
+        controller._active_opening_id = opening["id"]
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        controls = controller.fill_properties
+        self.assertTrue(controls.isVisible() or not controls.isHidden())
+        width = controls._fields["width"]
+        initial_cut = self._opening()["width"]
+        width.setValue(0.90)
+        self.assertAlmostEqual(group.ext[KEY]["params"]["width"], 0.90, places=5)
+        self.assertAlmostEqual(self._opening()["width"], initial_cut + 0.10, places=5)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        manual = controls._fields["unit_width_manual"]
+        manual.setChecked(True)
+        self.assertIn("unit_width", group.ext[KEY]["params"])
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        manual.setChecked(False)
+        self.assertNotIn("unit_width", group.ext[KEY]["params"])
+        self.assertTrue(self.viewport.history.undo())
+        self.assertIn("unit_width", group.ext[KEY]["params"])
+        self.assertTrue(self.viewport.history.redo())
+        self.assertNotIn("unit_width", group.ext[KEY]["params"])
+
     def test_schema2_door_survives_igz_save_and_reload(self):
         opening, group = self._place(anchor="left")
         expected_params = group.ext[KEY]["params"].copy()
