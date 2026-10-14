@@ -221,8 +221,18 @@ def build_fill_parts(raw, *, wall_thickness=0.10, wall_faces=None):
             parts.append(_part(f"Vidro {i+1}", a, b,
                                -glass_thickness/2, glass_thickness/2, f, h-f))
     if spec["kind"] == "window":
-        frame_material = spec.get("material_window_frame")
-        glass_material = spec.get("material_window_glass")
+        general = None
+        if spec.get("material_name"):
+            from .materials import material_catalog
+            name = spec["material_name"]
+            recipe = material_catalog().get(name, {})
+            general = {"mat": name}
+            general.update({
+                key: copy.deepcopy(value) for key, value in recipe.items()
+                if key in ("color", "texture", "opacity") and value is not None
+            })
+        frame_material = spec.get("material_window_frame") or general
+        glass_material = spec.get("material_window_glass") or general
         for part in parts:
             material = (glass_material if part.name.startswith("Vidro ")
                         else frame_material)
