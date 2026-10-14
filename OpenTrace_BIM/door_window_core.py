@@ -306,6 +306,30 @@ def wallhole_size(raw):
             unit_height + spec["clearance_top"] + spec["clearance_bottom"])
 
 
+def edit_fill_from_cut_dimension(raw, dimension, requested_cut):
+    """Translate a rough-opening spin edit without overwriting nominal leaf.
+
+    When a manufacturer-sized external unit override exists, edit that unit.
+    Otherwise edit the physical leaf by the DIFFERENCE in cut dimension.
+    """
+    spec = normalize_fill(raw)
+    if dimension not in ("width", "height"):
+        raise FillError("Dimensão de corte inválida.")
+    target = _number(requested_cut, "Dimensão de corte", positive=True)
+    if spec["kind"] == "window":
+        return {dimension: target}
+    cut_width, cut_height = wallhole_size(spec)
+    old_cut = cut_width if dimension == "width" else cut_height
+    key = "unit_" + dimension if "unit_" + dimension in spec else dimension
+    proposed = spec[key] + target - old_cut
+    if proposed <= 0:
+        raise FillError("Dimensão de corte menor que o conjunto físico.")
+    changes = {key: proposed}
+    # Avoid half-valid commands that could modify the host's cut on error.
+    normalize_fill(dict(spec, **changes))
+    return changes
+
+
 def wallhole_span(raw):
     """Left/right rough-cut stations, keeping the chosen unit anchor fixed."""
     spec = normalize_fill(raw)
