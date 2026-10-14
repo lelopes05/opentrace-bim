@@ -217,6 +217,19 @@ _EN = {
 }
 
 _ES = {
+    "Família": "Familia",
+    "Abrir · 1 folha": "Abatible · 1 hoja",
+    "Largura da folha": "Anchura de hoja",
+    "Largura do vão de corte": "Anchura del hueco de obra",
+    "Calculado pela família F01 e suas folgas": "Calculado a partir de las holguras de la familia F01",
+    "Na parede": "En pared",
+    "Porta livre: em desenvolvimento": "Puerta libre: en desarrollo",
+    "Giro e dobradiça: integração F01 em desenvolvimento.": "Apertura y bisagra: integración F01 en desarrollo.",
+    "Edição paramétrica F01: em desenvolvimento.": "Edición paramétrica F01: en desarrollo.",
+    "Orientação no segundo clique: em desenvolvimento.": "Orientación en el segundo clic: en desarrollo.",
+    "Porta selecionada": "Puerta seleccionada",
+    "Esquerda": "Izquierda",
+    "Direita": "Derecha",
     "Método": "Método",
     "Presets": "Preajustes",
     "Escolher": "Elegir",
@@ -1047,6 +1060,19 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "Família": "Family",
+    "Abrir · 1 folha": "Swing · 1 leaf",
+    "Largura da folha": "Leaf width",
+    "Largura do vão de corte": "Rough opening width",
+    "Calculado pela família F01 e suas folgas": "Calculated from F01 family clearances",
+    "Na parede": "On wall",
+    "Porta livre: em desenvolvimento": "Free-standing door: in development",
+    "Giro e dobradiça: integração F01 em desenvolvimento.": "Swing and hinge: F01 integration in development.",
+    "Edição paramétrica F01: em desenvolvimento.": "F01 parametric editing: in development.",
+    "Orientação no segundo clique: em desenvolvimento.": "Second-click orientation: in development.",
+    "Porta selecionada": "Selected door",
+    "Esquerda": "Left",
+    "Direita": "Right",
     "Método": "Method",
     "Presets": "Presets",
     "Escolher": "Choose",
