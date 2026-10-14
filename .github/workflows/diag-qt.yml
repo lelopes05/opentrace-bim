@@ -54,7 +54,7 @@ jobs:
           printf 'c: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=Qt diagnostic c::exit code $code"
           exit 0
-      - name: "D — Wall pixmap"
+      - name: "D — All icon pixmaps (three sizes, four states, two palettes)"
         working-directory: plugin
         run: |
           set +e
@@ -63,6 +63,10 @@ jobs:
           printf 'd: %s\n' "$code" >> "$GITHUB_STEP_SUMMARY"
           echo "::notice title=Qt diagnostic d::exit code $code"
           exit 0
+      - name: Check PySide6 QApplication shutdown API
+        working-directory: plugin
+        run: |
+          python -c 'import PySide6; from PySide6.QtWidgets import QApplication; print("PySide6 version:", PySide6.__version__); print("QApplication.shutdown available:", hasattr(QApplication, "shutdown"))'
       - name: "E — Wall QIcon"
         working-directory: plugin
         run: |
