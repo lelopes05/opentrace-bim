@@ -14,6 +14,8 @@ class CreateColumn(Command):
         if self.group in scene.groups: raise ColumnError("O pilar já está no documento.")
         from .bim import ensure_ifc_identity
         ensure_ifc_identity(self.group, "IfcColumn")
+        from .creation_properties import apply_creation_properties
+        apply_creation_properties(self, scene, [self.group], "column")
         from .column_model import column_record
         rec=column_record(self.group) or {};name=rec.get("material_name")
         if name:stamp_named_material(self.group,scene,name)

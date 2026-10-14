@@ -18,7 +18,7 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 09/10: ajuda "?" em capítulos, sempre começando por "O que há de novo"; "Sobre" só com links reais (repositório, licença, discussão #449 do IngeTrazo). Texto e desenhos, sem capturas de tela que envelhecem.
 - 11/10: CI verde e Qt offscreen não aprovam interface. O aceite visual é o teste do Leandro no Windows.
 
-- 13/10: ferramentas só pela fileira do topo e pelo menu; barra e paleta nunca trocam de ferramenta. Sem atalhos de teclado para as ferramentas.
+- 14/10: escolha explícita de ferramenta pela fileira, menu ou categoria da lateral ativa a mesma ferramenta do host. Atualização automática por seleção não inicia criação. A barra de opções altera propriedades, não escolhe ferramenta. Esta decisão do Leandro substitui a restrição de 13/10 sobre a lateral. Sem novos atalhos.
 - 13/10: toda ferramenta e toda função de edição continuam na última escolha da sessão (forma, medidas, âncora, função do radial) até o usuário escolher outra.
 - 13/10: medidas são do objeto. A ferramenta lembra as últimas da sessão; editar um objeto não muda a ferramenta nem os outros objetos (sem família ou biblioteca para cada variação).
 - 13/10: fileira com Parede, Laje, Pilar, Viga, Abertura, Porta, Janela e Perfil complexo; Membrana entra quando estiver pronta.
@@ -36,6 +36,11 @@ O histórico dos cadernos antigos (`INTERFACE_MASTER.md` e `DEVELOPMENT_MASTER.m
 - 10/10: vão retangular livre vira polígono ao confirmar a primeira edição de vértice ou aresta (um comando; o Desfazer devolve o retângulo). Porta e janela nunca viram polígono sozinhas.
 - 09/10: porta e janela são grupos 3D separados da parede, ligados ao vão por `source_id`. A porta aceita `sill=0`; porta mais alta que a parede baixa não apaga a parede.
 - 09/10: a porta tem três âncoras (esquerda, centro, direita) e um único comando para inverter o giro.
+
+### Layers e classificação (14/10)
+- Layer do objeto e combinação de layers são controles distintos. Usar layers nativos do host; objetos sem etiqueta explícita pertencem ao Layer 0.
+- Barra e lateral compartilham a atribuição de layer. Criação guarda destino por ferramenta durante a sessão; edição altera os selecionados por comando desfazível.
+- Classe IFC, tipo predefinido e classificação ficam acessíveis nas propriedades. Usar catálogo IFC4 e biblioteca de classificações existentes; não inventar enquadramento normativo. Ausência de classificação não bloqueia modelagem.
 
 ### Entrega
 - 10/10: pacote de teste = um ZIP só, com a pasta `OpenTrace_BIM/` na raiz, sem ZIP dentro de ZIP.

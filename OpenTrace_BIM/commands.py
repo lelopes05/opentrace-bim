@@ -29,6 +29,8 @@ class CreateWall(Command):
             raise WallError("A parede já está no documento.")
         from .bim import ensure_ifc_identity
         ensure_ifc_identity(self.group, "IfcWall")
+        from .creation_properties import apply_creation_properties
+        apply_creation_properties(self, scene, [self.group], "wall")
         rec=wall_record(self.group) or {}
         stamp_structured_materials(self.group, scene, rec)
         try:
@@ -65,6 +67,8 @@ class CreateWalls(Command):
             raise WallError("Uma das paredes já está no documento.")
         if self.index is None:
             self.index = len(scene.groups)
+        from .creation_properties import apply_creation_properties
+        apply_creation_properties(self, scene, self.groups, "wall")
         at = min(self.index, len(scene.groups))
         inserted = []
         try:

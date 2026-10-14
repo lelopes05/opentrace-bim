@@ -13,6 +13,8 @@ class CreateBeam(Command):
         if self.group in scene.groups:raise BeamError("A viga já está no documento.")
         from .bim import ensure_ifc_identity
         ensure_ifc_identity(self.group, "IfcBeam")
+        from .creation_properties import apply_creation_properties
+        apply_creation_properties(self, scene, [self.group], "beam")
         rec=beam_record(self.group) or {};name=rec.get("material_name")
         if name:stamp_named_material(self.group,scene,name)
         if self.index is None:self.index=len(scene.groups)

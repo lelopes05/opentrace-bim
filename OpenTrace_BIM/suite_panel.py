@@ -143,6 +143,9 @@ class ArchitectureSuitePanel:
             self._add_page("project", bim_ctrl.project_panel)
         else:
             self.project_info_button.setEnabled(False)
+        from .object_properties import ObjectProperties
+        self.object_properties = ObjectProperties(self)
+        root.insertWidget(root.indexOf(self.stack), self.object_properties)
         self.show_page("home",show_dock=False);self._wire();self.refresh_home();self.sync_mode_buttons()
         from .workspace_menu import install_workspace_menu
         self.workspace_menus = install_workspace_menu(self)
@@ -510,6 +513,13 @@ class ArchitectureSuitePanel:
             blocked=b.blockSignals(True);b.setChecked(i==index);b.blockSignals(blocked)
 
     def user_show_page(self,key):
+        # Explicit category clicks select the real host tool. Automatic page
+        # changes (selection/refresh) never activate creation.
+        from .object_properties import TOOL_KEYS
+        from .host import activate_tool, host_tool
+        tool_key = TOOL_KEYS.get(key)
+        if tool_key and self.app.viewport.active_tool is not host_tool(self.app, tool_key):
+            activate_tool(self.app, tool_key)
         self.show_page(key)
         self.schedule_sync_context()
 
@@ -582,6 +592,7 @@ class ArchitectureSuitePanel:
         self._last_active_tool_id=active_id;self.schedule_sync_context()
 
     def _run_sync_context(self):
+        self.object_properties.refresh()
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None));self.sync_context();self.sync_mode_buttons()
         bar = getattr(self,"context_bar",None)
         if bar is not None:

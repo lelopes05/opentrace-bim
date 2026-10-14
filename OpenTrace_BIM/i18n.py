@@ -558,6 +558,19 @@ _ES = {
     "Mova a ponta da viga e clique para confirmar.": "Mueva el extremo de la viga y haga clic para confirmar.",
     "Prolongue ou encurte a viga pelo eixo e clique.": "Alargue o acorte la viga por su eje y haga clic.",
     "Mova a ponta em Z e clique na nova altura.": "Mueva el extremo en Z y haga clic en la nueva altura.",
+    'Aplicar propriedades IFC': 'Aplicar propiedades IFC',
+    'Classe IFC': 'Clase IFC',
+    'Classificação: não definida': 'Clasificación: no definida',
+    'Código de classificação': 'Código de clasificación',
+    'Layer': 'Capa',
+    'Novos objetos': 'Objetos nuevos',
+    'Não definida': 'No definida',
+    'Objetos selecionados': 'Objetos seleccionados',
+    'Sistema de classificação': 'Sistema de clasificación',
+    'Tipo predefinido': 'Tipo predefinido',
+    'Vários layers': 'Varias capas',
+    'Biblioteca de classificações': 'Biblioteca de clasificaciones',
+    'Escolher classificação': 'Elegir clasificación',
 }
 
 
@@ -746,6 +759,17 @@ _LAYERCOMBO_EN = {
     "Excluir combinação": "Delete combination",
     "Renomear": "Rename",
     "Aplicar combinação": "Apply combination",
+    'Aplicar propriedades IFC': 'Apply IFC properties',
+    'Classificação: não definida': 'Classification: not defined',
+    'Código de classificação': 'Classification code',
+    'Layer': 'Layer',
+    'Novos objetos': 'New objects',
+    'Não definida': 'Not defined',
+    'Objetos selecionados': 'Selected objects',
+    'Tipo predefinido': 'Predefined type',
+    'Vários layers': 'Multiple layers',
+    'Biblioteca de classificações': 'Classification library',
+    'Escolher classificação': 'Choose classification',
 }
 
 _TOOL_EN = {

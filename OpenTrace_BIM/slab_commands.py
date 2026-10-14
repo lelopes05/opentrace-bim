@@ -22,6 +22,8 @@ class CreateSlab(Command):
             raise SlabError("A laje já está no documento.")
         from .bim import ensure_ifc_identity
         ensure_ifc_identity(self.group, "IfcSlab")
+        from .creation_properties import apply_creation_properties
+        apply_creation_properties(self, scene, [self.group], "slab")
         from .slab_model import slab_record
         rec=slab_record(self.group) or {}
         stamp_structured_materials(self.group,scene,rec)

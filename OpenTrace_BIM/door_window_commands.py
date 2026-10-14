@@ -107,6 +107,8 @@ class CreateHostedFill(Command):
             if self.group is None:
                 self.group = place_fill_on_wall(self.spec, self.wall)
                 self.group.ifc["global_id"] = self.spec["ifc_global_id"]
+                from .creation_properties import apply_creation_properties
+                apply_creation_properties(self, scene, [self.group], self.spec["kind"])
             if self.index is None:
                 self.index = len(scene.groups)
             scene.groups.insert(min(self.index, len(scene.groups)), self.group)

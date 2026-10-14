@@ -134,19 +134,18 @@ class SuiteContextSyncTests(unittest.TestCase):
              self.suite.update_status,self.suite.auto_update_check,
              self.suite.update_button,self.suite.update_manager)=previous
 
-    def test_palette_never_activates_a_tool(self):
-        initial=self.window.viewport.active_tool
-        for key in self.suite.buttons:
-            with self.subTest(page=key):
-                self.suite.buttons[key].click()
-                self.assertIs(self.window.viewport.active_tool,initial)
-        self.suite.show_page("home")
-        for button in self.suite.home.findChildren(QToolButton):
-            if not button.objectName().startswith("opentrace_home_"):
-                continue
-            with self.subTest(button=button.objectName()):
-                button.click()
-                self.assertIs(self.window.viewport.active_tool,initial)
+    def test_explicit_navigation_selects_tool_but_context_refresh_does_not(self):
+        from OpenTrace_BIM.object_properties import TOOL_KEYS
+        from OpenTrace_BIM.host import host_tool
+        for key, button in self.suite.buttons.items():
+            activate_select(self.app)
+            initial = self.window.viewport.active_tool
+            button.click()
+            expected = host_tool(self.app, TOOL_KEYS[key]) if key in TOOL_KEYS else initial
+            self.assertIs(self.window.viewport.active_tool, expected)
+            # An automatic inspector update is not another tool choice.
+            self.suite.show_page("wall")
+            self.assertIs(self.window.viewport.active_tool, expected)
 
     def test_mode_buttons_disabled_without_their_tool(self):
         from PySide6.QtGui import QAction

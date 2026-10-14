@@ -1,5 +1,14 @@
 # Próximos passos
 
+## Retomada direta com Leandro — 14/10
+
+Branch `gpt/interface-portas-unificada`, criada de `671f444` (código do TEST-406, conferido contra o ZIP fornecido). Não incorpora a recuperação visual rejeitada.
+
+Primeiro incremento: seletor de layer nativo sincronizado entre barra/lateral, defaults por ferramenta, atribuição aos selecionados com histórico e propriedades IFC junto ao contexto, usando catálogo IFC4 e biblioteca existente. Clique explícito na categoria lateral ativa a ferramenta correspondente; atualização por seleção não ativa criação. Essa orientação substitui as restrições antigas de navegação abaixo.
+
+Pendentes nesta linha: páginas completas de Porta/Janela, revisão das dimensões padrão da porta (batente e espuma), Home sem botões repetidos, tradução integral e composição visual das maquetes. Este incremento não declara esses itens concluídos. Aceite Windows pendente.
+
+
 Branch: `claude/b1-curved-wall-perf`. Último pacote entregue: TEST-8 (13/10).
 
 ## Barra de opções — grupos e campos (13/10)
@@ -29,7 +38,7 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 
 ### Regras do bloco
 - **Ferramenta:** QAction checável no `_tool_group` do host, registrada com `register_tool(app, tool, action, key)`. Fica no menu "Ferramentas arquitetônicas" (`app.add_menu`) e na fileira. O F3 do host acha sozinho as ações do menu e das toolbars (`views/command_search.py`); a ação precisa de texto e de `parent` igual a `app.window`.
-- **Só a fileira e o menu escolhem ferramenta.** A barra de opções e a paleta lateral nunca chamam `activate_tool`, `action.trigger()` ou `start_*`. A exceção é Esc/Selecionar, que o host já faz.
+- **Atualizado em 14/10:** fileira, menu e clique explícito na categoria lateral escolhem a mesma ferramenta. Barra de opções e sincronização automática não ativam criação.
 - **Fonte única:** o valor mora em um lugar só (campo do controlador, ou `tool.sizes` nas ferramentas de vão). A barra e a paleta espelham esse valor; editar num lado atualiza o outro.
 - **Textos:** todo texto passa por `i18n.t()`, com entrada em `i18n.py` para inglês e espanhol.
 - **Código:** sem `QTimer` para "consertar" ordem de partida, sem try/except mudo e sem código morto. O que sair, sai inteiro, com os chamadores.
@@ -189,7 +198,7 @@ Siga as etapas na ordem. Cada etapa é um commit (ou poucos) na branch, com CI v
 - `sync_context` continua com as regras atuais (não sai de `bim`, `project` ou `arrange`, nem desfaz a escolha do usuário).
 
 **Testes que provam:**
-- `test_palette_never_activates_a_tool`: para toda página e todo botão visível, clicar mantém `viewport.active_tool`. É o mesmo padrão do teste da barra.
+- `test_explicit_navigation_selects_tool_but_context_refresh_does_not`: clique explícito na categoria ativa a ferramenta; mudança automática de página preserva a ferramenta ativa (contrato atualizado em 14/10).
 - `test_mode_buttons_disabled_without_their_tool`.
 - `test_active_tool_opens_its_settings_on_top`: com a Abertura ativa, a página atual é `wall` e a seção "Vão" está visível e expandida.
 - `test_palette_and_bar_share_opening_sizes`: mudar a Largura na paleta muda a da barra.

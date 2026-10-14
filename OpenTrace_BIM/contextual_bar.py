@@ -74,6 +74,9 @@ class ContextualBar(QWidget):
         row.setSpacing(12)
         self.stack = _CompactStack(self)
         row.addWidget(self.stack, 1)
+        self.layer_combo = suite.object_properties.make_layer_combo(self)
+        self.layer_combo.setToolTip(t("Layer"))
+        row.addWidget(self.layer_combo)
         self.collapsed_label = QLabel("Contexto · abrir ▾")
         self.collapsed_label.hide()
         row.addWidget(self.collapsed_label, 1)
@@ -671,6 +674,7 @@ class ContextualBar(QWidget):
         self.updateGeometry()
 
     def refresh(self):
+        self.suite.object_properties.refresh()
         key = self._context_key()
         if key != self._key:
             self._key = key
@@ -731,8 +735,7 @@ class ContextualBar(QWidget):
         self.setToolTip("Barra contextual do OpenTrace BIM: " + key)
         # Options are methods of the active construction tool. Selection and
         # native editing keep their properties in the sidebar / radial palette.
-        creating = key in {"wall", "slab", "column", "beam",
-                           "opening", "door", "window"}
+        creating = key != "idle" or bool(self.app.scene.selection)
         frame = self.overlay_dock.options_frame
         if frame.isHidden() == creating:
             frame.setVisible(creating)
