@@ -296,7 +296,7 @@ class MembraneController:
     def message(self, text, error=False):
         self.feedback.setText(str(text))
         self.feedback.setStyleSheet("color:#b00020;" if error else "")
-        try: self.app.viewport.flash_status(str(text), 8000 if error else 15000)
+        try: self.app.viewport.flash_status(str(text), 15000)
         except Exception: pass
 
     def _selected_membrane(self):

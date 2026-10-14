@@ -9,6 +9,7 @@ from tools.base import AxisMagnet, Tool
 
 from .commands import root_edit_allowed
 from .slab_commands import CreateSlab
+from .step_guide import show_step, step_text
 from .slab_model import (MIN_DIM, SlabError, actual_bottom, make_slab,
                          rectangle_base_width, rectangle_diagonal, validate_polygon)
 
@@ -27,6 +28,7 @@ class SlabTool(AxisMagnet, Tool):
     def __init__(self, controller):
         self.controller = controller
         self.mode = self.MODE_DIAGONAL
+        self.step_id = "slab.create.start"
         self.points = []
         self.hover = None
         self.scene_at_start = None
@@ -34,7 +36,6 @@ class SlabTool(AxisMagnet, Tool):
         self.chain_first_point = None
 
     def reset(self):
-        self.mode = self.MODE_DIAGONAL
         self.points = []
         self.hover = None
         self.scene_at_start = None
@@ -43,10 +44,22 @@ class SlabTool(AxisMagnet, Tool):
         self.controller.hide_mode_palette()
 
     def on_activate(self, viewport):
-        self.reset(); self.controller.schedule_refresh()
+        self.reset()
+        show_step(self, viewport, "slab.create.start")
+        self.controller.schedule_refresh()
 
     def on_deactivate(self, viewport):
-        self.reset(); self.controller.schedule_refresh()
+        self.reset()
+        self.controller.app.window.statusBar().clearMessage()
+        self.controller.schedule_refresh()
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+    def _warn(self, viewport, message):
+        self.controller.message(message, error=True)
+        show_step(self, viewport, self.step_id)
 
     def set_mode(self, mode):
         if mode not in (self.MODE_DIAGONAL, self.MODE_BASE_WIDTH, self.MODE_POLYGON):
@@ -57,11 +70,16 @@ class SlabTool(AxisMagnet, Tool):
             self.points = self.points[:1]
         self.chain_first_point = QVector3D(self.points[0]) if (mode == self.MODE_POLYGON and self.points) else None
         self.start_point = QVector3D(self.points[-1]) if self.points else None
-        self.controller.message({
-            self.MODE_DIAGONAL: "Retângulo por diagonal: indique o canto oposto.",
-            self.MODE_BASE_WIDTH: "Retângulo por base: indique o fim da base e depois a largura.",
-            self.MODE_POLYGON: "Polígono: indique os vértices e clique no primeiro para fechar.",
-        }[mode])
+        viewport = self.controller.app.viewport
+        if viewport.active_tool is self:
+            if not self.points:
+                show_step(self, viewport, "slab.create.start")
+            elif mode == self.MODE_DIAGONAL:
+                show_step(self, viewport, "slab.diagonal.second")
+            elif mode == self.MODE_BASE_WIDTH:
+                show_step(self, viewport, "slab.base.choose")
+            else:
+                show_step(self, viewport, "slab.polygon.choose")
         self.controller.app.viewport.update()
 
     def drag_plane(self, viewport):
@@ -97,9 +115,12 @@ class SlabTool(AxisMagnet, Tool):
                 self.start_point = QVector3D(p)
                 self.chain_first_point = None
                 self.scene_at_start = ctx.viewport.scene
-                self.mode = self.MODE_DIAGONAL
-                self.controller.show_mode_palette(ctx.screen)
-                self.controller.message("Retângulo por diagonal ativo. Escolha outro método na paleta se quiser.")
+                if self.mode == self.MODE_DIAGONAL:
+                    show_step(self, ctx.viewport, "slab.diagonal.second")
+                elif self.mode == self.MODE_BASE_WIDTH:
+                    show_step(self, ctx.viewport, "slab.base.choose")
+                else:
+                    show_step(self, ctx.viewport, "slab.polygon.choose")
             elif self.mode == self.MODE_DIAGONAL:
                 self._commit(ctx.viewport, rectangle_diagonal(self.points[0], p))
             elif self.mode == self.MODE_BASE_WIDTH:
@@ -110,7 +131,7 @@ class SlabTool(AxisMagnet, Tool):
                     self.hover = p
                     self.start_point = QVector3D(p)
                     self.controller.hide_mode_palette()
-                    self.controller.message("Indique a largura para qualquer lado da base.")
+                    show_step(self, ctx.viewport, "slab.base.width")
                 else:
                     self._commit(ctx.viewport, rectangle_base_width(self.points[0], self.points[1], p))
             else:
@@ -125,9 +146,9 @@ class SlabTool(AxisMagnet, Tool):
                     self.hover = p
                     self.start_point = QVector3D(p)
                     self.chain_first_point = QVector3D(self.points[0]) if len(self.points) >= 2 else None
-                    self.controller.message("Continue o polígono ou clique no primeiro vértice para fechar.")
+                    show_step(self, ctx.viewport, "slab.polygon.next")
         except SlabError as exc:
-            self.controller.message(str(exc), error=True)
+            self._warn(ctx.viewport, str(exc))
         ctx.viewport.update()
 
     def on_hover(self, ctx):
@@ -147,12 +168,12 @@ class SlabTool(AxisMagnet, Tool):
             raise SlabError(viewport.history.last_error)
         self.reset()
         viewport.notify_scene_changed()
-        self.controller.message("Laje criada. Clique para iniciar outra; Esc para sair.")
+        show_step(self, viewport, "slab.diagonal.created")
 
     def on_cancel(self, viewport):
         if self.points:
             self.reset(); viewport.update()
-            self.controller.message("Laje cancelada. Clique para iniciar outra; Esc para sair.")
+            show_step(self, viewport, "slab.create.cancel")
         else:
             QTimer.singleShot(0, self.controller.stop_drawing)
 

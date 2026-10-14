@@ -6,17 +6,21 @@ from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 from .commands import root_edit_allowed
 from .column_commands import CreateColumn
+from .step_guide import show_step, step_text
 from .column_model import ColumnError, make_column, profile_world
 
 class ColumnTool(AxisMagnet,Tool):
     name="Pilar paramétrico"; description="Inserir pilar vertical paramétrico."; wireframe_color=(0.82,0.48,0.12,1.0); vcb_label="Pilar"
-    def __init__(self,controller): self.controller=controller; self.hover=None
+    def __init__(self,controller): self.controller=controller; self.hover=None; self.step_id="column.start"
     def reset(self): self.hover=None
     def drag_plane(self,viewport):
         z=self.controller.current_base_z(); return QVector3D(0,0,z),QVector3D(0,0,1)
     def point(self,ctx): return QVector3D(ctx.world.x(),ctx.world.y(),self.controller.current_base_z())
-    def on_activate(self,viewport): self.reset(); self.controller.schedule_refresh()
-    def on_deactivate(self,viewport): self.reset(); self.controller.schedule_refresh()
+    def on_activate(self,viewport): self.reset(); show_step(self,viewport,"column.start"); self.controller.schedule_refresh()
+    def on_deactivate(self,viewport): self.reset(); self.controller.app.window.statusBar().clearMessage(); self.controller.schedule_refresh()
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
     def on_hover(self,ctx): self.hover=self.point(ctx); ctx.viewport.update()
     def on_click(self,ctx):
         try:
@@ -24,9 +28,10 @@ class ColumnTool(AxisMagnet,Tool):
             g=make_column(p,self.controller.resolved_defaults())
             ctx.viewport.history.execute(CreateColumn(g))
             if ctx.viewport.history.last_error: raise ColumnError(ctx.viewport.history.last_error)
-            ctx.viewport.notify_scene_changed(); self.controller.message("Pilar criado. Clique para inserir outro; Esc para sair.")
+            ctx.viewport.notify_scene_changed(); show_step(self,ctx.viewport,"column.created")
         except Exception as exc:
             self.controller.message(str(exc),error=True)
+            show_step(self,ctx.viewport,self.step_id)
         ctx.viewport.update()
     def on_cancel(self,viewport): QTimer.singleShot(0,self.controller.stop_drawing)
     def rubber_band_lines(self):

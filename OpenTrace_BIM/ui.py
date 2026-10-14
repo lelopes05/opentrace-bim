@@ -196,8 +196,6 @@ class WallController(QObject):
         self._make_panel()
         self._make_actions()
         self._make_path_palette()
-        self._make_straight_mode_palette()
-        self._make_curve_mode_palette()
         app.add_overlay(self.draw_reference_overlay)
         app.add_snap_provider(self._snap_provider)
         app.viewport.installEventFilter(self)
@@ -456,86 +454,10 @@ class WallController(QObject):
             "Inclinar a parede: desloca somente este topo no plano horizontal. Valor digitado = ângulo em relação à vertical.",
             self.begin_lean_top)
 
-    def _make_straight_mode_palette(self):
-        # First-click construction selector for the straight-wall tool.  It is
-        # the same radial component used by edit palettes; popup=False keeps the
-        # following viewport click available after a mode is chosen.
-        self.straight_mode_palette = RadialPalette(self.app.window, popup=False, role="draw")
-        self.straight_mode_palette.setObjectName("arquitetura_parametrica_straight_mode_palette")
-        row = self.straight_mode_palette.row
-        self.straight_mode_buttons = {}
-
-        def add(symbol, tooltip, mode):
-            b = QToolButton(self.straight_mode_palette)
-            set_symbol_icon(b, symbol)
-            b.setToolTip(tooltip)
-            b.setAutoRaise(True)
-            b.setCheckable(True)
-            b.setFixedSize(36, 36)
-            font = b.font(); font.setPointSize(17); b.setFont(font)
-            b.clicked.connect(lambda _checked=False, m=mode: self.choose_geometry(m))
-            row.addWidget(b)
-            self.straight_mode_buttons[mode] = b
-
-        add("／", t("Parede reta simples: primeiro ponto e ponto final."), "single")
-        add("▱", t("Bloco de 4 paredes por diagonal: primeiro canto e canto oposto."), "rect_diagonal")
-        add("⊥", t("Bloco de 4 paredes por base + profundidade: início, fim da base e profundidade perpendicular."), "rect_base_width")
-        self.straight_mode_palette.hide()
-
-    def show_straight_mode_palette(self, screen_pos):
-        for mode, btn in self.straight_mode_buttons.items():
-            btn.setChecked(mode == self.draw_tool.geometry)
-        pos = self.app.viewport.mapToGlobal(
-            QPoint(int(screen_pos.x()), int(screen_pos.y())))
-        self.straight_mode_palette.show_at(pos)
-
-    def hide_straight_mode_palette(self):
-        if hasattr(self, "straight_mode_palette"):
-            self.straight_mode_palette.hide()
-
     def choose_geometry(self, geometry):
-        """The only way to change the Wall tool's geometry: bar and radial palettes."""
+        """Change the Wall geometry only through the options bar."""
         self.draw_tool.set_geometry(geometry)
-        self.hide_straight_mode_palette()
-        self.hide_curve_mode_palette()
         self.app.viewport.setFocus()
-
-    def _make_curve_mode_palette(self):
-        # The creation-method selector now uses the same radial visual language
-        # as contextual edit palettes.  It opens on the first point and keeps
-        # that point while the user switches between the three arc methods.
-        self.curve_mode_palette = RadialPalette(self.app.window, popup=False, role="draw")
-        self.curve_mode_palette.setObjectName("arquitetura_parametrica_curve_mode_palette")
-        row = self.curve_mode_palette.row
-        self.curve_mode_buttons = {}
-
-        def add(symbol, tooltip, mode):
-            b = QToolButton(self.curve_mode_palette)
-            set_symbol_icon(b, symbol)
-            b.setToolTip(tooltip)
-            b.setAutoRaise(True)
-            b.setCheckable(True)
-            b.setFixedSize(36, 36)
-            font = b.font(); font.setPointSize(17); b.setFont(font)
-            b.clicked.connect(lambda _checked=False, m=mode: self.choose_geometry(m))
-            row.addWidget(b)
-            self.curve_mode_buttons[mode] = b
-
-        add("⌒", t("Arco padrão: início, fim e depois puxe a flecha para qualquer lado."), "arc_normal")
-        add("⊙", t("Arco pelo centro: centro, início da parede e fim do arco."), "arc_center")
-        add("∴", t("Arco por 3 pontos: início, ponto intermediário e fim."), "arc_three")
-        self.curve_mode_palette.hide()
-
-    def show_curve_mode_palette(self, screen_pos):
-        for mode, btn in self.curve_mode_buttons.items():
-            btn.setChecked(mode == self.draw_tool.geometry)
-        pos = self.app.viewport.mapToGlobal(
-            QPoint(int(screen_pos.x()), int(screen_pos.y())))
-        self.curve_mode_palette.show_at(pos)
-
-    def hide_curve_mode_palette(self):
-        if hasattr(self, "curve_mode_palette"):
-            self.curve_mode_palette.hide()
 
     def hide_path_palette(self):
         if hasattr(self, "path_palette"):
@@ -1143,7 +1065,6 @@ class WallController(QObject):
         activate_wall(self.app)
         self._state_key = None
         self.refresh()
-        self.message("Clique no início da parede. A cota de base define o plano horizontal.")
         self.app.viewport.setFocus()
 
     def _drawing(self, inner, viewport=None):
@@ -1154,8 +1075,6 @@ class WallController(QObject):
     def stop_drawing(self):
         if self.app.viewport.active_tool is self.draw_tool:
             activate_select(self.app)
-        self.hide_straight_mode_palette()
-        self.hide_curve_mode_palette()
         self.schedule_refresh()
 
     def schedule_refresh(self, *_):
@@ -1562,7 +1481,6 @@ class WallController(QObject):
         if self.app.viewport.active_tool is self.draw_tool:
             self._state_key = None
             self.refresh()
-            self.message("Clique no início da parede. A cota de base define o plano horizontal.")
             self.app.viewport.setFocus()
         else:
             self.start_drawing()
@@ -1707,4 +1625,4 @@ class WallController(QObject):
             # the palette.  Tools already call controller.message() whenever
             # their stage changes, so this keeps creation/edit flows legible
             # without duplicating instructions in every mouse handler.
-            self.app.viewport.flash_status(shown, 8000 if error else 15000)
+            self.app.viewport.flash_status(shown, 15000)

@@ -35,7 +35,8 @@ from .wall_opening_edit import (
     OffsetWallOpeningTool, PushWallOpeningEdgeTool, StretchWallOpeningEdgeTool,
     execute, find_opening, linked_fill, outline, store_outline,
 )
-from .wall_opening_place import PlaceWallOpeningTool, WallOpeningTool
+from .wall_opening_place import (DrawWallOpeningTool, PlaceWallOpeningTool, WallOpeningTool)
+from .step_guide import show_step, step_text
 
 KEY = "opentrace_wall_opening_"
 OPENING_TOOL_KEY = "opentrace_wall_opening_tool"
@@ -119,6 +120,82 @@ def _inside(px, py, poly):
     return inside
 
 
+_PLACEMENT_STEPS = {
+    "rect": ("opening.rect.hover", "opening.rect.placed"),
+    "square": ("opening.square.hover", "opening.square.placed"),
+    "circle": ("opening.circle.hover", "opening.circle.placed"),
+    "door": ("door.hover", "door.placed"),
+    "window": ("window.hover", "window.placed"),
+}
+
+
+class GuidedPlaceWallOpeningTool(PlaceWallOpeningTool):
+    """Keep creation prompts in the shared guide without changing the place engine."""
+
+    def on_activate(self, viewport):
+        show_step(self, viewport, _PLACEMENT_STEPS[self.kind][0])
+
+    def on_deactivate(self, viewport):
+        super().on_deactivate(viewport)
+        self.controller.app.window.statusBar().clearMessage()
+
+    def _place(self, viewport, item):
+        super()._place(viewport, item)
+        show_step(self, viewport, _PLACEMENT_STEPS[self.kind][1])
+
+    def on_click(self, ctx):
+        super().on_click(ctx)
+        show_step(self, ctx.viewport, self.step_id)
+
+    def on_value(self, viewport, value):
+        result = super().on_value(viewport, value)
+        show_step(self, viewport, self.step_id)
+        return result
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+
+class GuidedDrawWallOpeningTool(DrawWallOpeningTool):
+    def on_activate(self, viewport):
+        super().on_activate(viewport)
+        show_step(self, viewport, "opening.free.start")
+
+    def on_deactivate(self, viewport):
+        super().on_deactivate(viewport)
+        self.controller.app.window.statusBar().clearMessage()
+
+    def on_click(self, ctx):
+        previous = len(self.points)
+        super().on_click(ctx)
+        if self.points:
+            show_step(self, ctx.viewport, "opening.free.next_vertex")
+        elif previous == 0:
+            show_step(self, ctx.viewport, self.step_id)
+
+    def _commit(self, viewport):
+        super()._commit(viewport)
+        show_step(self, viewport, "opening.free.placed")
+
+    def on_cancel(self, viewport):
+        previous = bool(self.points)
+        super().on_cancel(viewport)
+        if previous:
+            show_step(self, viewport, "opening.free.cancel")
+
+    def status_clause(self):
+        # Kept for hosts newer than IngeTrazo 0.5.8.
+        return step_text(self.step_id)
+
+
+class GuidedWallOpeningTool(WallOpeningTool):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.place = GuidedPlaceWallOpeningTool(controller, "rect")
+        self.draw = GuidedDrawWallOpeningTool(controller)
+
+
 class WallOpeningEditor(QObject):
     def __init__(self, app, wall_controller):
         super().__init__(app.window)
@@ -127,9 +204,9 @@ class WallOpeningEditor(QObject):
         self.active = None            # (wall, opening_id)
         self._radial_target = None    # (wall, opening_id, part, index, world_anchor)
         self.sticky = StickyOpeningFunction()
-        self.opening_tool = WallOpeningTool(self)
-        self.door_tool = PlaceWallOpeningTool(self, "door")
-        self.window_tool = PlaceWallOpeningTool(self, "window")
+        self.opening_tool = GuidedWallOpeningTool(self)
+        self.door_tool = GuidedPlaceWallOpeningTool(self, "door")
+        self.window_tool = GuidedPlaceWallOpeningTool(self, "window")
         self.tool_actions = tuple(
             self._make_tool_action(key, tool, title, tip) for key, tool, title, tip in (
                 (OPENING_TOOL_KEY, self.opening_tool, "Abertura",
@@ -177,6 +254,10 @@ class WallOpeningEditor(QObject):
         self.app.viewport.setFocus()
 
     def message(self, text, error=False):
+        if not error and (self.app.viewport.active_tool in (
+                self.opening_tool, self.door_tool, self.window_tool)
+                or self.sticky.tool is self.app.viewport.active_tool):
+            return  # The guided tools own their step; suppress legacy transient prompts.
         self.walls.message(text, error=error)
 
     def clear_sticky(self):
@@ -211,6 +292,8 @@ class WallOpeningEditor(QObject):
         if wall is not None and wall in self.app.scene.groups:
             self.select_opening(wall, opening_id)
         self.sticky.finished(self.app.viewport.active_tool)
+        if self.sticky.waiting:
+            show_step(self.sticky.tool, self.app.viewport, "wall_opening.edit.after")
         self.app.viewport.update()
 
     def delete_opening(self, wall, opening_id):
@@ -408,6 +491,7 @@ class WallOpeningEditor(QObject):
                 return True
             self.select_opening(wall, shape["id"])
             self.sticky.armed()
+            show_step(self.sticky.tool, viewport, self.sticky.tool.function_step_id)
             self.app.viewport.update()
             return True
         if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
@@ -470,12 +554,15 @@ class WallOpeningEditor(QObject):
             return
         try:
             self.tools[action].arm(wall, (oid, index or 0), anchor)
+            self.tools[action].function_step_id = "wall_opening.edit." + action
+            self.tools[action].step_id = self.tools[action].function_step_id
         except (SlabError, WallError) as exc:
             self.message(str(exc), error=True)
             return
         if self.app.viewport.active_tool is not self.tools[action]:
             activate_tool(self.app, KEY + action)
         self.sticky.choose(self.tools[action], part)
+        show_step(self.tools[action], self.app.viewport, self.tools[action].function_step_id)
         self.app.viewport.setFocus()
 
     def _delete_vertex(self, wall, oid, index):

@@ -353,12 +353,12 @@ class ColumnController(QWidget):
             if self.defaults.get("section_type")=="complex" and not self.defaults.get("profile_ref"):raise ColumnError("Escolha um Perfil Complexo antes de inserir o pilar.")
             if self.app.workspace() is not None:raise ColumnError("Volte ao modelo para inserir pilares.")
         except Exception as exc:self.action.setChecked(False);self.app.viewport.flash_status(t(str(exc)),6000);return
-        self.app.scene.clear_selection();activate_column(self.app);self.schedule_refresh();self.message("Clique no ponto de inserção do pilar.");self.app.viewport.setFocus()
+        self.app.scene.clear_selection();activate_column(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def stop_drawing(self):activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
     def return_to_select(self):activate_select(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def message(self,text,error=False):
         shown=t(text);self.feedback.setText(shown);self.feedback.setStyleSheet("color:#b00020;" if error else "")
-        if text:self.app.viewport.flash_status(shown,8000 if error else 15000)
+        if text:self.app.viewport.flash_status(shown,15000)
 
     @staticmethod
     def _seg_distance(px,py,a,b):
