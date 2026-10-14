@@ -117,6 +117,9 @@ class ToolRow(OverlayFrame):
         return self._icon_cache[key]
 
     def apply_theme(self):
+        # Keep the inherited panel shadow in sync with light/dark palette
+        # changes as well as this row's tools and brand.
+        super().apply_theme()
         palette = QApplication.palette()
         height = SIZES["tool-height-compact" if self.compact else "tool-height"]
         self.brand.setFont(theme_font(QApplication.font(), "brand"))
