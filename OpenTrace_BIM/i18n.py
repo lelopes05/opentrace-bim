@@ -217,6 +217,7 @@ _EN = {
 }
 
 _ES = {
+    "O OpenTrace BIM apenas avisa sobre versões novas. Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo. O plugin não baixa nem instala arquivos.": "OpenTrace BIM solo avisa de nuevas versiones. Para actualizar, abra Extensions ▸ Manage extensions en IngeTrazo. El plugin no descarga ni instala archivos.",
     "Atualização do OpenTrace BIM": "Actualización de OpenTrace BIM",
     "OpenTrace BIM {version} está disponível.": "OpenTrace BIM {version} está disponible.",
     "O que há de novo": "Novedades",
@@ -1047,6 +1048,7 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "O OpenTrace BIM apenas avisa sobre versões novas. Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo. O plugin não baixa nem instala arquivos.": "OpenTrace BIM only notifies you of new versions. To update, open Extensions ▸ Manage extensions in IngeTrazo. The plugin does not download or install files.",
     "Atualização do OpenTrace BIM": "OpenTrace BIM update",
     "OpenTrace BIM {version} está disponível.": "OpenTrace BIM {version} is available.",
     "O que há de novo": "What's new",
