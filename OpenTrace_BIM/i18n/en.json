@@ -491,6 +491,8 @@
   "Ferramentas arquitetônicas": "Architecture tools",
   "Fidelidade OpenTrace: PolygonalFaceSet IFC4 e opção de IfcOpeningElement. Útil para inspeção openBIM e round-trip futuro.": "OpenTrace fidelity: IFC4 PolygonalFaceSet plus optional IfcOpeningElement. Useful for openBIM inspection and future round-trip.",
   "Fillet": "Fillet",
+  "Fixar": "Pin",
+  "Fixar página da paleta até desmarcar": "Keep this sidebar page until unpinned",
   "Forma": "Shape",
   "Forma simples de pilar ainda não suportada.": "This simple column shape is not supported yet.",
   "Forma simples de viga ainda não suportada.": "This simple beam shape is not supported yet.",
