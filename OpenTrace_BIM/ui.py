@@ -39,7 +39,7 @@ from .path_edit import (ArcWallTool, ChangeWallHeightTool, ConstrainedMoveWallTo
 from .wall_opening_ui import WallOpeningEditor
 from .overlay_safety import visible_pixel, visible_segment
 from .door_window_commands import EditHostedFill, reverse_hosted_door, sync_hosted_fill_placements, _fill_record
-from .door_window_core import normalize_fill, reanchor_fill
+from .door_window_core import normalize_fill, reanchor_fill, edit_fill_from_cut_dimension
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
 from .i18n import t, ui_locale
 from .icons import icon as pa_icon, set_symbol_icon
@@ -729,10 +729,14 @@ class WallController(QObject):
                 linked=self._find_linked_fill(item)
                 if linked is not None:
                     old=normalize_fill(_fill_record(linked)["params"])
-                    new=(old["position"]+(candidate-previous_position)
-                         if field_name=="position" else candidate)
+                    if field_name in ("width", "height"):
+                        changes=edit_fill_from_cut_dimension(old, field_name, candidate)
+                    elif field_name=="position":
+                        changes={"position":old["position"]+candidate-previous_position}
+                    else:
+                        changes={field_name:candidate}
                     self.app.viewport.history.execute(EditHostedFill(
-                        self.app.scene,self.target,linked,{field_name:new}))
+                        self.app.scene,self.target,linked,changes))
                     if self.app.viewport.history.last_error:
                         raise WallError(self.app.viewport.history.last_error)
                     self.app.viewport.notify_scene_changed()
