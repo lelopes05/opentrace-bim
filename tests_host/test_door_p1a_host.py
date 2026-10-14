@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication
 from core.scene import Scene
 from formats import igz
 
-from OpenTrace_BIM.door_window_commands import EditHostedFill, _fill_record
+from OpenTrace_BIM.door_window_commands import CreateHostedFill, EditHostedFill, _fill_record
 from OpenTrace_BIM.door_window_core import station_span, wallhole_size, wallhole_span
 from OpenTrace_BIM.host import activate_select, activate_tool
 from OpenTrace_BIM.ifc_export import export_ifc
@@ -224,6 +224,43 @@ class DoorP1aHostTests(unittest.TestCase):
         self.assertIn("unit_width", group.ext[KEY]["params"])
         self.assertTrue(self.viewport.history.redo())
         self.assertNotIn("unit_width", group.ext[KEY]["params"])
+
+    def test_window_instance_controls_change_panes_glass_and_both_width_arrows(self):
+        create = CreateHostedFill(self.scene, self.wall, {
+            "kind": "window", "id": "test-window",
+            "opening_id": "test-window-hole", "host_id": self.wall.uid,
+            "position": 3.0, "width": 1.20, "height": 1.10,
+            "sill": 0.8, "panes": 1,
+        })
+        create.do(self.scene)
+        window = create.group
+        controller = self.window._arquitetura_parametrica_controller
+        controller.target = self.wall
+        controller._active_opening_wall = self.wall
+        controller._active_opening_id = "test-window-hole"
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        panel = controller.fill_properties
+        self.assertFalse(panel._fields["panes"].isHidden())
+        self.assertFalse(panel._fields["glass_thickness"].isHidden())
+        self.assertFalse(panel._fields["material_window_glass"].isHidden())
+        self.assertTrue(panel._fields["leaf_variant"].isHidden())
+        width = controller.opening_fields["width"]
+        width.stepDown()
+        self.assertAlmostEqual(
+            window.ext[KEY]["params"]["width"], 1.10, places=5)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        width.stepUp()
+        self.assertAlmostEqual(
+            window.ext[KEY]["params"]["width"], 1.20, places=5)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        panel._fields["panes"].stepUp()
+        self.assertEqual(window.ext[KEY]["params"]["panes"], 2)
+        controller._load_opening_fields(read_wall(self.wall)["openings"])
+        panel._fields["glass_thickness"].setValue(0.008)
+        self.assertAlmostEqual(
+            window.ext[KEY]["params"]["glass_thickness"], 0.008, places=5)
+        self.assertTrue(self.viewport.history.undo())
+        self.assertNotIn("glass_thickness", window.ext[KEY]["params"])
 
     def test_schema2_door_survives_igz_save_and_reload(self):
         opening, group = self._place(anchor="left")
