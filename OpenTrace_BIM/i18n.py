@@ -217,6 +217,15 @@ _EN = {
 }
 
 _ES = {
+    "Atualização do OpenTrace BIM": "Actualización de OpenTrace BIM",
+    "OpenTrace BIM {version} está disponível.": "OpenTrace BIM {version} está disponible.",
+    "O que há de novo": "Novedades",
+    "Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo.": "Para actualizar, abra Extensions ▸ Manage extensions en IngeTrazo.",
+    "Entendi": "Entendido",
+    "Não avisar mais desta versão": "No volver a avisar de esta versión",
+    "Consulta o catálogo oficial. A instalação é feita pelo IngeTrazo.": "Consulta el catálogo oficial. IngeTrazo se encarga de la instalación.",
+    "Avisar quando houver versão nova": "Avisar cuando haya una nueva versión",
+    "Verificar agora": "Comprobar ahora",
     "Configurações": "Configuración",
     "Projeto e organização": "Proyecto y organización",
     "Ative a ferramenta na fileira do topo.": "Active la herramienta en la fila superior.",
@@ -1038,6 +1047,15 @@ _TOOL_EN = {
 }
 
 _UI_EN = {
+    "Atualização do OpenTrace BIM": "OpenTrace BIM update",
+    "OpenTrace BIM {version} está disponível.": "OpenTrace BIM {version} is available.",
+    "O que há de novo": "What's new",
+    "Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo.": "To update, open Extensions ▸ Manage extensions in IngeTrazo.",
+    "Entendi": "Got it",
+    "Não avisar mais desta versão": "Don't notify me again for this version",
+    "Consulta o catálogo oficial. A instalação é feita pelo IngeTrazo.": "Checks the official catalog. IngeTrazo handles installation.",
+    "Avisar quando houver versão nova": "Notify when a new version is available",
+    "Verificar agora": "Check now",
     "Configurações": "Settings",
     "Projeto e organização": "Project and organization",
     "Ative a ferramenta na fileira do topo.": "Activate the tool in the top tool row.",
