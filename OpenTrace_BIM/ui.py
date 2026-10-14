@@ -30,7 +30,7 @@ from .layer_ui import LayerEditor
 from .materials import material_names
 
 from .model import (DEFAULTS, MAX_DIM, MIN_DIM, WallError, path_world, read_wall, validate,
-                    wall_path_kind, wall_record, nearest_path_distance_world)
+                    wall_path_kind, wall_record, wall_offsets, nearest_path_distance_world)
 from .wall_tool import CurvedWallTool, WallDrawTool, WallTool
 from . import wall_cache
 from .snaprefs import snap_to_wall_references, snap_to_wall_top_references, snap_to_structure_reference_endpoints
@@ -678,6 +678,11 @@ class WallController(QObject):
             fill = self._find_linked_fill(op)
             if fill is None:
                 return
+            if changes.get("frame_depth_mode") == "manual" and "frame_depth" not in changes:
+                current = normalize_fill(_fill_record(fill)["params"])
+                if current["kind"] == "door" and current["frame_depth_mode"] == "auto":
+                    lower, upper = wall_offsets(read_wall(self.target))
+                    changes = {**changes, "frame_depth": upper-lower}
             self.app.viewport.history.execute(
                 EditHostedFill(self.app.scene, self.target, fill, changes))
             if self.app.viewport.history.last_error:
