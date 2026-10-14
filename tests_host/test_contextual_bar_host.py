@@ -180,7 +180,7 @@ class BarTests(unittest.TestCase):
             menu = self.bar._preset_buttons["slab"].menu()
             menu.aboutToShow.emit()
             builtin = next(p for p in all_for("slab")
-                           if p["id"] == "slab:generic12")
+                           if p["id"] == "builtin:slab:generic12")
             item = next(action for action in menu.actions()
                         if action.text() == builtin["name"])
             item.trigger()
