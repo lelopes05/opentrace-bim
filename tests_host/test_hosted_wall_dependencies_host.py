@@ -79,6 +79,25 @@ class HostedWallDependencyTests(unittest.TestCase):
                         expected = place_fill_on_wall(params, wall)
                         self.assertLess((origin(fill) - origin(expected)).length(), 1e-6)
                         grown_origin = origin(fill)
+                        # Only the normal (wall-thickness) direction may change.
+                        # This detects sliding along either straight or curved
+                        # reference paths, not merely a match to rebuilt mesh.
+                        from OpenTrace_BIM.model import (
+                            _path_cumulative, _point_on_path_distance, path_world,
+                        )
+                        from OpenTrace_BIM.door_window_core import (
+                            wallhole_span, station_span,
+                        )
+                        points, distances = _path_cumulative(path_world(wall))
+                        left, right = (wallhole_span(params) if kind == "door"
+                                       else station_span(params))
+                        start = _point_on_path_distance(points, distances, left)
+                        end = _point_on_path_distance(points, distances, right)
+                        tangent = (end-start).normalized()
+                        delta = grown_origin-first_origin
+                        self.assertAlmostEqual(
+                            QVector3D.dotProduct(delta, tangent), 0.0, places=6,
+                            msg="thickness edit moved the fill along its station")
 
                         edit.undo(scene)
                         self.assertAlmostEqual(jamb_depth(fill), first_depth)
