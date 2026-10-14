@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFormLayout, QFrame, QLabel, QToolButton,
+    QCheckBox, QComboBox, QFormLayout, QFrame, QLabel, QPushButton, QToolButton,
     QVBoxLayout, QWidget,
 )
 
 from .door_window_core import f01_unit_size, normalize_fill, wallhole_size
+from .door_leaf_editor import DoorLeafGridDialog
 from .i18n import t, ui_locale
 from .materials import material_catalog
 from .widgets import FlexibleDoubleSpinBox
@@ -25,6 +26,13 @@ class FillPropertiesPanel(QWidget):
         ("material_leaf_front", "Face externa da folha"),
         ("material_leaf_back", "Face interna da folha"),
         ("material_leaf_edge", "Borda da folha"),
+        ("material_leaf_stile", "Montantes laterais"),
+        ("material_leaf_rail", "Travessas superior/inferior"),
+        ("material_leaf_mullion", "Montantes internos"),
+        ("material_leaf_transom", "Travessas internas"),
+        ("material_leaf_glass", "Vidro da folha"),
+        ("material_leaf_solid", "Painéis opacos"),
+        ("material_leaf_louver", "Réguas da veneziana"),
         ("material_frame", "Marco / batente"),
         ("material_trim_front", "Alizar face A"),
         ("material_trim_back", "Alizar face B"),
@@ -51,6 +59,7 @@ class FillPropertiesPanel(QWidget):
             ("dimensions", "Dimensões da esquadria"),
             ("installation", "Instalação e batente"),
             ("geometry", "Folha, giro e guarnições"),
+            ("leaf", "Composição paramétrica da folha"),
             ("materials", "Materiais por componente"),
         ):
             frame = QFrame(self)
@@ -115,7 +124,15 @@ class FillPropertiesPanel(QWidget):
 
         self._choice("geometry", "leaf_variant", "Variante F01",
                      (("Lisa", "plain"), ("Frisada", "grooved"),
-                      ("Almofadada", "panelled")))
+                      ("Almofadada", "panelled"),
+                      ("Montantes e painéis", "grid")))
+        self._leaf_summary = QLabel(self)
+        self._leaf_summary.setWordWrap(True)
+        self._forms["leaf"].addRow(self._leaf_summary)
+        self._leaf_button = QPushButton(t("Editar montantes, travessas e painéis…"), self)
+        self._leaf_button.setObjectName("opentrace_fill_edit_leaf")
+        self._leaf_button.clicked.connect(self._edit_leaf)
+        self._forms["leaf"].addRow(self._leaf_button)
         self._choice("geometry", "hinge", "Lado da dobradiça",
                      (("Esquerda", "left"), ("Direita", "right")))
         self._choice("geometry", "swing", "Sentido de giro",
@@ -195,6 +212,16 @@ class FillPropertiesPanel(QWidget):
                 self.submit({name: material})
             return
         self.submit({name: value})
+
+    def _edit_leaf(self):
+        if self._spec is None or self._spec["kind"] != "door":
+            return
+        editor = DoorLeafGridDialog(self._spec, self)
+        if editor.exec():
+            # One command: preserves the door's UID, linked wall opening
+            # and full Undo/Redo semantics. Do not mutate self._spec here.
+            self.submit({"leaf_variant": "grid",
+                         "leaf_grid": editor.result_grid()})
 
     def _show(self, key, visible):
         self._fields[key].setVisible(visible)
@@ -280,6 +307,18 @@ class FillPropertiesPanel(QWidget):
                 self._show(key, physical)
             self._show("panes", not door)
             self._show("glass_thickness", not door)
+            self._groups["leaf"][0].setVisible(physical)
+            if physical:
+                grid = spec.get("leaf_grid")
+                if spec.get("leaf_variant") == "grid" and grid:
+                    self._leaf_summary.setText(t(
+                        "{0} colunas × {1} linhas · {2} painéis configuráveis").format(
+                            grid["columns"], grid["rows"],
+                            len(grid["cell_types"])))
+                else:
+                    self._leaf_summary.setText(t(
+                        "Folha atual sem grade. Edite para criar montantes, "
+                        "travessas, vidro, painéis sólidos ou venezianas."))
             for key, _title in self._MATERIALS:
                 self._show(key, (not door) if key.startswith("material_window_")
                            else physical)
