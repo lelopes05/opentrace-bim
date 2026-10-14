@@ -3,7 +3,6 @@
 import gc
 import unittest
 
-from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 from views.theme import dark_palette, light_palette
@@ -42,24 +41,16 @@ def opaque_mean(pm):
 
 
 class IconHostTests(unittest.TestCase):
-    def tearDown(self):
-        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-        APP.processEvents()
-
     @classmethod
     def setUpClass(cls):
-        # Keep native QPalette values alive while the same icon is repainted.
-        # Recreating host palettes on every pixel-level assertion destabilizes
-        # PySide6/Shiboken on the offscreen Qt runner.
+        # Reuse host palettes throughout this test class.
         cls.dark = dark_palette()
         cls.light = light_palette()
 
     @classmethod
     def tearDownClass(cls):
+        # Release only resources held by the test class.
         del cls.dark, cls.light
-        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-        APP.processEvents()
-        gc.collect()
 
     def test_every_named_icon_works_at_three_sizes(self):
         self.assertEqual(len(_NAMES), len(set(_NAMES)))

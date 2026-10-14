@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Build a visual icon review artifact outside the host unittest process."""
 from pathlib import Path
-import gc
 
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
@@ -58,8 +57,6 @@ def main():
         print(f"Icon sheet created: {destination}")
     finally:
         app.quit()
-        del app
-        gc.collect()
 
 
 if __name__ == "__main__":
