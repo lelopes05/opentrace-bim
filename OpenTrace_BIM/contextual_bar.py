@@ -247,7 +247,7 @@ class ContextualBar(QWidget):
         button.setObjectName("opentrace_preset_" + kind)
         button.setText(t("Escolher") + " ▾")
         button.setToolTip(t("Presets incorporados e pessoais"))
-        button.setAccessibleName(t("Presets") + " · " + t(kind))
+        button.setAccessibleName(t("Presets") + " · " + t({"wall": "Parede", "slab": "Laje", "column": "Pilar", "beam": "Viga"}[kind]))
         button.setFocusPolicy(Qt.NoFocus)
         button.setPopupMode(QToolButton.InstantPopup)
         button.setFixedHeight(SIZES["option-height"])
