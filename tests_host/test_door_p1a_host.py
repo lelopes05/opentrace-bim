@@ -103,8 +103,11 @@ class DoorP1aHostTests(unittest.TestCase):
         self.assertEqual(params["family_key"], "swing_single")
         self.assertEqual((params["plan_angle"], params["model_angle"]), (90, 0))
         self.assertAlmostEqual(params["width"], 0.80, places=6)
-        self.assertAlmostEqual(opening["width"], 0.88, places=6)
-        self.assertAlmostEqual(opening["height"], 2.14, places=6)
+        self.assertEqual(params["f01_layout"], "physical")
+        self.assertAlmostEqual(params["frame_thickness"], 0.04, places=6)
+        self.assertAlmostEqual(params["operating_gap_left"], 0.003, places=6)
+        self.assertAlmostEqual(opening["width"], 0.966, places=6)
+        self.assertAlmostEqual(opening["height"], 2.183, places=6)
         self.assertAlmostEqual(self._geometry_min_x(group), 0.04, places=6)
         self.assertEqual(opening["source_id"], params["id"])
         self.assertTrue(self.viewport.history.undo())
@@ -112,7 +115,7 @@ class DoorP1aHostTests(unittest.TestCase):
         self.assertNotIn(group, self.scene.groups)
         self.assertTrue(self.viewport.history.redo())
         self.assertIn(group, self.scene.groups)
-        self.assertAlmostEqual(self._opening()["width"], 0.88, places=6)
+        self.assertAlmostEqual(self._opening()["width"], 0.966, places=6)
 
     def test_resize_command_preserves_center_and_left_rough_anchor(self):
         _, group = self._place()
@@ -121,11 +124,11 @@ class DoorP1aHostTests(unittest.TestCase):
         self.viewport.history.execute(
             EditHostedFill(self.scene, self.wall, group, {"width": 1.00}))
         cut = self._opening()
-        self.assertAlmostEqual(cut["width"], 1.08, places=6)
+        self.assertAlmostEqual(cut["width"], 1.166, places=6)
         self.assertAlmostEqual(cut["position"], 3.0, places=6)
         self.assertAlmostEqual(group.ext[KEY]["params"]["width"], 1.00, places=6)
         self.assertTrue(self.viewport.history.undo())
-        self.assertAlmostEqual(self._opening()["width"], 0.88, places=6)
+        self.assertAlmostEqual(self._opening()["width"], 0.966, places=6)
 
         old = group.ext[KEY]["params"]
         rough_left, _ = wallhole_span(old)
@@ -140,13 +143,13 @@ class DoorP1aHostTests(unittest.TestCase):
         cut = self._opening()
         self.assertEqual(updated["anchor"], "left")
         self.assertAlmostEqual(updated["position"], rough_left, places=6)
-        self.assertAlmostEqual(cut["width"], 1.18, places=6)
+        self.assertAlmostEqual(cut["width"], 1.266, places=6)
         self.assertAlmostEqual(cut["position"] - cut["width"] / 2,
                                left_before, places=6)
-        self.assertAlmostEqual(station_span(updated)[0], rough_left + 0.04,
+        self.assertAlmostEqual(station_span(updated)[0], rough_left + 0.083,
                                places=6)
         self.assertTrue(self.viewport.history.undo())
-        self.assertAlmostEqual(self._opening()["width"], 0.88, places=6)
+        self.assertAlmostEqual(self._opening()["width"], 0.966, places=6)
 
     def test_schema2_door_survives_igz_save_and_reload(self):
         opening, group = self._place(anchor="left")
