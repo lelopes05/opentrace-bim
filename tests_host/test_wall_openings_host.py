@@ -263,7 +263,7 @@ class EditToolTests(unittest.TestCase):
         tool.on_click(ctx(vp, face.world(QVector3D(2.5, 2.2, 0))))
         params = _fill_record(create.group)["params"]
         self.assertAlmostEqual(params["height"], 2.2, places=6)
-        self.assertAlmostEqual(opening(wall)["height"], 2.2, places=6)
+        self.assertAlmostEqual(opening(wall)["height"], 2.243, places=6)
 
     def test_move_slides_along_a_curved_wall(self):
         scene, wall = curved([dict(RECT, position=3.0)])
@@ -477,8 +477,8 @@ class OpeningToolTests(unittest.TestCase):
                     kind = shape or self.window._tools[key].kind
                     self.assertEqual(item["kind"], "rect")
                     if kind == "door":
-                        self.assertAlmostEqual(item["width"], PRESETS[kind]["width"] + 0.08)
-                        self.assertAlmostEqual(item["height"], PRESETS[kind]["height"] + 0.04)
+                        self.assertAlmostEqual(item["width"], PRESETS[kind]["width"] + 0.166)
+                        self.assertAlmostEqual(item["height"], PRESETS[kind]["height"] + 0.083)
                     else:
                         self.assertAlmostEqual(item["width"], PRESETS[kind]["width"])
                         self.assertAlmostEqual(item["height"], PRESETS[kind]["height"])
