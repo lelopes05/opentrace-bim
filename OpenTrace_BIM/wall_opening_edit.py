@@ -116,8 +116,16 @@ def store_outline(scene, wall, opening_id, pts, specs):
         width = float(item["width"]) * scale
         if fill is not None:
             spec = normalize_fill(_fill_record(fill)["params"])
-            changes = {"width": width, "height": z1 - z0, "sill": z0,
-                       "position": s0 + ANCHOR_SHIFT[spec["anchor"]] * (s1 - s0)}
+            # The rectangle editor operates on the ROUGH opening; the
+            # linked F01 stores the physical leaf dimensions separately.
+            # Apply the change of cut size to the nominal leaf, never copy
+            # the entire cut width/height into the leaf record.
+            changes = {
+                "width": spec["width"] + width - float(item["width"]),
+                "height": spec["height"] + (z1-z0) - float(item["height"]),
+                "sill": z0,
+                "position": s0 + ANCHOR_SHIFT[spec["anchor"]] * (s1-s0),
+            }
             return EditHostedFill(scene, wall, fill, changes)
         item.update(position=(s0 + s1) / 2.0, width=width, sill=z0, height=z1 - z0)
     else:
