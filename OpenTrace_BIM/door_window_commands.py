@@ -254,21 +254,30 @@ class DeleteHostedOpening(Command):
             scene.groups.insert(min(self.index, len(scene.groups)), self.group)
             scene.version += 1
 
-def sync_hosted_fill_placements(scene):
-    """Follow host wall transform/path edits without new history records.
+def _rendered_frame_depth(group):
+    """Extract the generated left-jamb depth, not additional persistent state."""
+    frame = next((part for part in group.children
+                  if part.name == "Marco esquerdo"), None)
+    if frame is None or not frame.mesh.vertices:
+        return None
+    ys = [vertex.position.y() for vertex in frame.mesh.vertices]
+    return max(ys) - min(ys)
 
-    The wall is the geometric authority. On undo/redo or native move, derive
-    each independent door/window placement again from its persistent reference.
-    Return the number of actual transform changes; keep leaf/marco meshes intact.
-    A missing/temporarily invalid host is left untouched, never deleted.
+
+def sync_hosted_fill_placements(scene, *, host_id=None):
+    """Synchronize transforms and wall-dependent frame meshes without new IDs.
+
+    The wall and fill parameters are stored by undoable commands. Their
+    meshes are derived render data, regenerated upon host dimensional change.
     """
     from .model import wall_record
     walls = {getattr(wall, "uid", None): wall for wall in scene.groups
-             if wall_record(wall) is not None}
+             if wall_record(wall) is not None
+             and (host_id is None or wall.uid == host_id)}
     changed = 0
     for group in list(scene.groups):
         rec = _fill_record(group)
-        if rec is None:
+        if rec is None or (host_id is not None and rec.get("host_id") != host_id):
             continue
         wall = walls.get(rec.get("host_id"))
         if wall is None:
@@ -276,10 +285,24 @@ def sync_hosted_fill_placements(scene):
         try:
             target = place_fill_on_wall(rec["params"], wall)
         except (FillError, ValueError, KeyError):
+            # A temporarily incompatible host never deletes a saved fill.
             continue
-        before = group.xform
-        after = target.xform
-        if before != after:
-            group.xform = QMatrix4x4(after)
+        updated = False
+        current_depth = _rendered_frame_depth(group)
+        required_depth = _rendered_frame_depth(target)
+        if (current_depth is None or required_depth is None
+                or abs(current_depth - required_depth) > 1.0e-8):
+            old_parts = {part.name: part for part in group.children}
+            for part in target.children:
+                old = old_parts.get(part.name)
+                if old is not None:
+                    part.material = copy.deepcopy(old.material)
+                    part.layer = old.layer
+            group.children = list(target.children)
+            updated = True
+        if group.xform != target.xform:
+            group.xform = QMatrix4x4(target.xform)
+            updated = True
+        if updated:
             changed += 1
     return changed

@@ -199,9 +199,11 @@ def place_fill_on_wall(raw, wall_group):
     tangent.normalize()
     normal = QVector3D(-tangent.y(), tangent.x(), 0)
     lo, hi = wall_offsets(values)
-    offset = (lo+hi)/2
+    offset = (lo + hi) / 2
+    # Use the overall finished faces, including every composite finish layer.
+    finished_depth = hi - lo
     b, _t, _xy = profile_at_fraction(values, left/L)
-    assembly = make_fill_group(spec, wall_thickness=values["thickness"])
+    assembly = make_fill_group(spec, wall_thickness=finished_depth)
     matrix = QMatrix4x4()
     matrix.translate(point.x()+normal.x()*offset,
                      point.y()+normal.y()*offset,

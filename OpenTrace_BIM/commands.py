@@ -169,6 +169,11 @@ class EditWall(Command):
         self.group.ext = copy.deepcopy(ext)
         self.group.xform = QMatrix4x4(transform)
         scene.version += 1
+        # The host is authoritative: resolve dependent meshes in the same
+        # undo/redo operation, not eventually through a viewport refresh.
+        from .door_window_commands import sync_hosted_fill_placements
+        if sync_hosted_fill_placements(scene, host_id=self.group.uid):
+            scene.version += 1
 
     def do(self, scene):
         self._apply(scene, self.after)
