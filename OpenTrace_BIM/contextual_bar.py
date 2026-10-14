@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from .icons import icon
-from .i18n import t
+from .i18n import t, ui_locale
 from .style import SIZES, qss, theme_font
 from .model import MIN_DIM
 from .preset_catalog import all_for, apply_preset
@@ -584,6 +584,7 @@ class ContextualBar(QWidget):
                 rough = QDoubleSpinBox(self)
                 rough.setObjectName("opentrace_door_wallhole_readonly")
                 rough.setDecimals(2)
+                rough.setLocale(ui_locale())
                 rough.setRange(0, 200)
                 rough.setSuffix(" m")
                 rough.setButtonSymbols(QDoubleSpinBox.NoButtons)
@@ -626,6 +627,7 @@ class ContextualBar(QWidget):
             spin.installEventFilter(self._focus_return)
             spin.lineEdit().installEventFilter(self._focus_return)
             spin.setDecimals(2)
+            spin.setLocale(ui_locale())
             spin.setRange(0.0 if key == "sill" else MIN_DIM, 100.0)
             spin.setSingleStep(0.05)
             spin.setSuffix(" m")
