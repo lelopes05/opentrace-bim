@@ -261,6 +261,10 @@ class FillPropertiesPanel(QWidget):
                 field.setCurrentIndex(max(0, field.findData(current)))
             field = self._fields["material_name"]
             field.setCurrentIndex(max(0, field.findData(spec.get("material_name"))))
+            self._rows["width"].setText(
+                t("Largura física da folha") if door else t("Largura da janela"))
+            self._rows["height"].setText(
+                t("Altura física da folha") if door else t("Altura da janela"))
             for key in ("width", "height", "frame_thickness",
                         "rough_width", "rough_height"):
                 self._show(key, True)
