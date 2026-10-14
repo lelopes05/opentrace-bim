@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
+from .i18n import t
 
 
 class HelpDialog(QDialog):
@@ -94,11 +95,9 @@ class HelpDialog(QDialog):
         <p>Repositório e histórico de desenvolvimento:
         <a href="https://github.com/lelopes05/opentrace-bim">
         github.com/lelopes05/opentrace-bim</a>.</p>
-        <p>O OpenTrace BIM consulta o catálogo oficial para avisar quando há
-        versão nova, se essa opção estiver ligada na paleta. A consulta é
-        somente informativa: para atualizar, abra
-        <b>Extensions ▸ Manage extensions</b> no IngeTrazo.
-        O plugin não baixa, instala nem substitui arquivos.</p>""",
+        <p>""" + t("O OpenTrace BIM apenas avisa sobre versões novas. "
+        "Para atualizar, abra Extensions ▸ Manage extensions no IngeTrazo. "
+        "O plugin não baixa nem instala arquivos.") + """</p>""",
     }
 
     def __init__(self,parent=None):
