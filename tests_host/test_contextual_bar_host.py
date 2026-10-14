@@ -590,6 +590,19 @@ class BarTests(unittest.TestCase):
         fills = [g for g in scene.groups if _fill_record(g)]
         self.assertEqual(len(fills), 1)
         self.assertEqual(_fill_record(fills[0])["params"]["anchor"], "left")
+        # Selection of the REAL hosted door must open its own read-only F01
+        # inspector. Merely selecting may not reactivate the Door tool.
+        from OpenTrace_BIM.host import activate_select
+        self.addCleanup(scene.selection.clear)
+        activate_select(self.app)
+        scene.selection.clear()
+        scene.selection.add(fills[0])
+        self.wall.refresh()
+        self.suite._run_sync_context()
+        self.assertIs(self.suite.stack.currentWidget(), self.suite.pages["door_edit"])
+        self.assertIsNot(self.window.viewport.active_tool, self.openings.door_tool)
+        self.assertIn(
+            "m", self.suite._door_edit_fields["rough"][1].text())
         item = model.read_wall(wall)["openings"][0]
         self.assertAlmostEqual(item["position"] - item["width"] / 2.0, 3.0, places=6)
         self.assertTrue(self.window.viewport.history.undo())
