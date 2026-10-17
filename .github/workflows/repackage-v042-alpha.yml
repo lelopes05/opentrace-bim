@@ -1,0 +1,68 @@
+name: Repackage OpenTrace BIM v0.42.0 Alpha
+on:
+  push:
+    branches:
+      - release/0.42.0-prep
+    paths:
+      - .github/workflows/repackage-v042-alpha.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'lelopes05/opentrace-bim'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Regenerate complete source manifest and commit on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f OpenTrace_BIM/__init__.py
+          grep -Eq '__version__[[:space:]]*=[[:space:]]*"0\.42\.0"' OpenTrace_BIM/__init__.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          root = Path("OpenTrace_BIM")
+          rows = []
+          for f in sorted(root.rglob("*")):
+              if not f.is_file() or f.name == "PACKAGE_MANIFEST.txt" or "__pycache__" in f.parts or f.suffix == ".pyc":
+                  continue
+              rows.append(sha256(f.read_bytes()).hexdigest() + "  " + f.relative_to(root).as_posix())
+          assert len(rows) >= 150, f"Unexpectedly few files: {len(rows)}"
+          (root / "PACKAGE_MANIFEST.txt").write_text("\n".join(rows) + "\n", encoding="utf-8")
+          print(f"Verified manifest contains {len(rows)} files")
+          PY
+          git add OpenTrace_BIM/PACKAGE_MANIFEST.txt
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Regenerate v0.42.0 Alpha plugin file manifest'
+            git push origin HEAD:refs/heads/main
+          fi
+      - name: Publish corrected ZIP and align release tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET="$(git rev-parse HEAD)"
+          ACTUAL="$(git ls-remote --refs origin refs/heads/main | cut -f1)"
+          [[ "$ACTUAL" == "$TARGET" ]] || { echo "Main moved unexpectedly"; exit 1; }
+          ARCHIVE="$RUNNER_TEMP/OpenTrace_BIM-v0.42.0.zip"
+          zip -q -r "$ARCHIVE" OpenTrace_BIM -x '*/__pycache__/*' '*.pyc'
+          unzip -t -q "$ARCHIVE"
+          echo "Corrected v0.42.0 Alpha ZIP:"
+          sha256sum "$ARCHIVE"
+          gh release upload v0.42.0 "$ARCHIVE" --clobber --repo lelopes05/opentrace-bim
+          gh release edit v0.42.0 --title "OpenTrace BIM v0.42.0 — Alpha" --notes-file docs/releases/v0.42.0/RELEASE_NOTES.md --repo lelopes05/opentrace-bim
+          OLD="$(git ls-remote --refs origin refs/tags/v0.42.0 | cut -f1)"
+          PREVIOUS='33a4b3c9ee47e3e96bea66b958ef20e5f1fe5c5d'
+          if [[ "$OLD" == "$TARGET" ]]; then
+            echo "Tag already correct"; exit 0
+          fi
+          [[ "$OLD" == "$PREVIOUS" ]] || { echo "Tag moved unexpectedly: $OLD"; exit 1; }
+          git tag --force v0.42.0 "$TARGET"
+          git push --force-with-lease=refs/tags/v0.42.0:"$OLD" origin refs/tags/v0.42.0
+          echo "Release ZIP updated and tag aligned to $TARGET"
