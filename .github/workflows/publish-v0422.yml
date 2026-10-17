@@ -1,0 +1,78 @@
+name: Publish OpenTrace BIM v0.42.2 Alpha
+on:
+  push:
+    branches:
+      - fix/updater-wired-v0.42.2
+    paths:
+      - .github/workflows/publish-v0422.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'lelopes05/opentrace-bim'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Validate updater and build checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_updater_*.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          root = Path('OpenTrace_BIM')
+          files = sorted(x for x in root.rglob('*') if x.is_file() and x.name != 'PACKAGE_MANIFEST.txt' and x.suffix != '.pyc' and '__pycache__' not in x.parts)
+          assert len(files) >= 150, f'Too few files: {len(files)}'
+          for f in files:
+              if f.suffix == '.py':
+                  compile(f.read_bytes(), str(f), 'exec')
+          assert '__version__ = "0.42.2"' in (root / '__init__.py').read_text()
+          (root / 'PACKAGE_MANIFEST.txt').write_text('\n'.join(sha256(x.read_bytes()).hexdigest() + '  ' + x.relative_to(root).as_posix() for x in files) + '\n', encoding='utf-8')
+          print('PASS: package contains', len(files), 'files')
+          PY
+          git add OpenTrace_BIM/PACKAGE_MANIFEST.txt
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Regenerate v0.42.2 package manifest'
+            git push origin HEAD:refs/heads/main
+          fi
+      - name: Publish verified GitHub release ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET="$(git rev-parse HEAD)"
+          MAIN="$(git ls-remote --refs origin refs/heads/main | cut -f1)"
+          [[ "$TARGET" == "$MAIN" ]] || { echo 'Main moved; refusing publication'; exit 1; }
+          FILE="$RUNNER_TEMP/OpenTrace_BIM-v0.42.2.zip"
+          zip -q -r "$FILE" OpenTrace_BIM -x '*/__pycache__/*' '*.pyc'
+          unzip -t -q "$FILE"
+          python3 - "$FILE" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              names = [x.filename for x in z.infolist() if not x.is_dir()]
+              assert all(n.startswith('OpenTrace_BIM/') for n in names)
+              assert len(names) <= 500 and len(names) >= 150
+              assert b'__version__ = "0.42.2"' in z.read('OpenTrace_BIM/__init__.py')
+              assert b'UpdateManager(content)' in z.read('OpenTrace_BIM/suite_panel.py')
+              print('Archive contains', len(names), 'files')
+          assert Path(sys.argv[1]).stat().st_size < 10*1024*1024
+          PY
+          sha256sum "$FILE"
+          if gh release view v0.42.2 --repo lelopes05/opentrace-bim >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to replace it'
+            exit 1
+          fi
+          gh release create v0.42.2 "$FILE" \
+            --target "$TARGET" \
+            --title "OpenTrace BIM v0.42.2 — Alpha" \
+            --notes-file docs/releases/v0.42.2/RELEASE_NOTES.md \
+            --prerelease \
+            --repo lelopes05/opentrace-bim
+          echo "Published v0.42.2 from $TARGET"
