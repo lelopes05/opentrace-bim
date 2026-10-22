@@ -27,3 +27,17 @@ elif code.count(old) == 1:
     print("Pinned p4a to", P4A_COMMIT)
 else:
     raise RuntimeError("PySide6 deploy tool changed: cannot apply safe p4a pin")
+
+# Buildozer's default file filter includes Python/images only. IngeTrazo
+# needs its native saved model, GLSL source and bundled JSON asset libraries.
+code = source.read_text(encoding="utf-8")
+old = 'include_exts = f"{include_exts},qml,js"'
+new = 'include_exts = f"{include_exts},qml,js,igz,json,vert,frag,svg,ttf,otf,qm,ini,toml,xml,woff,woff2,txt"'
+if new in code:
+    print("IngeTrazo data assets already allowed")
+elif code.count(old) == 1:
+    source.write_text(code.replace(old, new), encoding="utf-8")
+    print("Allowed packaged IngeTrazo .igz, shaders, and resources")
+else:
+    raise RuntimeError("PySide6 deploy tool changed: cannot adjust packaged data file extensions")
+
