@@ -1,0 +1,13 @@
+[package]
+name = "opentrace_rust_core"
+version = "0.44.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1

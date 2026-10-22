@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
-from .arrange_core import align_offsets, distribute_offsets
+from .rust_dispatch import align_offsets, distribute_offsets
 
 AXES = (("X — horizontal (vermelho)", 0),
         ("Y — horizontal (verde)", 1),

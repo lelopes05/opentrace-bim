@@ -6,6 +6,7 @@ Keep this package's directory name stable: it identifies the extension.
 """
 
 __version__ = "0.44.0"
+__build_label__ = "0.44.0 Rust"
 
 
 def _setup_bundled_layer_combinations(app):

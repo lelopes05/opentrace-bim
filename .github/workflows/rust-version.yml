@@ -1,0 +1,52 @@
+name: OpenTrace BIM 0.44.0 Rust
+
+on:
+  push:
+    branches:
+      - rust-version
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-windows:
+    name: Rust Windows compile and verification
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust MSVC
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rust unit tests
+        working-directory: OpenTrace_BIM/rust_core
+        run: cargo test
+      - name: Build Windows Rust DLL
+        working-directory: OpenTrace_BIM/rust_core
+        run: cargo build --release
+      - name: Python syntax validation
+        run: python -m compileall -q OpenTrace_BIM
+      - name: Compare Python and compiled Rust
+        run: python OpenTrace_BIM/rust_core/verify_rust.py
+      - name: Download verified 0.44.0 source package
+        shell: pwsh
+        run: |
+          $url = 'https://github.com/lelopes05/opentrace-bim/releases/download/v0.44.0/OpenTrace_BIM-v0.44.0.zip'
+          Invoke-WebRequest -Uri $url -OutFile 'OpenTrace_BIM-v0.44.0.zip'
+          $actual = (Get-FileHash 'OpenTrace_BIM-v0.44.0.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = 'b03455f4c24b95592e4ce671bdb85eb60e06bff02a617bcc497d8697fa40a937'
+          if ($actual -ne $expected) { throw "Source package SHA-256 mismatch: $actual" }
+      - name: Build OpenTrace BIM 0.44.0 Rust ZIP
+        run: python ci/package_rust.py OpenTrace_BIM-v0.44.0.zip
+      - name: Upload Windows installation ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenTrace BIM 0.44.0 Rust
+          path: output/OpenTrace BIM 0.44.0 Rust.zip
+          if-no-files-found: error
+          retention-days: 30

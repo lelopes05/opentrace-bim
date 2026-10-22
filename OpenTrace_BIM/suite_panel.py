@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import __version__
+from . import __version__, __build_label__
 from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
@@ -304,7 +304,7 @@ class ArchitectureSuitePanel:
         update_lay = QVBoxLayout(update_box)
         update_lay.setContentsMargins(8, 8, 8, 8)
         update_lay.setSpacing(6)
-        update_lay.addWidget(QLabel(f"<b>OpenTrace BIM {__version__}</b>"))
+        update_lay.addWidget(QLabel(f"<b>OpenTrace BIM {__build_label__}</b>"))
         self.update_status = QLabel(
             "Checks OpenTrace BIM GitHub Releases; installation requires confirmation.")
         self.update_status.setWordWrap(True)
