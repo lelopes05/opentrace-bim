@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends autoconf automake libtool libtool-bin pkg-config zip unzip ccache
+          sudo apt-get install -y --no-install-recommends autoconf automake libtool libtool-bin libltdl-dev pkg-config zip unzip ccache
       - name: Android SDK NDK
         shell: bash
         run: |
