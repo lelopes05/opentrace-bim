@@ -31,6 +31,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install 'PySide6==6.11.2' 'buildozer>=1.5' 'Cython<3' wheel packaging
+          python -m pip install -r "$(python -c 'import PySide6, pathlib; print(pathlib.Path(PySide6.__file__).parent / "scripts" / "requirements-android.txt")')"
       - name: Retrieve REAL IngeTrazo source and models
         shell: bash
         run: |
