@@ -26,6 +26,10 @@ jobs:
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort | tail -1)"
           "$SDKMGR" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;35.0.0" "ndk;26.1.10909125"
+          # Buildozer 1.5 hardcodes legacy tools/bin/sdkmanager, while hosted
+          # runners provide Android command-line tools under cmdline-tools/.
+          mkdir -p "$SDK_ROOT/tools/bin"
+          ln -sfn "$SDKMGR" "$SDK_ROOT/tools/bin/sdkmanager"
       - name: Host PySide and packaging tools
         shell: bash
         run: |
@@ -69,6 +73,8 @@ jobs:
             --wheel-shiboken="$RUNNER_TEMP/pyside-android-wheels/shiboken6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl" \
             --ndk-path="$ANDROID_HOME/ndk/26.1.10909125" \
             --sdk-path="$ANDROID_HOME"
+          # PySide can log an internal deploy exception yet exit zero.
+          find . -name '*.apk' -type f -print -quit | grep -q .
       - name: Upload full-app APK only if deployment actually succeeded
         uses: actions/upload-artifact@v4
         with:
