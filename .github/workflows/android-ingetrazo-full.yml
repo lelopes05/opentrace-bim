@@ -1,0 +1,76 @@
+name: IngeTrazo Android FULL application
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-ingetrazo-renderers]
+    paths:
+      - 'android/ingetrazo-full/**'
+      - '.github/workflows/android-ingetrazo-full.yml'
+jobs:
+  full-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort | tail -1)"
+          "$SDKMGR" --sdk_root="$SDK_ROOT" "platforms;android-34" "build-tools;35.0.0" "ndk;26.1.10909125"
+      - name: Host PySide and packaging tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'PySide6==6.11.2' 'buildozer>=1.5' 'Cython<3' wheel packaging
+      - name: Retrieve REAL IngeTrazo source and models
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/IngeTrazoAndroid"
+          git clone --depth=1 https://github.com/ingelibre/ingetrazo.git "$RUNNER_TEMP/ingetrazo-upstream"
+          git -C "$RUNNER_TEMP/ingetrazo-upstream" rev-parse HEAD | tee "$RUNNER_TEMP/IngeTrazoAndroid/UPSTREAM_SHA"
+          for p in main.py core views tools formats resources styles materials georef analysis plugins i18n examples; do
+            if [ -e "$RUNNER_TEMP/ingetrazo-upstream/$p" ]; then
+              cp -a "$RUNNER_TEMP/ingetrazo-upstream/$p" "$RUNNER_TEMP/IngeTrazoAndroid/"
+            fi
+          done
+          # Package a real saved design, not a synthetic triangle.
+          find "$RUNNER_TEMP/IngeTrazoAndroid/examples" -type f ! -name 'banca-pergola-yanque.igz' -delete
+          find "$RUNNER_TEMP/IngeTrazoAndroid" -type d -name '__pycache__' -prune -exec rm -rf {} +
+          cp android/ingetrazo-full/android_open_igz.py "$RUNNER_TEMP/IngeTrazoAndroid/"
+          python android/ingetrazo-full/patch_android.py "$RUNNER_TEMP/IngeTrazoAndroid"
+          python -m compileall -q "$RUNNER_TEMP/IngeTrazoAndroid"
+          test -s "$RUNNER_TEMP/IngeTrazoAndroid/examples/banca-pergola-yanque.igz"
+      - name: Download official PySide6 Android ARM64 wheels
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pyside-android-wheels"
+          curl -fL --retry 3 --connect-timeout 30 -o "$RUNNER_TEMP/pyside-android-wheels/pyside6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl" \
+            "https://download.qt.io/official_releases/QtForPython/pyside6/pyside6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl"
+          curl -fL --retry 3 --connect-timeout 30 -o "$RUNNER_TEMP/pyside-android-wheels/shiboken6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl" \
+            "https://download.qt.io/official_releases/QtForPython/shiboken6/shiboken6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl"
+      - name: Deploy ORIGINAL IngeTrazo Python Qt app as APK
+        shell: bash
+        working-directory: ${{ runner.temp }}/IngeTrazoAndroid
+        run: |
+          set -euo pipefail
+          pyside6-android-deploy -f -v --name "IngeTrazo Android" \
+            --wheel-pyside="$RUNNER_TEMP/pyside-android-wheels/pyside6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl" \
+            --wheel-shiboken="$RUNNER_TEMP/pyside-android-wheels/shiboken6-6.11.2-6.11.2-cp311-cp311-android_aarch64.whl" \
+            --ndk-path="$ANDROID_HOME/ndk/26.1.10909125" \
+            --sdk-path="$ANDROID_HOME"
+      - name: Upload full-app APK only if deployment actually succeeded
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingetrazo-full-android-apk
+          path: ${{ runner.temp }}/IngeTrazoAndroid/**/*.apk
+          if-no-files-found: error
