@@ -307,8 +307,15 @@ class ComplexProfileController(QObject):
             menu.addSeparator();menu.addAction(self.action)
 
     def show_library(self,*_):
-        if self.is_profile_workspace():self.sync_workspace_ui()
-        else:self.refresh_library()
+        if self.is_profile_workspace():
+            self.sync_workspace_ui()
+        else:
+            # Profiles is an editor/library context, not the preceding
+            # modelling tool. Clear the host tool's highlighted QAction
+            # before switching the top and side panels to Profiles.
+            from .host import activate_select
+            activate_select(self.app)
+            self.refresh_library()
         if self.suite_panel is not None:
             self.suite_panel.show_page("profiles")
         else:
