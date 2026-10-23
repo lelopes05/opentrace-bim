@@ -281,6 +281,30 @@ class WallOpeningEditor(QObject):
         menu.insertMenu(self.walls.arch_menu_end, sub)
 
     def _start(self, key):
+        # The top Opening action is shared. A selected slab already has a
+        # native embedded-polygon opening engine; route to that engine instead
+        # of trying to place a wall opening on a slab.
+        if key == OPENING_TOOL_KEY:
+            from .slab_ui import selected_slabs
+            slabs = selected_slabs(self.app.scene)
+            slab_ctrl = getattr(
+                self.app.window, "_arquitetura_parametrica_slab_controller", None)
+            if len(slabs) == 1 and slab_ctrl is not None:
+                slab = slabs[0]
+                def activate_on_slab():
+                    # The action is also connected to the host's wall tool.
+                    # Route after all synchronous QAction handlers complete.
+                    slab_ctrl.opening_tool.arm(slab)
+                    from .host import activate_slab_opening
+                    activate_slab_opening(self.app)
+                    suite = getattr(
+                        self.app.window, "_arquitetura_parametrica_suite_panel", None)
+                    if suite is not None:
+                        suite.show_page("slab")
+                        suite.schedule_sync_context()
+                    self.app.viewport.setFocus()
+                QTimer.singleShot(0, activate_on_slab)
+                return
         self.walls.hide_path_palette()
         activate_tool(self.app, key)
         self.app.viewport.setFocus()

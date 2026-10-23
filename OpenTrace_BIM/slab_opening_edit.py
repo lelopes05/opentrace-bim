@@ -256,7 +256,40 @@ class CurveOpeningEdgeTool(_OpeningEditBase):
         try:self._commit(ctx.viewport,*self._candidate(self.point(ctx)),"Curvatura da abertura atualizada.")
         except SlabError as exc:self.controller.message(str(exc),error=True)
         ctx.viewport.update()
-    def rubber_band_lines(self):return [] if self.hover is None else _preview_lines(*self._candidate(self.hover))
+    def rubber_band_lines(self):
+        """Bound the drag-time arc preview to a few dozen line segments.
+
+        The original full curved-boundary sampling could stream hundreds of
+        short lines through the host's OpenGL rubber-band path on every move.
+        Commit still uses the full-resolution geometry and validation.
+        """
+        if self.hover is None or self.mid is None or self.original is None:
+            return []
+        h = QVector3D.dotProduct(self.hover-self.mid, self.normal)
+        if not math.isfinite(h):
+            return []
+        try:
+            vertices, specs = self._candidate(self.hover)
+            if not vertices:
+                return []
+            from .rust_bridge import sample_arc_xy
+            ring = []
+            edge_idx = self.index % len(vertices)
+            for i, a in enumerate(vertices):
+                b = vertices[(i + 1) % len(vertices)]
+                if i == edge_idx and specs[i].get("type") == "arc":
+                    # Fixed maximum preview density; the saved mesh is
+                    # independent of this temporary viewport feedback.
+                    samples = sample_arc_xy(
+                        (a.x(),a.y()), (b.x(),b.y()), h,
+                        step_deg=18.0, max_segment=0.0,
+                        max_samples=64, min_spans=2, opening=True)
+                    ring.extend(QVector3D(x, y, a.z()) for x,y in samples[:-1])
+                else:
+                    ring.append(QVector3D(a))
+            return [(a,b) for a,b in zip(ring,ring[1:]+ring[:1])]
+        except (SlabError, ValueError, RuntimeError, OverflowError):
+            return []
 
 
 class _OpeningCornerBase(_OpeningEditBase):

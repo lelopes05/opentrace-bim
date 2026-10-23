@@ -31,3 +31,17 @@ Não alterar main, publicar release ou atualizar catálogo.
 Além dos testes Rust, o workflow compara milhares de casos diretamente com os
 algoritmos Python do ZIP original, incluindo bordas curvas, interseções, perfis,
 vigas e prismas.
+
+## Ajustes de integração após teste no IngeTrazo (2026-10-23)
+
+- Curvaturas de vigas e pilares editados não devem contaminar os valores da
+  próxima criação. A memória de criação é separada da seleção/edição.
+- Barra contextual tem página própria para Perfil Complexo, acesso à biblioteca,
+  criação de novos perfis e menu de ações CAD 2D originais do IngeTrazo.
+- A ação Opening, com uma laje selecionada, direciona para o editor de abertura
+  poligonal já existente na laje. Aberturas em parede continuam inalteradas.
+- Prévia de curvatura de aresta de abertura na laje limitada a 64 amostras para
+  mitigar artefatos na viewport. Isto não modifica o renderizador e depende de
+  confirmação no IngeTrazo Windows.
+
+O CI valida sintaxe e compilação Rust, mas não substitui testes reais de Qt/GL.

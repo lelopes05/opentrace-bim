@@ -1426,7 +1426,11 @@ class ArchitectureSuitePanel:
         # the user back to the modelling page.
         if any(self.pages.get(key) is not None and
                self.stack.currentWidget() is self.pages[key]
-               for key in ("bim", "project", "arrange")):
+               for key in ("bim", "project", "arrange", "profiles")):
+            return
+        slab_ctrl=self.controllers.get("slab")
+        if slab_ctrl is not None and active is slab_ctrl.opening_tool:
+            self._show_context_settings("slab")
             return
         opening_tool,opening_kind=self._opening_tool_and_kind()
         if opening_tool is not None:

@@ -12,7 +12,7 @@ import math
 from PySide6.QtCore import QEvent, QObject, Qt, QSize, Slot
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QComboBox, QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel, QStackedWidget,
-    QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle,
+    QToolButton, QWidget, QWidgetAction, QFrame, QVBoxLayout, QStyle, QMenu,
 )
 
 from .icons import icon
@@ -171,7 +171,7 @@ class ContextualBar(QWidget):
             "◯": "opening_circle", "⬡": "opening_free", "⬠": "opening_free",
             "◧": "anchor_left", "⊕": "anchor_center",
             "◨": "anchor_right", "↶": "swing", "⊘": "delete",
-            "✓": "door",
+            "✓": "door", "＋": "profile", "▤": "library",
         }
         self._button_icons[button] = names[symbol]
         if active is not None:
@@ -446,6 +446,52 @@ class ContextualBar(QWidget):
                 lambda: (t("Viga inclinada: edite na paleta")
                          if self._beam_top_locked() else t("Cota do topo no início da viga")))
 
+        p = self._page("profiles", t("Perfil Complexo"))
+        profile = self.controllers.get("profiles")
+        if profile is not None:
+            self._section(p, t("Biblioteca de Perfis"))
+            new_btn = self._method(p, "＋", t("Criar novo perfil 2D"), profile.new_profile)
+            new_btn.setObjectName("opentrace_context_profile_new")
+            open_btn = self._method(p, "▤", t("Abrir biblioteca de perfis existentes"),
+                                    profile.show_library)
+            open_btn.setObjectName("opentrace_context_profile_open")
+            self._section(p, t("Desenho 2D do IngeTrazo"))
+            native = QMenu(self)
+            # Share the host's original QActions. Do not invent CAD tools or
+            # register duplicate actions against the viewport.
+            menu_bar = self.app.window.menuBar()
+            draw = next((a.menu() for a in menu_bar.actions()
+                         if a.menu() is not None and
+                         a.text().replace("&", "").strip().casefold()
+                         in ("draw", "desenhar", "desenho")), None)
+            if draw is not None:
+                import unicodedata
+                def normalized(label):
+                    label = unicodedata.normalize("NFKD", label.casefold())
+                    return "".join(c for c in label if not unicodedata.combining(c))
+                native_keywords = ("line", "linha", "arc", "arco", "circle",
+                                   "circulo", "rectangle", "retangulo",
+                                   "curve", "curva", "polyline", "polilinha", "freehand")
+                def include_native(menu):
+                    for action in menu.actions():
+                        if action.menu() is not None:
+                            include_native(action.menu())
+                        elif not action.isSeparator() and any(
+                                word in normalized(action.text()) for word in native_keywords):
+                            native.addAction(action)
+                include_native(draw)
+            if not native.actions():
+                missing = native.addAction(t("Use o menu Draw do IngeTrazo"))
+                missing.setEnabled(False)
+            cad_btn = QToolButton(self)
+            cad_btn.setObjectName("opentrace_context_profile_cad_2d")
+            cad_btn.setText(t("Desenho CAD 2D ▾"))
+            cad_btn.setToolTip(t("Ferramentas originais de desenho do IngeTrazo"))
+            cad_btn.setMenu(native)
+            cad_btn.setPopupMode(QToolButton.InstantPopup)
+            cad_btn.setEnabled(bool(draw))
+            self._target(p).addWidget(cad_btn)
+
         self._build_opening_pages()
         p = self._page("opening_edit", t("Vão selecionado"))
         for key, label in (
@@ -646,6 +692,9 @@ class ContextualBar(QWidget):
         """Options of the Opening, Door and Window tools; the values are ``tool.sizes``."""
         openings = self.wall.openings
         self._size_controls = []
+        p = self._page("slab_opening", t("Abertura na laje"))
+        self._section(p, t("Desenho de abertura"))
+        p.addWidget(QLabel(t("Clique nos vértices no plano da laje; feche o contorno para recortar.")))
         p = self._page("opening", t("Abertura") + " · criação")
         self._section(p, t("Forma"))
         for symbol, title, shape in (
@@ -826,6 +875,14 @@ class ContextualBar(QWidget):
         vp = self.app.viewport
         active = getattr(vp, "active_tool", None)
         wall = self.wall
+        profile = self.controllers.get("profiles")
+        if profile is not None and (
+                profile.is_profile_workspace() or
+                self.suite.stack.currentWidget() is self.suite.pages.get("profiles")):
+            return "profiles"
+        slab = self.controllers.get("slab")
+        if slab is not None and active is slab.opening_tool:
+            return "slab_opening"
         if active is wall.draw_tool:
             # Selected wall editing takes priority even if creation is still
             # active. Match WallController.refresh and its material handlers.

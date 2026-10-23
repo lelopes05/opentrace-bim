@@ -45,7 +45,7 @@ def selected_beams(scene):
 
 class BeamController(QWidget):
     def __init__(self,app,wall_controller=None):
-        super().__init__(app.window);self.app=app;self.wall_controller=wall_controller;self.defaults=dict(DEFAULTS)
+        super().__init__(app.window);self.app=app;self.wall_controller=wall_controller;self.defaults=dict(DEFAULTS);self._creation_defaults=dict(DEFAULTS)
         self.tool=BeamTool(self);self.move_free_tool=MoveBeamEndpointTool(self,"free");self.move_continue_tool=MoveBeamEndpointTool(self,"continue");self.move_vertical_tool=MoveBeamEndpointTool(self,"vertical")
         self.move_tool=MoveWholeStructureTool(self,"viga");self.curve_tool=BeamCurveTool(self);self.vertical_curve_tool=BeamVerticalCurveTool(self);self.incline_tool=BeamInclineTool(self)
         self.target=None;self._loading=False;self._queued=False;self._endpoint_group=None;self._endpoint_anchor=None;self._endpoint_is_endpoint=False
@@ -211,7 +211,11 @@ class BeamController(QWidget):
         self.defaults.update(section_type=self.section_type.currentData() or "simple",profile_ref=ref,profile_data=embedded,profile=self.profile.currentData(),length=float(self.length.value()),width=float(self.width.value()),height=float(self.height.value()),depth=float(self.height.value()),diameter=float(self.diameter.value()),inclination=float(self.inclination.value()),curvature=float(self.curvature.value()),vertical_curvature=float(self.vertical_curvature.value()),rotation=float(self.rotation.value()),material_name=self.material.currentData())
         if self.defaults.get("base_level"):self.defaults["base_offset"]=float(self.offset.value())
         else:self.defaults["base_z"]=float(self.offset.value())
-        self._update_section_widgets(self.defaults);self._apply()
+        self._update_section_widgets(self.defaults)
+        if self.target is None:
+            # Editing a selected beam must never redefine the creation preset.
+            self._creation_defaults=dict(self.defaults)
+        self._apply()
     def _apply(self):
         if self.target is None or self._loading:return
         try:
@@ -239,7 +243,7 @@ class BeamController(QWidget):
         self._queued=False
         try:self._sync_levels()
         except Exception:log.exception("beam level sync failed")
-        self.refresh_level_options();self.refresh_material_options();self.refresh_complex_profile_options();bs=selected_beams(self.app.scene);self.target=bs[0] if len(bs)==1 else None
+        self.refresh_level_options();self.refresh_material_options();self.refresh_complex_profile_options();bs=selected_beams(self.app.scene);self.target=bs[0] if len(bs)==1 and self.app.viewport.active_tool is not self.tool else None
         if self.target is not None:
             try:self._load_fields(read_beam(self.target));self.hint.setText(t("Clique no eixo para mover, inclinar ou curvar a viga horizontal/verticalmente; nas pontas também é possível mover/prolongar. Inclinação e flechas aceitam valor numérico."));self.app.show_panel(self.dock)
             except BeamError as exc:self.message(str(exc),True)
@@ -248,10 +252,14 @@ class BeamController(QWidget):
     def start_drawing(self,*_):
         try:
             root_edit_allowed(self.app.scene)
-            if self.defaults.get("section_type")=="complex" and not self.defaults.get("profile_ref"):raise BeamError("Escolha um Perfil Complexo antes de inserir a viga.")
+            if self._creation_defaults.get("section_type")=="complex" and not self._creation_defaults.get("profile_ref"):raise BeamError("Escolha um Perfil Complexo antes de inserir a viga.")
             if self.app.workspace() is not None:raise BeamError("Volte ao modelo para inserir vigas.")
         except Exception as exc:self.action.setChecked(False);self.app.viewport.flash_status(t(str(exc)),6000);return
-        self.app.scene.clear_selection();activate_beam(self.app);self.schedule_refresh();self.app.viewport.setFocus()
+        self.app.scene.clear_selection()
+        self.target=None
+        self.defaults=dict(self._creation_defaults)
+        self._load_fields(self.defaults)
+        activate_beam(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def stop_drawing(self):activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
     def return_to_select(self):activate_select(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def message(self,text,error=False):

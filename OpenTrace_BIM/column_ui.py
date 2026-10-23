@@ -44,7 +44,7 @@ def selected_columns(scene):
 
 class ColumnController(QWidget):
     def __init__(self,app,wall_controller=None):
-        super().__init__(app.window);self.app=app;self.wall_controller=wall_controller;self.defaults=dict(DEFAULTS)
+        super().__init__(app.window);self.app=app;self.wall_controller=wall_controller;self.defaults=dict(DEFAULTS);self._creation_defaults=dict(DEFAULTS)
         self.tool=ColumnTool(self);self.height_tool=ChangeColumnHeightTool(self);self.move_tool=MoveWholeStructureTool(self,"pilar");self.curve_tool=ColumnCurveTool(self);self.incline_tool=ColumnInclineTool(self);self.station_z_tool=MoveColumnStationVerticalTool(self)
         self._segment_index=0;self.target=None;self._loading=False;self._queued=False;self._context_group=None;self._context_anchor=None;self._context_segment_index=None;self._context_station_index=None
         self._make_panel();self._make_action();self._make_context_palette();app.add_overlay(self.draw_overlay);app.viewport.installEventFilter(self)
@@ -301,6 +301,9 @@ class ColumnController(QWidget):
         if self.defaults.get("top_mode")=="level":self.defaults["top_offset"]=float(self.top_offset.value())
         else:self.defaults["height"]=float(self.height.value())
         self._update_section_widgets(self.defaults)
+        if self.target is None:
+            # Keep drawing parameters independent from any selected column.
+            self._creation_defaults=dict(self.defaults)
         if self.defaults.get("section_type")=="complex" and not self.defaults.get("profile_ref"):
             self.message("Escolha um Perfil Complexo antes de aplicar.",True);return
         self._apply()
@@ -341,7 +344,7 @@ class ColumnController(QWidget):
         self._queued=False
         try:self._sync_levels()
         except Exception:log.exception("column level sync failed")
-        self.refresh_level_options();self.refresh_material_options();self.refresh_complex_profile_options();cols=selected_columns(self.app.scene);self.target=cols[0] if len(cols)==1 else None
+        self.refresh_level_options();self.refresh_material_options();self.refresh_complex_profile_options();cols=selected_columns(self.app.scene);self.target=cols[0] if len(cols)==1 and self.app.viewport.active_tool is not self.tool else None
         if self.target is not None:
             try:self._load_fields(read_column(self.target));self.hint.setText(t("Hotspot superior: alterar altura. Clique no eixo para mover, inserir vértice, inclinar ou curvar. Cada segmento pode ter seção inicial/final própria."));self.app.show_panel(self.dock)
             except ColumnError as exc:self.message(str(exc),error=True)
@@ -351,10 +354,15 @@ class ColumnController(QWidget):
     def start_drawing(self,*_):
         try:
             root_edit_allowed(self.app.scene)
-            if self.defaults.get("section_type")=="complex" and not self.defaults.get("profile_ref"):raise ColumnError("Escolha um Perfil Complexo antes de inserir o pilar.")
+            if self._creation_defaults.get("section_type")=="complex" and not self._creation_defaults.get("profile_ref"):raise ColumnError("Escolha um Perfil Complexo antes de inserir o pilar.")
             if self.app.workspace() is not None:raise ColumnError("Volte ao modelo para inserir pilares.")
         except Exception as exc:self.action.setChecked(False);self.app.viewport.flash_status(t(str(exc)),6000);return
-        self.app.scene.clear_selection();activate_column(self.app);self.schedule_refresh();self.app.viewport.setFocus()
+        self.app.scene.clear_selection()
+        self.target=None
+        self.defaults=dict(self._creation_defaults)
+        self._segment_index=0
+        self._load_fields(self.defaults)
+        activate_column(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def stop_drawing(self):activate_select(self.app);self.action.setChecked(False);self.schedule_refresh()
     def return_to_select(self):activate_select(self.app);self.schedule_refresh();self.app.viewport.setFocus()
     def message(self,text,error=False):
