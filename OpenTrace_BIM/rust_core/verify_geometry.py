@@ -183,7 +183,7 @@ def main(zip_path):
                 close(zz,z)
             comparisons+=1
 
-    print(f"Original 0.44.0 ↔ Rust geometry comparisons passed: {comparisons}")
+    print(f"Original 0.44.0 vs Rust geometry comparisons passed: {comparisons}")
 
 
 if __name__ == "__main__":
