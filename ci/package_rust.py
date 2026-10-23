@@ -23,6 +23,8 @@ OVERLAYS = [
     "OpenTrace_BIM/wall_polygon.py",
     "OpenTrace_BIM/beam_ui.py",
     "OpenTrace_BIM/column_ui.py",
+    "OpenTrace_BIM/column_model.py",
+    "OpenTrace_BIM/structure_edit.py",
     "OpenTrace_BIM/contextual_bar.py",
     "OpenTrace_BIM/wall_opening_ui.py",
     "OpenTrace_BIM/slab_opening_edit.py",

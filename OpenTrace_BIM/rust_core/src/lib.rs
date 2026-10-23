@@ -324,3 +324,93 @@ mod extended_geometry_tests {
         assert_eq!(out[23],2.0);
     }
 }
+
+
+// OpenTrace 0.44.0 Rust: orientation of native column section rings.
+// mode 0: horizontal cut; 1: plane normal to curved axis;
+// mode 2: custom incline from horizontal in the bending direction.
+// All profile lengths are conserved by rigid rotation; no enlargement or
+// implicit contraction of the user-specified cross-section occurs.
+#[no_mangle]
+pub extern "C" fn opentrace_column_ring(
+    profile:*const f64,n:usize,center:*const f64,tangent:*const f64,
+    mode:i32,angle_deg:f64,out:*mut f64
+)->i32 {
+    if profile.is_null()||center.is_null()||tangent.is_null()||out.is_null()
+        ||n<3||n>100_000||!matches!(mode,0..=2) {return -1;}
+    let v=unsafe{std::slice::from_raw_parts(profile,2*n)};
+    let c=unsafe{std::slice::from_raw_parts(center,3)};
+    let t=unsafe{std::slice::from_raw_parts(tangent,3)};
+    if !v.iter().chain(c).chain(t).all(|x|x.is_finite())||!angle_deg.is_finite(){return -1;}
+    let dst=unsafe{std::slice::from_raw_parts_mut(out,3*n)};
+    let lateral=t[0].hypot(t[1]);
+    let theta=match mode {
+        0=>0.0,
+        1=>lateral.atan2(t[2]),
+        _=>angle_deg.to_radians(),
+    };
+    let (s,co)=theta.sin_cos();
+    let (kx,ky)=if lateral>1.0e-12 {(-t[1]/lateral,t[0]/lateral)}else{(0.0,1.0)};
+    for i in 0..n {
+        let x=v[2*i];let y=v[2*i+1];
+        let dot=kx*x+ky*y;
+        dst[3*i]=c[0]+co*x+(1.0-co)*kx*dot;
+        dst[3*i+1]=c[1]+co*y+(1.0-co)*ky*dot;
+        dst[3*i+2]=c[2]+s*(kx*y-ky*x);
+    }
+    0
+}
+
+// Advisory modelling checks. Flags are warnings, never structural approval:
+// 1: sagitta > L/30; 2: middle width/diameter <80% of the wider end;
+// 4: middle area <70% of wider-end area; 8: min section dimension <14cm;
+// 16: min dimension <19cm; 32: section area <360cm2;
+// 64: illustrative L/r >90 using L_eff = L (NOT a verified design length).
+#[no_mangle]
+pub extern "C" fn opentrace_column_guidance(
+    height:f64,base_w:f64,base_d:f64,top_w:f64,top_d:f64,
+    middle_w:f64,middle_d:f64,sagitta:f64,circular:i32
+)->i32 {
+    let v=[height,base_w,base_d,top_w,top_d,middle_w,middle_d,sagitta];
+    if !v.iter().all(|x|x.is_finite()) || height<=0.0
+       || [base_w,base_d,top_w,top_d,middle_w,middle_d].iter().any(|x|*x<=0.0)
+       {return -1;}
+    let mut flags=0;
+    if sagitta.abs()>height/30.0+1.0e-9 {flags|=1;}
+    let ratio_w=middle_w/base_w.max(top_w);
+    let ratio_d=middle_d/base_d.max(top_d);
+    if ratio_w.min(ratio_d)<0.8-1.0e-9 {flags|=2;}
+    let factor=if circular {std::f64::consts::PI/4.0}else{1.0};
+    let area=factor*middle_w*middle_d;
+    let end_area=factor*(base_w*base_d).max(top_w*top_d);
+    if area<0.7*end_area-1.0e-9 {flags|=4;}
+    if middle_w.min(middle_d)<0.14-1.0e-9 {flags|=8;}
+    if middle_w.min(middle_d)<0.19-1.0e-9 {flags|=16;}
+    if area<0.036-1.0e-9 {flags|=32;}
+    let r=if circular {middle_w/4.0}else{middle_w.min(middle_d)/12.0_f64.sqrt()};
+    if height/r>90.0 {flags|=64;}
+    flags
+}
+
+#[cfg(test)]
+mod column_geometry_tests {
+    use super::*;
+    #[test]
+    fn section_lengths_conserved_on_curved_axis() {
+        let p=[-0.2,-0.15,0.2,-0.15,0.2,0.15,-0.2,0.15];
+        let center=[0.1,0.2,1.5];let axis=[0.4,0.0,0.5];
+        let mut out=[0.0;12];
+        assert_eq!(opentrace_column_ring(p.as_ptr(),4,center.as_ptr(),axis.as_ptr(),1,0.0,out.as_mut_ptr()),0);
+        for (i,j) in [(0,1),(1,2),(2,3),(3,0)] {
+            let d=((out[3*i]-out[3*j]).powi(2)+(out[3*i+1]-out[3*j+1]).powi(2)+(out[3*i+2]-out[3*j+2]).powi(2)).sqrt();
+            assert!((d-if i%2==0 {0.4}else{0.3}).abs()<1.0e-10);
+        }
+    }
+    #[test]
+    fn geometric_limits_are_advisory_not_approval() {
+        assert_eq!(opentrace_column_guidance(3.0,0.4,0.4,0.4,0.4,0.34,0.34,0.08,0),0);
+        let flags=opentrace_column_guidance(3.0,0.4,0.4,0.4,0.4,0.12,0.12,0.25,1);
+        assert_eq!(flags&1,1);assert_ne!(flags&2,0);assert_ne!(flags&8,0);
+        assert_eq!(opentrace_column_guidance(-1.0,0.4,0.4,0.4,0.4,0.3,0.3,0.0,0),-1);
+    }
+}

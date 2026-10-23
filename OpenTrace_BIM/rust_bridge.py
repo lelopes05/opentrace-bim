@@ -61,6 +61,11 @@ def _library():
         ctypes.c_double, ctypes.c_double, xy_ptr,
     ]
     lib.opentrace_door_grooves.restype = ctypes.c_int
+    lib.opentrace_column_ring.argtypes=[xy_ptr,ctypes.c_size_t,xy_ptr,xy_ptr,
+                                       ctypes.c_int,ctypes.c_double,xy_ptr]
+    lib.opentrace_column_ring.restype=ctypes.c_int
+    lib.opentrace_column_guidance.argtypes=[ctypes.c_double]*8+[ctypes.c_int]
+    lib.opentrace_column_guidance.restype=ctypes.c_int
     return lib
 
 
@@ -173,3 +178,28 @@ def groove_spans(count, width, height, thickness, margin, offset):
     if status:
         raise RuntimeError("Rust door groove geometry failure")
     return [(index+1, *tuple(result[index*4:index*4+4])) for index in range(count)]
+
+
+def column_section_ring(profile, center, tangent, mode="horizontal", angle=0.0):
+    if len(profile)<3:
+        raise ValueError("Column profile must contain at least three points")
+    mapping={"horizontal":0,"normal":1,"angle":2}
+    index=mapping[mode]
+    input_xy=_xy_values(profile)
+    origin=(ctypes.c_double*3)(*tuple(float(x) for x in center))
+    axis=(ctypes.c_double*3)(*tuple(float(x) for x in tangent))
+    output=(ctypes.c_double*(3*len(profile)))()
+    status=_library().opentrace_column_ring(input_xy,len(profile),origin,axis,
+                                            index,float(angle),output)
+    if status:
+        raise RuntimeError("Native Rust column section generation failed")
+    return [tuple(output[3*i:3*i+3]) for i in range(len(profile))]
+
+
+def column_guidance(height, base, top, middle, sagitta, circular=False):
+    params=(float(height),float(base[0]),float(base[1]),float(top[0]),
+            float(top[1]),float(middle[0]),float(middle[1]),float(sagitta))
+    flags=_library().opentrace_column_guidance(*params,int(bool(circular)))
+    if flags<0:
+        raise ValueError("Dimensões de pilar inválidas para pré-avaliação.")
+    return flags

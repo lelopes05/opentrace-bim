@@ -26,6 +26,10 @@ DEFAULTS = {
     "top_mode": "height", "top_level": None, "top_offset": 0.0,
     "height": 3.00, "inclination": 0.0, "inclination_azimuth": 0.0,
     "curvature": 0.0, "material_name": None,
+    # Base/top cuts: horizontal, normal to the column centreline, or
+    # fixed inclination in the local bending plane.
+    "base_cut_mode": "horizontal", "top_cut_mode": "horizontal",
+    "base_cut_angle": 0.0, "top_cut_angle": 0.0,
     # Section stations along the axis. None means a single untapered segment.
     "stations": None,
 }
@@ -106,14 +110,15 @@ def validate(values):
         for key in ("width", "depth", "diameter", "height", "inclination",
                     "inclination_azimuth", "curvature"):
             out[key] = float(out[key])
-        for key in ("rotation", "base_offset", "base_z", "top_offset"):
+        for key in ("rotation", "base_offset", "base_z", "top_offset",
+                    "base_cut_angle", "top_cut_angle"):
             out[key] = float(out.get(key, 0.0))
     except (TypeError, ValueError) as exc:
         raise ColumnError("Preencha as medidas do pilar com números válidos.") from exc
     if not all(math.isfinite(out[k]) for k in (
             "width", "depth", "diameter", "height", "inclination",
             "inclination_azimuth", "curvature", "rotation", "base_offset",
-            "base_z", "top_offset")):
+            "base_z", "top_offset", "base_cut_angle", "top_cut_angle")):
         raise ColumnError("As medidas do pilar devem ser números finitos.")
     if out.get("section_type") not in ("simple", "complex"):
         out["section_type"] = "simple"
@@ -138,6 +143,12 @@ def validate(values):
         raise ColumnError("A direção da inclinação deve ficar entre -360° e 360°.")
     if abs(out["curvature"]) > MAX_DIM:
         raise ColumnError("A flecha do pilar está fora do intervalo permitido.")
+    for cut in ("base", "top"):
+        mode=out.get(cut+"_cut_mode", "horizontal")
+        if mode not in ("horizontal", "normal", "angle"):
+            out[cut+"_cut_mode"]="horizontal"
+        if not -85.0<=out[cut+"_cut_angle"]<=85.0:
+            raise ColumnError("Inclinação do corte de topo/base deve ficar entre -85° e 85°.")
     if out.get("anchor") not in ANCHOR_FACTORS:
         out["anchor"] = "mc"
     if out.get("top_mode") not in ("height", "level"):
@@ -332,36 +343,65 @@ def segment_index_at_fraction(values, t):
         if t <= float(b["t"]) + 1.0e-9:return i
     return max(0,len(p["stations"])-2)
 
-def _curve_section_scale(values, centers, fractions, index):
-    """Scale generated curve rings so an oblique curve does not inflate section.
+def _section_ring(values, centers, fractions, index, section):
+    """Rigid native-Rust section placement: curved axis never fattens profile.
 
-    The numeric segment section remains authoritative.  Because the current
-    column body uses horizontal rings, an oblique tangent would otherwise make
-    the effective section normal to the curve larger than the value entered by
-    the user.  Multiplying by cos(tangent-from-vertical) keeps that effective
-    section at or below the numeric value.  A 50% floor is the agreed anchorage
-    limit; tighter bends require an explicit transition/narrower neighbouring
-    segment instead of silently collapsing the connection.
+    The user-facing start/end sizes remain authoritative. Intermediate rings
+    follow the centreline's tangent when their semantic segment is curved.
+    Base/top have separately chosen Archicad-style cut orientation.
     """
-    p=values;stations=p["stations"];t=float(fractions[index])
-    # Apply the rule only where a curved semantic segment touches this ring.
-    curved=False
-    for si,(a,b) in enumerate(zip(stations,stations[1:])):
-        if abs(float(a.get("curvature",0.0)))<=1.0e-9:continue
-        if float(a["t"])-1.0e-8 <= t <= float(b["t"])+1.0e-8:
-            curved=True;break
-    if not curved:return 1.0
-    if len(centers)<2:return 1.0
-    if index<=0:tangent=centers[1]-centers[0]
-    elif index>=len(centers)-1:tangent=centers[-1]-centers[-2]
-    else:tangent=centers[index+1]-centers[index-1]
-    length=tangent.length()
-    if length<=1.0e-12:return 1.0
-    factor=abs(float(tangent.z()))/length
-    factor=min(1.0,max(0.0,factor))
-    if factor < 0.5-1.0e-7:
-        raise ColumnError("Esta curvatura reduziria a seção de ancoragem para menos de 50% da medida definida. Reduza a curva, afine explicitamente a seção de contato ou crie um segmento de transição.")
-    return max(0.5,factor)
+    from .rust_bridge import column_section_ring
+    n=len(centers)
+    if index==0:
+        tangent=centers[1]-centers[0]
+        mode=values["base_cut_mode"]
+        angle=values["base_cut_angle"]
+    elif index==n-1:
+        tangent=centers[-1]-centers[-2]
+        mode=values["top_cut_mode"]
+        angle=values["top_cut_angle"]
+    else:
+        tangent=centers[index+1]-centers[index-1]
+        t=float(fractions[index])
+        curved=any(
+            abs(float(a.get("curvature",0.0)))>1.0e-9
+            and a["t"]-1.0e-8<=t<=b["t"]+1.0e-8
+            for a,b in zip(values["stations"],values["stations"][1:]))
+        mode="normal" if curved else "horizontal"
+        angle=0.0
+    c=centers[index]
+    points=column_section_ring(
+        [(v.x(),v.y()) for v in section],
+        (c.x(),c.y(),c.z()), (tangent.x(),tangent.y(),tangent.z()),
+        mode,angle)
+    return [QVector3D(*v) for v in points]
+
+
+def column_curve_guidance(values, segment_index, sagitta):
+    """Architectural-only advisory; no strength or stability certification."""
+    from .rust_bridge import column_guidance
+    p=validate(values);st=p["stations"];i=max(0,min(int(segment_index),len(st)-2))
+    a,b=st[i],st[i+1]
+    height=float(p["height"])*(float(b["t"])-float(a["t"]))
+    mid=_dims_at(st, (float(a["t"])+float(b["t"]))/2.0)
+    if p["section_type"]=="complex":
+        # No second moments of area are available for arbitrary profiles yet;
+        # check only the curve's geometric displacement.
+        return {"flags":(1 if abs(float(sagitta))>height/30 else 0),
+                "max_sagitta":height/30,"height":height,
+                "profile_supported":False}
+    if p["profile"]=="circle":
+        start=(a["diameter"],a["diameter"])
+        finish=(b["diameter"],b["diameter"])
+        middle=(mid["diameter"],mid["diameter"])
+    else:
+        start=(a["width"],a["depth"])
+        finish=(b["width"],b["depth"])
+        middle=(mid["width"],mid["depth"])
+    flags=column_guidance(height,start,finish,middle,sagitta,p["profile"]=="circle")
+    return {"flags":flags,"max_sagitta":height/30,"height":height,
+            "profile_supported":True}
+
 
 def build_body(values, previous=None):
     p = validate(values)
@@ -380,12 +420,10 @@ def build_body(values, previous=None):
             raise ColumnError("O Perfil Complexo selecionado não contém contornos válidos.")
         ring_loops=[]
         for idx,(center,t) in enumerate(zip(centers,fractions)):
-            scale=_curve_section_scale(p,centers,fractions,idx)
             ring=[]
             for L in base_loops:
-                ring.append([QVector3D(center.x()+float(x)*scale,
-                                       center.y()+float(y)*scale,
-                                       center.z()) for x,y in L["points"]])
+                xy=[QVector3D(float(x),float(y),0) for x,y in L["points"]]
+                ring.append(_section_ring(p,centers,fractions,idx,xy))
             ring_loops.append(ring)
         groups=grouped_loops(base_loops);index_of={id(L):i for i,L in enumerate(base_loops)}
         for grp in groups:
@@ -400,20 +438,17 @@ def build_body(values, previous=None):
                 a,b=ring_loops[k][li],ring_loops[k+1][li];n=len(a)
                 for i in range(n):
                     j=(i+1)%n
-                    f=mesh.add_face([a[i],a[j],b[j],b[i]])
-                    f.attrs.update(old_attrs.get("side",old_default or {}));f.attrs[FACE_KEY]="side"
+                    for triangle in ((a[i],a[j],b[j]),(a[i],b[j],b[i])):
+                        f=mesh.add_face(list(triangle))
+                        f.attrs.update(old_attrs.get("side",old_default or {}));f.attrs[FACE_KEY]="side"
         if any(abs(float(st.get("curvature",0.0)))>1e-9 for st in p.get("stations",())) or has_curved_edges(p.get("profile_data")):
             soften_curve_facets(mesh)
     else:
         rings = []
         for idx,(center, t) in enumerate(zip(centers, fractions)):
             dims=_dims_at(p["stations"], t)
-            scale=_curve_section_scale(p,centers,fractions,idx)
-            if scale < 1.0-1.0e-9:
-                dims=dict(dims)
-                dims["width"]*=scale;dims["depth"]*=scale;dims["diameter"]*=scale
             poly = _profile_polygon(p, dims)
-            rings.append([QVector3D(v.x() + center.x(), v.y() + center.y(), center.z()) for v in poly])
+            rings.append(_section_ring(p,centers,fractions,idx,poly))
         face = mesh.add_face(list(reversed(rings[0])))
         face.attrs.update(old_attrs.get("bottom", old_default or {})); face.attrs[FACE_KEY] = "bottom"
         face = mesh.add_face(rings[-1])
@@ -423,8 +458,9 @@ def build_body(values, previous=None):
             a, b = rings[k], rings[k + 1]
             for i in range(n):
                 j = (i + 1) % n
-                face = mesh.add_face([a[i], a[j], b[j], b[i]])
-                face.attrs.update(old_attrs.get("side", old_default or {})); face.attrs[FACE_KEY] = "side"
+                for triangle in ((a[i], a[j], b[j]), (a[i], b[j], b[i])):
+                    face = mesh.add_face(list(triangle))
+                    face.attrs.update(old_attrs.get("side", old_default or {})); face.attrs[FACE_KEY] = "side"
         if any(abs(float(st.get("curvature", 0.0))) > 1.0e-9 for st in p.get("stations", ())) or p.get("profile") == "circle":
             soften_curve_facets(mesh)
     body = Group(mesh, name="Corpo do pilar"); body.component = False
@@ -447,6 +483,8 @@ def _record(values):
         "height": p["height"], "inclination": p.get("inclination", 0.0),
         "inclination_azimuth": p.get("inclination_azimuth", 0.0),
         "curvature": p.get("curvature", 0.0), "material_name": p.get("material_name"),
+        "base_cut_mode":p["base_cut_mode"],"top_cut_mode":p["top_cut_mode"],
+        "base_cut_angle":p["base_cut_angle"],"top_cut_angle":p["top_cut_angle"],
     }
 
 
@@ -536,7 +574,6 @@ def profile_world(group, top=False):
     st = p["stations"][-1] if top else p["stations"][0]
     local_poly = _profile_polygon(p, st)
     # Preserve historical API: profile at semantic base/top station.
-    centre_local = _raw_centerline(p)[-1] if top else _raw_centerline(p)[0]
-    return [group.xform.map(QVector3D(v.x() + centre_local.x(),
-                                      v.y() + centre_local.y(), centre_local.z()))
-            for v in local_poly]
+    pts, fractions = _centerline_local(p)
+    ring=_section_ring(p,pts,fractions,len(pts)-1 if top else 0,local_poly)
+    return [group.xform.map(v) for v in ring]
