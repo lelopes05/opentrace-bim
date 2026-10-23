@@ -380,14 +380,14 @@ pub extern "C" fn opentrace_column_guidance(
     let ratio_w=middle_w/base_w.max(top_w);
     let ratio_d=middle_d/base_d.max(top_d);
     if ratio_w.min(ratio_d)<0.8-1.0e-9 {flags|=2;}
-    let factor=if circular {std::f64::consts::PI/4.0}else{1.0};
+    let factor=if circular!=0 {std::f64::consts::PI/4.0}else{1.0};
     let area=factor*middle_w*middle_d;
     let end_area=factor*(base_w*base_d).max(top_w*top_d);
     if area<0.7*end_area-1.0e-9 {flags|=4;}
     if middle_w.min(middle_d)<0.14-1.0e-9 {flags|=8;}
     if middle_w.min(middle_d)<0.19-1.0e-9 {flags|=16;}
     if area<0.036-1.0e-9 {flags|=32;}
-    let r=if circular {middle_w/4.0}else{middle_w.min(middle_d)/12.0_f64.sqrt()};
+    let r=if circular!=0 {middle_w/4.0}else{middle_w.min(middle_d)/12.0_f64.sqrt()};
     if height/r>90.0 {flags|=64;}
     flags
 }
