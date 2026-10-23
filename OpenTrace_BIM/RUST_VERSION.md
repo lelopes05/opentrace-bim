@@ -45,3 +45,8 @@ vigas e prismas.
   confirmação no IngeTrazo Windows.
 
 O CI valida sintaxe e compilação Rust, mas não substitui testes reais de Qt/GL.
+
+## Paletas após a segunda rodada
+O Perfil Complexo usa diretamente as ações nativas do menu Draw como botões
+CAD na subpaleta inferior; a página da biblioteca deixa de bloquear a
+navegação para outras ferramentas, sincronizando na troca efetiva de ferramenta.

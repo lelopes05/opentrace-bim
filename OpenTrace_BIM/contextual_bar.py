@@ -456,41 +456,53 @@ class ContextualBar(QWidget):
                                     profile.show_library)
             open_btn.setObjectName("opentrace_context_profile_open")
             self._section(p, t("Desenho 2D do IngeTrazo"))
-            native = QMenu(self)
-            # Share the host's original QActions. Do not invent CAD tools or
-            # register duplicate actions against the viewport.
+            # Show the host's native CAD tools as DIRECT toolbar buttons, not
+            # another menu. Reuse existing QActions/shortcuts, never register
+            # a competing CAD drawing engine or action.
             menu_bar = self.app.window.menuBar()
             draw = next((a.menu() for a in menu_bar.actions()
                          if a.menu() is not None and
                          a.text().replace("&", "").strip().casefold()
                          in ("draw", "desenhar", "desenho")), None)
+            native = []
             if draw is not None:
                 import unicodedata
                 def normalized(label):
                     label = unicodedata.normalize("NFKD", label.casefold())
                     return "".join(c for c in label if not unicodedata.combining(c))
-                native_keywords = ("line", "linha", "arc", "arco", "circle",
-                                   "circulo", "rectangle", "retangulo",
-                                   "curve", "curva", "polyline", "polilinha", "freehand")
-                def include_native(menu):
+                terms = (("line", "linha"), ("freehand", "mao livre"),
+                         ("3-point arc", "arco 3 pontos"),
+                         ("center arc", "arco centro"),
+                         ("arc", "arco"), ("rectangle", "retangulo"),
+                         ("circle", "circulo"))
+                def collect(menu):
                     for action in menu.actions():
                         if action.menu() is not None:
-                            include_native(action.menu())
-                        elif not action.isSeparator() and any(
-                                word in normalized(action.text()) for word in native_keywords):
-                            native.addAction(action)
-                include_native(draw)
-            if not native.actions():
-                missing = native.addAction(t("Use o menu Draw do IngeTrazo"))
-                missing.setEnabled(False)
-            cad_btn = QToolButton(self)
-            cad_btn.setObjectName("opentrace_context_profile_cad_2d")
-            cad_btn.setText(t("Desenho CAD 2D ▾"))
-            cad_btn.setToolTip(t("Ferramentas originais de desenho do IngeTrazo"))
-            cad_btn.setMenu(native)
-            cad_btn.setPopupMode(QToolButton.InstantPopup)
-            cad_btn.setEnabled(bool(draw))
-            self._target(p).addWidget(cad_btn)
+                            collect(action.menu())
+                        elif not action.isSeparator():
+                            name = normalized(action.text().replace("&", ""))
+                            if any(t in name for group in terms for t in group):
+                                if action not in native: native.append(action)
+                collect(draw)
+            for i, action in enumerate(native):
+                button = QToolButton(self)
+                button.setObjectName("opentrace_profile_cad_native_" + str(i))
+                button.setDefaultAction(action)
+                button.setFocusPolicy(Qt.NoFocus)
+                button.setToolTip(action.text().replace("&", "") +
+                                  (("  " + action.shortcut().toString()) if not action.shortcut().isEmpty() else ""))
+                button.setAccessibleName(action.text().replace("&", ""))
+                button.setFixedHeight(SIZES["option-height"])
+                if action.icon().isNull():
+                    button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+                    button.setText(action.text().replace("&", "").split("  ")[0])
+                else:
+                    button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+                    button.setIconSize(QSize(SIZES["icon-20"], SIZES["icon-20"]))
+                self._target(p).addWidget(button)
+            if not native:
+                missing = QLabel(t("Use Draw no menu do IngeTrazo"), self)
+                self._target(p).addWidget(missing)
 
         self._build_opening_pages()
         p = self._page("opening_edit", t("Vão selecionado"))
@@ -877,8 +889,9 @@ class ContextualBar(QWidget):
         wall = self.wall
         profile = self.controllers.get("profiles")
         if profile is not None and (
-                profile.is_profile_workspace() or
-                self.suite.stack.currentWidget() is self.suite.pages.get("profiles")):
+                profile.is_profile_workspace() or (
+                    self.suite.stack.currentWidget() is self.suite.pages.get("profiles")
+                    and getattr(self.suite, "_profile_tool_at_entry", object()) is active)):
             return "profiles"
         slab = self.controllers.get("slab")
         if slab is not None and active is slab.opening_tool:

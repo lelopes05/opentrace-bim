@@ -32,6 +32,7 @@ class ArchitectureSuitePanel:
         self.app=app;self.controllers={"wall":wall,"slab":slab,"column":column,"beam":beam,"membrane":membrane,"profiles":profiles,"bim":bim}
         self._sync_queued=False;self._last_active_tool_id=id(getattr(self.app.viewport,"active_tool",None))
         self._mode_buttons={}
+        self._profile_tool_at_entry=None
         self._home_sections={}
         self._opening_size_fields={}
         self._opening_section=None
@@ -1345,6 +1346,11 @@ class ArchitectureSuitePanel:
         if show_project:
             key = "home"  # Project information now lives within Home.
         if key not in self.pages:key="home"
+        previous_page = self.stack.currentWidget()
+        if key == "profiles" and previous_page is not self.pages.get("profiles"):
+            self._profile_tool_at_entry = getattr(self.app.viewport,"active_tool",None)
+        elif key != "profiles":
+            self._profile_tool_at_entry = None
         slot = self._property_slots.get(key)
         if slot is not None:
             slot.addWidget(self.object_properties)
@@ -1381,6 +1387,8 @@ class ArchitectureSuitePanel:
         self._sync_opening_section()
         self._sync_door_controls()
         self.sync_mode_buttons()
+        if previous_page is not self.stack.currentWidget():
+            self.schedule_sync_context()
 
     def sync_mode_buttons(self):
         for key,buttons in self._mode_buttons.items():
@@ -1426,7 +1434,14 @@ class ArchitectureSuitePanel:
         # the user back to the modelling page.
         if any(self.pages.get(key) is not None and
                self.stack.currentWidget() is self.pages[key]
-               for key in ("bim", "project", "arrange", "profiles")):
+               for key in ("bim", "project", "arrange")):
+            return
+        # Profiles is a library page, not an active CAD tool. Preserve it
+        # only until an actual new creation/host tool is chosen.
+        profiles=self.controllers.get("profiles")
+        if (self.stack.currentWidget() is self.pages.get("profiles")
+                and (profiles is not None and profiles.is_profile_workspace()
+                     or active is self._profile_tool_at_entry)):
             return
         slab_ctrl=self.controllers.get("slab")
         if slab_ctrl is not None and active is slab_ctrl.opening_tool:
