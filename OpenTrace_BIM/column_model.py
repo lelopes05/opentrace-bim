@@ -289,9 +289,9 @@ def _dims_at(stations, t, transition="linear"):
             u = 0.0 if span <= 1.0e-12 else (t - a["t"]) / span
             u = max(0.0, min(1.0,u))
             if transition=="parabolic":
-                # Smooth monotone Hermite interpolation, no overshoot:
-                # the section never grows beyond either station's dimensions.
-                u = u*u*(3.0-2.0*u)
+                # Two C1-connected parabolic arcs (ease-in/ease-out).
+                # Monotone and bounded by the start and end dimensions.
+                u = 2.0*u*u if u<=0.5 else 1.0-2.0*(1.0-u)**2
             return {
                 "width": a["width"] + (b["width"] - a["width"]) * u,
                 "depth": a["depth"] + (b["depth"] - a["depth"]) * u,
