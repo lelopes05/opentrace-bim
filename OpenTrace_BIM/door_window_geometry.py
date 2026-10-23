@@ -17,31 +17,20 @@ from core.mesh import Mesh
 
 from .door_window_core import normalize_fill, FillError, f01_unit_size, f01_minimum_unit
 from .door_grooves import groove_spans
+from . import rust_bridge as _rust_geometry
 
 
 def _prism(x0, x1, y0, y1, z0, z1, *, pivot=None, angle=0.0):
-    """Closed rectangular solid, optionally rotated around a hinge in plan."""
+    """Closed prism, using native Rust vertex construction."""
     if not (x1 > x0 and y1 > y0 and z1 > z0):
         raise FillError("Sólido de esquadria com medidas inválidas.")
-    c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
-
-    def p(x, y, z):
-        if pivot is not None:
-            xx, yy = x-pivot[0], y-pivot[1]
-            x, y = pivot[0]+c*xx-s*yy, pivot[1]+s*xx+c*yy
-        return QVector3D(x, y, z)
-
-    corners = [
-        p(x0,y0,z0), p(x1,y0,z0), p(x1,y1,z0), p(x0,y1,z0),
-        p(x0,y0,z1), p(x1,y0,z1), p(x1,y1,z1), p(x0,y1,z1),
-    ]
+    corners = [QVector3D(*pt) for pt in _rust_geometry.prism_vertices(
+        x0,x1,y0,y1,z0,z1,pivot=pivot,angle=angle)]
     mesh = Mesh()
-    for loop in ((3,2,1,0), (4,5,6,7), (0,1,5,4),
-                 (1,2,6,5), (2,3,7,6), (3,0,4,7)):
+    for loop in ((3,2,1,0),(4,5,6,7),(0,1,5,4),
+                 (1,2,6,5),(2,3,7,6),(3,0,4,7)):
         mesh.add_face([corners[i] for i in loop])
     return mesh
-
-
 
 def _profile_prism(profile, y0, y1, *, pivot=None, angle=0.0):
     """Closed extrusion of an arbitrary simple XZ outline (including arcs).

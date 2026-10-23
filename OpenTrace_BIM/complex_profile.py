@@ -10,32 +10,16 @@ from __future__ import annotations
 
 import math
 from PySide6.QtGui import QVector3D
+from . import rust_bridge as _rust_geometry
 
 _EPS = 1.0e-10
 
 
 def signed_area(points):
-    return 0.5 * sum(
-        points[i][0] * points[(i + 1) % len(points)][1]
-        - points[(i + 1) % len(points)][0] * points[i][1]
-        for i in range(len(points))
-    )
-
+    return _rust_geometry.signed_area(points)
 
 def point_in_polygon(point, polygon):
-    x, y = point
-    inside = False
-    j = len(polygon) - 1
-    for i, (xi, yi) in enumerate(polygon):
-        xj, yj = polygon[j]
-        if ((yi > y) != (yj > y)):
-            den = (yj - yi)
-            xx = (xj - xi) * (y - yi) / (den if abs(den) > _EPS else _EPS) + xi
-            if x < xx:
-                inside = not inside
-        j = i
-    return inside
-
+    return _rust_geometry.point_in_polygon(point, polygon)
 
 def profile_loops(profile, rotation_deg=0.0, scale=1.0):
     """Return winding-normalised 2D loops from an embedded profile snapshot.

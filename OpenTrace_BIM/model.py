@@ -20,6 +20,7 @@ from .layers import (bands_about_core, clone_layers, normalize_layers,
                      total_thickness, wall_overall_offsets)
 from .curve_utils import soften_curve_facets, wrap_soft_surface_textures
 from .materials import transfer_semantic_face_appearance
+from . import rust_bridge as _rust_geometry
 
 KEY = "arquitetura_parametrica"
 DERIVED_KEY = "arquitetura_parametrica_derived"
@@ -343,50 +344,20 @@ def arc_center_world(group):
     return None if center is None else group.xform.map(center)
 
 def arc_points(start, end, sagitta):
-    """Sample a circular arc in XY from endpoints and signed midpoint sagitta.
-
-    Positive sagitta is to the left of start→end.  The endpoints remain exact;
-    only the derived body is faceted.  Segment density is deliberately high
-    enough that the reference overlay reads as a smooth architectural arc.
-    """
+    """Sample the parametric wall arc using the native Rust geometry core."""
     a = QVector3D(start.x(), start.y(), 0.0)
     b = QVector3D(end.x(), end.y(), 0.0)
-    chord = b - a
-    length = math.hypot(chord.x(), chord.y())
+    length = math.hypot(b.x()-a.x(), b.y()-a.y())
     if length < MIN_DIM:
         raise WallError("A parede precisa ter ao menos 1 mm de comprimento.")
     h = float(sagitta)
     if not math.isfinite(h):
         raise WallError("Curvatura da parede inválida.")
-    if abs(h) < ARC_EPS:
-        return [a, b]
-    u = QVector3D(chord.x() / length, chord.y() / length, 0.0)
-    n = QVector3D(-u.y(), u.x(), 0.0)
-    mid = (a + b) * 0.5
-    apex = mid + n * h
-    center = _circumcenter2((a.x(), a.y()), (apex.x(), apex.y()), (b.x(), b.y()))
-    if center is None:
-        return [a, b]
-    cx, cy = center
-    radius = math.hypot(a.x() - cx, a.y() - cy)
-    a0 = math.atan2(a.y() - cy, a.x() - cx)
-    a1 = math.atan2(b.y() - cy, b.x() - cx)
-    am = math.atan2(apex.y() - cy, apex.x() - cx)
-    sweep = _wrap_angle(a1 - a0)
-    through = _wrap_angle(am - a0)
-    if sweep >= 0.0 and not (0.0 <= through <= sweep):
-        sweep -= 2.0 * math.pi
-    elif sweep < 0.0 and not (sweep <= through <= 0.0):
-        sweep += 2.0 * math.pi
-    arc_len = abs(sweep) * radius
-    spans = max(4,
-                int(math.ceil(abs(math.degrees(sweep)) / ARC_MAX_STEP_DEG)),
-                int(math.ceil(arc_len / ARC_MAX_SEGMENT)))
-    spans = min(ARC_MAX_SAMPLES, spans)
-    return [QVector3D(cx + radius * math.cos(a0 + sweep * (i / spans)),
-                      cy + radius * math.sin(a0 + sweep * (i / spans)), 0.0)
-            for i in range(spans + 1)]
-
+    sampled = _rust_geometry.sample_arc_xy(
+        (a.x(), a.y()), (b.x(), b.y()), h,
+        step_deg=ARC_MAX_STEP_DEG, max_segment=ARC_MAX_SEGMENT,
+        max_samples=ARC_MAX_SAMPLES, min_spans=4)
+    return [QVector3D(x, y, 0.0) for x, y in sampled]
 
 def arc_record(start, end, sagitta):
     a, b = QVector3D(start), QVector3D(end)

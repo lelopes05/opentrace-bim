@@ -6,6 +6,7 @@ Dimensions are metres. The historical appearance is 3 vertical 3 mm grooves,
 """
 from __future__ import annotations
 import math
+from . import rust_bridge as _rust_geometry
 
 DEFAULT_GROOVES = {
     'groove_count': 3,
@@ -56,6 +57,4 @@ def groove_spans(raw, width, height):
     w = data['groove_width']
     offset = data['groove_offset']
     margin = data['groove_end_margin']
-    for index in range(1, n+1):
-        x = width*index/(n+1) + offset
-        yield index, x-w/2, x+w/2, margin, height-margin
+    yield from _rust_geometry.groove_spans(n, width, height, w, margin, offset)

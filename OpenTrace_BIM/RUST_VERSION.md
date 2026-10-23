@@ -1,32 +1,29 @@
 # OpenTrace BIM 0.44.0 Rust
 
-Cópia isolada da versão 0.44.0. O arquivo de origem fornecido pelo usuário
-possui SHA-256 b03455f4c24b95592e4ce671bdb85eb60e06bff02a617bcc497d8697fa40a937,
-igual ao ativo oficial da release v0.44.0. O GitHub Actions exige a conferência
-dessa assinatura antes de gerar um novo pacote para Windows.
+Esta versão instala o núcleo Rust ativo automaticamente: nenhum botão, variável,
+configuração ou passo extra é necessário. Instale como plugin normal do IngeTrazo.
+A DLL nativa Windows é empacotada junto do código, no local procurado pelo adaptador.
+Se a DLL estiver faltando, as operações Rust informam erro; não há fallback silencioso.
 
-A primeira migração é o cálculo de alinhamento/distribuição de objetos em Rust.
-A UI PySide6, seleção, undo/redo, paredes, portas, IFC e integração com IngeTrazo
-permanecem em Python. O código original de arrange_core.py está preservado.
+Migração nesta versão:
+- Alinhamento e distribuição dos objetos.
+- Paredes curvas: amostragem geométrica da curva de referência.
+- Aberturas poligonais: cálculo de área, colisões de segmentos e curvas das bordas.
+- Lajes: amostragem de curvas, validação de cruzamentos, área e ponto-em-polígono.
+- Vigas: curva horizontal compartilhada com paredes e perfil vertical circular Rust.
+- Pilares curvos: curva de eixo compartilhada com o motor de paredes.
+- Portas e esquadrias: cálculo nativo dos vértices de prismas e das ranhuras.
+- Perfis complexos: área e classificação de ponto no contorno.
 
-O pacote mantém a pasta OpenTrace_BIM e a versão interna 0.44.0 por
-compatibilidade. A identificação visível é 0.44.0 Rust.
+A interface, Qt/PySide6, gerenciamento de objetos e histórico, rotinas de mesh,
+grande parte das ferramentas BIM, IFC e serialização continuam Python.
+Isto não é uma reescrita integral do OpenTrace; inclui subrotinas nativas
+em várias ferramentas. A migração integral não está concluída.
 
-## Executar no Windows
+A cópia base foi verificada por SHA-256 contra o ZIP oficial 0.44.0:
+b03455f4c24b95592e4ce671bdb85eb60e06bff02a617bcc497d8697fa40a937.
 
-1. Baixe o artefato "OpenTrace BIM 0.44.0 Rust" do workflow desta branch.
-2. Extraia o ZIP com a pasta OpenTrace_BIM na pasta de plugins do IngeTrazo,
-   após fechar o programa e salvar uma cópia da instalação anterior.
-3. Para ativar o motor Rust, configure OPENTRACE_RUST_BACKEND=1 antes de abrir o
-   IngeTrazo. Sem essa opção, continua sendo usado o Python original.
-4. Confirme no painel do OpenTrace a identificação 0.44.0 Rust.
-5. Teste alinhamento/distribuição de objetos, inclusive desfazer e refazer.
+O workflow Windows compila cargo, executa testes e publica um artefato ZIP.
+A validação real no IngeTrazo Windows ainda deve ser feita pelo usuário.
 
-A biblioteca compilada fica em rust_core/target/release/opentrace_rust_core.dll.
-Se Rust estiver explicitamente ativado e a DLL não existir, a operação
-informará o erro em vez de executar silenciosamente o motor Python.
-
-A compilação e os testes unitários/equivalência rodam no GitHub Actions.
-A validação de interface real com IngeTrazo Windows é responsabilidade do usuário.
-
-Não publicar release, alterar catálogo ou mesclar com main automaticamente.
+Não alterar main, publicar release ou atualizar catálogo.

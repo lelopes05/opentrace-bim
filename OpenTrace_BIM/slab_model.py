@@ -11,6 +11,7 @@ from core.mesh import Mesh
 
 from .layers import clone_layers, normalize_layers, total_thickness
 from .materials import transferable_face_attrs
+from . import rust_bridge as _rust_geometry
 
 KEY = "arquitetura_parametrica"
 SCHEMA = 3
@@ -98,22 +99,12 @@ def _on_segment(a, b, p, tol=1e-9):
 
 
 def _segments_intersect(a, b, c, d, tol=1e-9):
-    c1, c2 = _cross(a, b, c), _cross(a, b, d)
-    c3, c4 = _cross(c, d, a), _cross(c, d, b)
-    if ((c1 > tol and c2 < -tol) or (c1 < -tol and c2 > tol)) and \
-       ((c3 > tol and c4 < -tol) or (c3 < -tol and c4 > tol)):
-        return True
-    return ((abs(c1) <= tol and _on_segment(a, b, c, tol))
-            or (abs(c2) <= tol and _on_segment(a, b, d, tol))
-            or (abs(c3) <= tol and _on_segment(c, d, a, tol))
-            or (abs(c4) <= tol and _on_segment(c, d, b, tol)))
-
+    return _rust_geometry.segments_intersect(
+        (a.x(),a.y()), (b.x(),b.y()), (c.x(),c.y()), (d.x(),d.y()), tol)
 
 def polygon_area(points):
     pts = [QVector3D(p) for p in points]
-    return 0.5 * sum(a.x() * b.y() - b.x() * a.y()
-                     for a, b in zip(pts, pts[1:] + pts[:1]))
-
+    return _rust_geometry.signed_area([(p.x(), p.y()) for p in pts])
 
 def validate_polygon(points):
     pts = [QVector3D(p.x(), p.y(), 0.0) for p in points]
@@ -176,30 +167,18 @@ def _wrap_angle(value):
 
 
 def arc_points(start, end, sagitta):
-    """Sample a circular XY edge from endpoints and signed midpoint sagitta."""
-    a = QVector3D(start.x(), start.y(), 0.0); b = QVector3D(end.x(), end.y(), 0.0)
-    chord = b - a; length = math.hypot(chord.x(), chord.y())
+    """Sample circular slab edges using the Rust geometry core."""
+    a = QVector3D(start.x(), start.y(), 0.0)
+    b = QVector3D(end.x(), end.y(), 0.0)
+    length = math.hypot(b.x()-a.x(), b.y()-a.y())
     if length < MIN_DIM:
         raise SlabError("A aresta da laje é curta demais para ser curvada.")
     h = float(sagitta)
-    if abs(h) < ARC_EPS:
-        return [a, b]
-    u = QVector3D(chord.x()/length, chord.y()/length, 0.0)
-    n = QVector3D(-u.y(), u.x(), 0.0)
-    mid = (a + b) * 0.5; apex = mid + n * h
-    center = _circumcenter2((a.x(),a.y()), (apex.x(),apex.y()), (b.x(),b.y()))
-    if center is None:
-        return [a,b]
-    cx,cy=center; radius=math.hypot(a.x()-cx,a.y()-cy)
-    a0=math.atan2(a.y()-cy,a.x()-cx); a1=math.atan2(b.y()-cy,b.x()-cx); am=math.atan2(apex.y()-cy,apex.x()-cx)
-    sweep=_wrap_angle(a1-a0); through=_wrap_angle(am-a0)
-    if sweep >= 0 and not (0 <= through <= sweep): sweep -= 2*math.pi
-    elif sweep < 0 and not (sweep <= through <= 0): sweep += 2*math.pi
-    arc_len=abs(sweep)*radius
-    spans=max(4,int(math.ceil(abs(math.degrees(sweep))/ARC_MAX_STEP_DEG)),int(math.ceil(arc_len/ARC_MAX_SEGMENT)))
-    spans=min(ARC_MAX_SAMPLES,spans)
-    return [QVector3D(cx+radius*math.cos(a0+sweep*(i/spans)),cy+radius*math.sin(a0+sweep*(i/spans)),0.0) for i in range(spans+1)]
-
+    sampled = _rust_geometry.sample_arc_xy(
+        (a.x(),a.y()), (b.x(),b.y()), h,
+        step_deg=ARC_MAX_STEP_DEG, max_segment=ARC_MAX_SEGMENT,
+        max_samples=ARC_MAX_SAMPLES, min_spans=4)
+    return [QVector3D(x,y,0.0) for x,y in sampled]
 
 def sample_boundary(points, edge_specs=None, *, with_map=False):
     logical = validate_polygon(points)
@@ -233,15 +212,8 @@ def validate_edge_geometry(points, edge_specs=None):
     return sampled
 
 def _point_in_polygon_xy(point, poly):
-    x,y=point.x(),point.y(); inside=False
-    n=len(poly)
-    for i in range(n):
-        a,b=poly[i],poly[(i+1)%n]
-        if ((a.y()>y)!=(b.y()>y)):
-            xin=(b.x()-a.x())*(y-a.y())/((b.y()-a.y()) or 1e-30)+a.x()
-            if x < xin: inside=not inside
-    return inside
-
+    return _rust_geometry.point_in_polygon(
+        (point.x(),point.y()), [(p.x(),p.y()) for p in poly])
 
 def normalize_openings(raw):
     out=[]

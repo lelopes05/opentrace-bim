@@ -118,3 +118,209 @@ mod tests {
         assert_eq!(distribute(&boxes, 3, 0, &mut d), 2);
     }
 }
+
+
+// Native geometry used by walls, slabs, openings, doors, beams and profiles.
+// All output memory is owned by the Python caller; no allocations cross FFI.
+fn orient2(a: [f64;2], b: [f64;2], c: [f64;2]) -> f64 {
+    (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
+}
+fn on_segment2(a: [f64;2], b: [f64;2], p: [f64;2], tol:f64) -> bool {
+    orient2(a,b,p).abs() <= tol &&
+    p[0] >= a[0].min(b[0])-tol && p[0] <= a[0].max(b[0])+tol &&
+    p[1] >= a[1].min(b[1])-tol && p[1] <= a[1].max(b[1])+tol
+}
+fn intersects2(a:[f64;2], b:[f64;2], c:[f64;2], d:[f64;2], tol:f64)->bool {
+    let (p,q,r,s)=(orient2(a,b,c),orient2(a,b,d),orient2(c,d,a),orient2(c,d,b));
+    if ((p>tol&&q< -tol)||(p< -tol&&q>tol)) &&
+       ((r>tol&&s< -tol)||(r< -tol&&s>tol)) {return true;}
+    (p.abs()<=tol && on_segment2(a,b,c,tol)) ||
+    (q.abs()<=tol && on_segment2(a,b,d,tol)) ||
+    (r.abs()<=tol && on_segment2(c,d,a,tol)) ||
+    (s.abs()<=tol && on_segment2(c,d,b,tol))
+}
+#[no_mangle]
+pub extern "C" fn opentrace_intersects_xy(coords:*const f64, tol:f64)->i32 {
+    if coords.is_null() || !tol.is_finite() {return -1;}
+    let p=unsafe{std::slice::from_raw_parts(coords,8)};
+    if !p.iter().all(|v|v.is_finite()) {return -1;}
+    if intersects2([p[0],p[1]],[p[2],p[3]],[p[4],p[5]],[p[6],p[7]],tol) {1} else {0}
+}
+fn signed_area_raw(coords:&[f64])->f64 {
+    let n=coords.len()/2;
+    let mut area=0.0;
+    for i in 0..n {
+        let j=(i+1)%n;
+        area+=coords[2*i]*coords[2*j+1]-coords[2*j]*coords[2*i+1];
+    }
+    area*0.5
+}
+#[no_mangle]
+pub extern "C" fn opentrace_area_xy(coords:*const f64,n:usize)->f64 {
+    if coords.is_null() || n<3 || n > 200_000 {return f64::NAN;}
+    let vals=unsafe{std::slice::from_raw_parts(coords,n*2)};
+    signed_area_raw(vals)
+}
+#[no_mangle]
+pub extern "C" fn opentrace_point_in_polygon(x:f64,y:f64,coords:*const f64,n:usize)->i32 {
+    if coords.is_null() || n<3 || n>200_000 {return -1;}
+    let vals=unsafe{std::slice::from_raw_parts(coords,n*2)};
+    let mut inside=false;
+    let mut j=n-1;
+    for i in 0..n {
+        let xi=vals[2*i]; let yi=vals[2*i+1];
+        let xj=vals[2*j]; let yj=vals[2*j+1];
+        if (yi>y)!=(yj>y) {
+            let den=yj-yi;
+            let xx=(xj-xi)*(y-yi)/(if den.abs()>1.0e-10 {den} else {1.0e-10})+xi;
+            if x<xx { inside=!inside; }
+        }
+        j=i;
+    }
+    if inside {1} else {0}
+}
+fn circum2(a:[f64;2],b:[f64;2],c:[f64;2])->Option<[f64;2]> {
+    let (ax,ay,bx,by,cx,cy)=(a[0],a[1],b[0],b[1],c[0],c[1]);
+    let d=2.0*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+    if d.abs()<1.0e-12 {return None;}
+    let aa=ax*ax+ay*ay;let bb=bx*bx+by*by;let cc=cx*cx+cy*cy;
+    Some([(aa*(by-cy)+bb*(cy-ay)+cc*(ay-by))/d,
+          (aa*(cx-bx)+bb*(ax-cx)+cc*(bx-ax))/d])
+}
+fn wrap_angle(mut a:f64)->f64 {
+    while a<=-std::f64::consts::PI {a+=std::f64::consts::TAU;}
+    while a>std::f64::consts::PI {a-=std::f64::consts::TAU;}
+    a
+}
+fn sample_arc(a:[f64;2],b:[f64;2],h:f64,step_deg:f64,max_seg:f64,
+              max_samples:usize,min_spans:usize,opening:bool,output:&mut [f64])->i32 {
+    let dx=b[0]-a[0]; let dy=b[1]-a[1]; let chord=dx.hypot(dy);
+    if !h.is_finite() || !chord.is_finite() || step_deg<=0.0 || max_samples<2 {return -1;}
+    if chord<=1.0e-8 || h.abs()<=1.0e-9 {
+        output[..4].copy_from_slice(&[a[0],a[1],b[0],b[1]]);
+        return 2;
+    }
+    let (cx,cy,rad)=if opening {
+        let nx=-dy/chord;let ny=dx/chord;
+        let radius=(chord*chord/4.0+h*h)/(2.0*h.abs());
+        let offset=radius-h.abs();
+        let sign=if h>0.0 {1.0} else {-1.0};
+        ((a[0]+b[0])/2.0-nx*sign*offset,(a[1]+b[1])/2.0-ny*sign*offset,radius)
+    } else {
+        let nx=-dy/chord;let ny=dx/chord;
+        let apex=[(a[0]+b[0])/2.0+nx*h,(a[1]+b[1])/2.0+ny*h];
+        let Some(c)=circum2(a,apex,b) else {
+            output[..4].copy_from_slice(&[a[0],a[1],b[0],b[1]]);
+            return 2;
+        };
+        (c[0],c[1],(a[0]-c[0]).hypot(a[1]-c[1]))
+    };
+    let a0=(a[1]-cy).atan2(a[0]-cx);
+    let a1=(b[1]-cy).atan2(b[0]-cx);
+    let nx=-dy/chord; let ny=dx/chord;
+    let apex=[(a[0]+b[0])/2.0+nx*h,(a[1]+b[1])/2.0+ny*h];
+    let am=(apex[1]-cy).atan2(apex[0]-cx);
+    let mut sweep=wrap_angle(a1-a0);
+    let through=wrap_angle(am-a0);
+    if sweep>=0.0 && !(0.0<=through && through<=sweep) {sweep-=std::f64::consts::TAU;}
+    else if sweep<0.0 && !(sweep<=through && through<=0.0) {sweep+=std::f64::consts::TAU;}
+    let ang_spans=(sweep.abs().to_degrees()/step_deg).ceil() as usize;
+    let length_spans=if max_seg>0.0 {(sweep.abs()*rad/max_seg).ceil() as usize} else {0};
+    let spans=if opening {ang_spans.max(min_spans)} else {ang_spans.max(length_spans).max(min_spans).min(max_samples)};
+    if spans>max_samples || output.len()<(spans+1)*2 {return -2;}
+    for k in 0..=spans {
+        let theta=a0+sweep*(k as f64/spans as f64);
+        output[2*k]=cx+rad*theta.cos();
+        output[2*k+1]=cy+rad*theta.sin();
+    }
+    if opening {
+        output[0]=a[0];output[1]=a[1];
+        output[spans*2]=b[0];output[spans*2+1]=b[1];
+    }
+    (spans+1) as i32
+}
+#[no_mangle]
+pub extern "C" fn opentrace_arc_xy(ax:f64,ay:f64,bx:f64,by:f64,h:f64,step_deg:f64,
+                                  max_seg:f64,max_samples:usize,min_spans:usize,
+                                  opening:i32,out:*mut f64)->i32 {
+    if out.is_null() || max_samples>16384 || max_samples<2 {return -1;}
+    let buf=unsafe{std::slice::from_raw_parts_mut(out,(max_samples+1)*2)};
+    sample_arc([ax,ay],[bx,by],h,step_deg,max_seg,max_samples,min_spans,opening!=0,buf)
+}
+#[no_mangle]
+pub extern "C" fn opentrace_vertical_beam(positions:*const f64,n:usize,length:f64,rise:f64,h:f64,out:*mut f64)->i32 {
+    if positions.is_null() || out.is_null() || n>200_000 {return -1;}
+    let ps=unsafe{std::slice::from_raw_parts(positions,n)};
+    let dst=unsafe{std::slice::from_raw_parts_mut(out,n)};
+    if length<0.001 || h.abs()<1.0e-9 {
+        for (i,s) in ps.iter().enumerate() {dst[i]=if length<0.001 {0.0} else {rise*(*s/length)};}
+        return 0;
+    }
+    let mid=[length/2.0,rise/2.0+h];
+    let Some(center)=circum2([0.0,0.0],mid,[length,rise]) else {
+        for (i,s) in ps.iter().enumerate() {dst[i]=rise*(*s/length);}
+        return 0;
+    };
+    let (cx,cz)=(center[0],center[1]);
+    let rad=cx.hypot(cz);
+    let sign=if mid[1]>=cz {1.0} else {-1.0};
+    for (i,s) in ps.iter().enumerate() {
+        let under=rad*rad-(*s-cx).powi(2);
+        if under< -1.0e-7 {return 2;}
+        dst[i]=cz+sign*under.max(0.0).sqrt();
+    }
+    if n>0 {dst[0]=0.0;dst[n-1]=rise;}
+    0
+}
+#[no_mangle]
+pub extern "C" fn opentrace_prism_vertices(bounds:*const f64,pivot:*const f64,angle_deg:f64,out:*mut f64)->i32 {
+    if bounds.is_null() || out.is_null() {return -1;}
+    let b=unsafe{std::slice::from_raw_parts(bounds,6)};
+    if !(b[1]>b[0] && b[3]>b[2] && b[5]>b[4]) {return -1;}
+    let (x0,x1,y0,y1,z0,z1)=(b[0],b[1],b[2],b[3],b[4],b[5]);
+    let pts=[(x0,y0,z0),(x1,y0,z0),(x1,y1,z0),(x0,y1,z0),
+             (x0,y0,z1),(x1,y0,z1),(x1,y1,z1),(x0,y1,z1)];
+    let p=if pivot.is_null(){None}else{let v=unsafe{std::slice::from_raw_parts(pivot,2)};Some((v[0],v[1]))};
+    let (sin,cos)=angle_deg.to_radians().sin_cos();
+    let out=unsafe{std::slice::from_raw_parts_mut(out,24)};
+    for (i,(mut x,mut y,z)) in pts.into_iter().enumerate() {
+        if let Some((px,py))=p {
+            let dx=x-px;let dy=y-py;
+            x=px+cos*dx-sin*dy;y=py+sin*dx+cos*dy;
+        }
+        out[3*i]=x;out[3*i+1]=y;out[3*i+2]=z;
+    }
+    0
+}
+#[no_mangle]
+pub extern "C" fn opentrace_door_grooves(count:usize,width:f64,height:f64,thickness:f64,margin:f64,offset:f64,out:*mut f64)->i32 {
+    if out.is_null() || count<1 || count>12 || !width.is_finite() {return -1;}
+    let dest=unsafe{std::slice::from_raw_parts_mut(out,count*4)};
+    for i in 1..=count {
+        let x=width*i as f64/(count+1) as f64+offset;
+        let start=(i-1)*4;
+        dest[start..start+4].copy_from_slice(&[x-thickness/2.0,x+thickness/2.0,margin,height-margin]);
+    }
+    0
+}
+#[cfg(test)]
+mod extended_geometry_tests {
+    use super::*;
+    #[test] fn polygon_orientation() {
+        let p=[0.0,0.0,2.0,0.0,2.0,2.0,0.0,2.0];
+        assert!((signed_area_raw(&p)-4.0).abs()<1e-10);
+        assert!(intersects2([0.0,0.0],[2.0,2.0],[0.0,2.0],[2.0,0.0],1e-9));
+    }
+    #[test] fn wall_and_slab_arcs() {
+        let mut out=[0.0;514];
+        let n=sample_arc([0.0,0.0],[4.0,0.0],1.0,5.0,0.2,256,4,false,&mut out);
+        assert!(n>=5);
+        assert!(out[0].abs()<1e-8);
+        assert!((out[(n as usize-1)*2]-4.0).abs()<1e-8);
+    }
+    #[test] fn door_prism() {
+        let b=[0.0,1.0,0.0,0.1,0.0,2.0];let mut out=[0.0;24];
+        assert_eq!(opentrace_prism_vertices(b.as_ptr(),std::ptr::null(),0.0,out.as_mut_ptr()),0);
+        assert_eq!(out[23],2.0);
+    }
+}

@@ -1,30 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Choose the Python or Rust calculation engine without changing the Qt UI.
+"""The installed 0.44.0 Rust package always uses its compiled native core.
 
-Python remains the default. To exercise the native code after building it,
-launch IngeTrazo with OPENTRACE_RUST_BACKEND=1 in its environment.
-Explicit selection fails visibly when the Rust library is missing.
+No environment variables, activation buttons or silent Python fallback.
 """
-from __future__ import annotations
-
-import os
-from . import arrange_core
-
+from . import rust_bridge
 
 def active_backend():
-    return "rust" if os.environ.get("OPENTRACE_RUST_BACKEND") == "1" else "python"
-
-
-def _backend():
-    if active_backend() == "rust":
-        from . import rust_bridge
-        return rust_bridge
-    return arrange_core
-
+    return "rust"
 
 def align_offsets(bounds, axis, edge):
-    return _backend().align_offsets(bounds, axis, edge)
-
+    return rust_bridge.align_offsets(bounds, axis, edge)
 
 def distribute_offsets(bounds, axis):
-    return _backend().distribute_offsets(bounds, axis)
+    return rust_bridge.distribute_offsets(bounds, axis)

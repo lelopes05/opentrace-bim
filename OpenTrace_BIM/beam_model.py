@@ -12,6 +12,7 @@ from .curve_utils import soften_curve_facets
 from .complex_profile import add_caps_and_sides, has_curved_edges, profile_loops
 from .profile_library import resolve_profile
 from .materials import transferable_face_attrs
+from . import rust_bridge as _rust_geometry
 
 KEY = "arquitetura_parametrica"
 SCHEMA = 1
@@ -156,12 +157,7 @@ def _circumcenter2(a, b, c):
 
 
 def _vertical_z_values(run_positions, run_length, rise, sagitta):
-    """Circular vertical profile z(s) over plan-path arclength ``s``.
-
-    The sagitta is a vertical midpoint offset from the straight chord.  This
-    keeps the projection in plan untouched while providing a true circular
-    profile in the run/Z plane for ordinary architectural beam curvatures.
-    """
+    """Native Rust vertical circular profile with original BIM validation."""
     L = float(run_length)
     h = float(sagitta)
     rise = float(rise)
@@ -171,27 +167,10 @@ def _vertical_z_values(run_positions, run_length, rise, sagitta):
         return [rise * (float(s) / L) for s in run_positions]
     if abs(h) > L * 5.0:
         raise BeamError("A curvatura vertical é fechada demais para esta viga.")
-    mid = (L * 0.5, rise * 0.5 + h)
-    centre = _circumcenter2((0.0, 0.0), mid, (L, rise))
-    if centre is None:
-        return [rise * (float(s) / L) for s in run_positions]
-    cx, cz = centre
-    radius = math.hypot(cx, cz)
-    sign = 1.0 if mid[1] >= cz else -1.0
-    vals = []
-    for s in run_positions:
-        rad = radius * radius - (float(s) - cx) ** 2
-        if rad < -1.0e-7:
-            raise BeamError("A curvatura vertical gera retorno sobre si mesma; reduza a flecha.")
-        z = cz + sign * math.sqrt(max(0.0, rad))
-        vals.append(z)
-    # Numerical circle branch selection can be off by a constant epsilon;
-    # pin exact endpoints to the model's semantic values.
-    if vals:
-        vals[0] = 0.0
-        vals[-1] = rise
-    return vals
-
+    try:
+        return _rust_geometry.beam_vertical_z(run_positions, L, rise, h)
+    except ValueError as exc:
+        raise BeamError(str(exc)) from exc
 
 def _resample_plan(plan, min_segments=20):
     """Resample a plan polyline by arclength.
