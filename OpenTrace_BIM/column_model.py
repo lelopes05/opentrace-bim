@@ -30,6 +30,7 @@ DEFAULTS = {
     # fixed inclination in the local bending plane.
     "base_cut_mode": "horizontal", "top_cut_mode": "horizontal",
     "base_cut_angle": 0.0, "top_cut_angle": 0.0,
+    "section_transition": "linear",
     # Section stations along the axis. None means a single untapered segment.
     "stations": None,
 }
@@ -149,6 +150,8 @@ def validate(values):
             out[cut+"_cut_mode"]="horizontal"
         if not -85.0<=out[cut+"_cut_angle"]<=85.0:
             raise ColumnError("Inclinação do corte de topo/base deve ficar entre -85° e 85°.")
+    if out.get("section_transition") not in ("linear", "parabolic"):
+        out["section_transition"]="linear"
     if out.get("anchor") not in ANCHOR_FACTORS:
         out["anchor"] = "mc"
     if out.get("top_mode") not in ("height", "level"):
@@ -278,12 +281,17 @@ def _point_at_fraction(points, cumulative, t):
 def _centerline_local(values):
     return _segment_centerline(values)
 
-def _dims_at(stations, t):
+def _dims_at(stations, t, transition="linear"):
     t = max(0.0, min(1.0, float(t)))
     for a, b in zip(stations, stations[1:]):
         if t <= b["t"] + 1.0e-12:
             span = b["t"] - a["t"]
             u = 0.0 if span <= 1.0e-12 else (t - a["t"]) / span
+            u = max(0.0, min(1.0,u))
+            if transition=="parabolic":
+                # Smooth monotone Hermite interpolation, no overshoot:
+                # the section never grows beyond either station's dimensions.
+                u = u*u*(3.0-2.0*u)
             return {
                 "width": a["width"] + (b["width"] - a["width"]) * u,
                 "depth": a["depth"] + (b["depth"] - a["depth"]) * u,
@@ -383,7 +391,8 @@ def column_curve_guidance(values, segment_index, sagitta):
     p=validate(values);st=p["stations"];i=max(0,min(int(segment_index),len(st)-2))
     a,b=st[i],st[i+1]
     height=float(p["height"])*(float(b["t"])-float(a["t"]))
-    mid=_dims_at(st, (float(a["t"])+float(b["t"]))/2.0)
+    mid=_dims_at(st, (float(a["t"])+float(b["t"]))/2.0,
+                 p.get("section_transition","linear"))
     if p["section_type"]=="complex":
         # No second moments of area are available for arbitrary profiles yet;
         # check only the curve's geometric displacement.
@@ -425,6 +434,9 @@ def build_body(values, previous=None):
                 xy=[QVector3D(float(x),float(y),0) for x,y in L["points"]]
                 ring.append(_section_ring(p,centers,fractions,idx,xy))
             ring_loops.append(ring)
+        split_side_faces=(
+            any(abs(float(s.get("curvature",0.0)))>1e-9 for s in p["stations"]) or
+            p["base_cut_mode"]!="horizontal" or p["top_cut_mode"]!="horizontal")
         groups=grouped_loops(base_loops);index_of={id(L):i for i,L in enumerate(base_loops)}
         for grp in groups:
             oi=index_of[id(grp["outer"])];his=[index_of[id(h)] for h in grp["holes"]]
@@ -438,28 +450,35 @@ def build_body(values, previous=None):
                 a,b=ring_loops[k][li],ring_loops[k+1][li];n=len(a)
                 for i in range(n):
                     j=(i+1)%n
-                    for triangle in ((a[i],a[j],b[j]),(a[i],b[j],b[i])):
-                        f=mesh.add_face(list(triangle))
+                    faces = ((a[i],a[j],b[j]),(a[i],b[j],b[i])) if split_side_faces else (
+                        (a[i],a[j],b[j],b[i]),)
+                    for outline in faces:
+                        f=mesh.add_face(list(outline))
                         f.attrs.update(old_attrs.get("side",old_default or {}));f.attrs[FACE_KEY]="side"
         if any(abs(float(st.get("curvature",0.0)))>1e-9 for st in p.get("stations",())) or has_curved_edges(p.get("profile_data")):
             soften_curve_facets(mesh)
     else:
         rings = []
         for idx,(center, t) in enumerate(zip(centers, fractions)):
-            dims=_dims_at(p["stations"], t)
+            dims=_dims_at(p["stations"], t,p.get("section_transition","linear"))
             poly = _profile_polygon(p, dims)
             rings.append(_section_ring(p,centers,fractions,idx,poly))
         face = mesh.add_face(list(reversed(rings[0])))
         face.attrs.update(old_attrs.get("bottom", old_default or {})); face.attrs[FACE_KEY] = "bottom"
         face = mesh.add_face(rings[-1])
         face.attrs.update(old_attrs.get("top", old_default or {})); face.attrs[FACE_KEY] = "top"
+        split_side_faces=(
+            any(abs(float(s.get("curvature",0.0)))>1e-9 for s in p["stations"]) or
+            p["base_cut_mode"]!="horizontal" or p["top_cut_mode"]!="horizontal")
         n = len(rings[0])
         for k in range(len(rings) - 1):
             a, b = rings[k], rings[k + 1]
             for i in range(n):
                 j = (i + 1) % n
-                for triangle in ((a[i], a[j], b[j]), (a[i], b[j], b[i])):
-                    face = mesh.add_face(list(triangle))
+                outlines = ((a[i],a[j],b[j]),(a[i],b[j],b[i])) if split_side_faces else (
+                    (a[i],a[j],b[j],b[i]),)
+                for poly in outlines:
+                    face = mesh.add_face(list(poly))
                     face.attrs.update(old_attrs.get("side", old_default or {})); face.attrs[FACE_KEY] = "side"
         if any(abs(float(st.get("curvature", 0.0))) > 1.0e-9 for st in p.get("stations", ())) or p.get("profile") == "circle":
             soften_curve_facets(mesh)
@@ -485,6 +504,7 @@ def _record(values):
         "curvature": p.get("curvature", 0.0), "material_name": p.get("material_name"),
         "base_cut_mode":p["base_cut_mode"],"top_cut_mode":p["top_cut_mode"],
         "base_cut_angle":p["base_cut_angle"],"top_cut_angle":p["top_cut_angle"],
+        "section_transition":p["section_transition"],
     }
 
 

@@ -66,3 +66,8 @@ navegação para outras ferramentas, sincronizando na troca efetiva de ferrament
   A janela de confirmação oferece Ajustar à flecha L/30, Modelagem livre
   ou Cancelar. Em perfis complexos não calculamos I/r; só avisamos sobre
   flecha, por enquanto.
+
+- Transição entre medidas da seção: linear ou parabólica suave (monótona,
+  sem extrapolação além das extremidades).
+- Seções retas com cortes horizontais preservam faces quadrangulares; o
+  detalhamento triangular é reservado a curvas e cortes orientados.

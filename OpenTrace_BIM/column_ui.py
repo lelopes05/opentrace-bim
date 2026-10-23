@@ -70,6 +70,11 @@ class ColumnController(QWidget):
         self.inclination=QDoubleSpinBox();self.inclination.setLocale(ui_locale());self.inclination.setDecimals(2);self.inclination.setRange(0,85);self.inclination.setSingleStep(1);self.inclination.setSuffix("°");self.inclination.setKeyboardTracking(False);self.inclination.valueChanged.connect(self.values_changed);form.addRow(t("Inclinação segmento"),self.inclination)
         self.inclination_azimuth=QDoubleSpinBox();self.inclination_azimuth.setLocale(ui_locale());self.inclination_azimuth.setDecimals(2);self.inclination_azimuth.setRange(-360,360);self.inclination_azimuth.setSingleStep(5);self.inclination_azimuth.setSuffix("°");self.inclination_azimuth.setKeyboardTracking(False);self.inclination_azimuth.valueChanged.connect(self.values_changed);form.addRow(t("Direção segmento"),self.inclination_azimuth)
         self.curvature=self._spin(0.05,-MAX_DIM,MAX_DIM);form.addRow(t("Flecha / curvatura"),self.curvature)
+        self.section_transition=QComboBox()
+        self.section_transition.addItem(t("Linear entre seções"),"linear")
+        self.section_transition.addItem(t("Parabólica suave"),"parabolic")
+        self.section_transition.currentIndexChanged.connect(self.values_changed)
+        form.addRow(t("Transição de seção"),self.section_transition)
         # Explicit end-cut controls: orientation may differ from the axis
         # inclination, just as the reference Archicad column dialog allows.
         self.base_cut_mode=QComboBox()
@@ -251,6 +256,8 @@ class ColumnController(QWidget):
                 index=combo.findData(mode)
                 combo.setCurrentIndex(index if index>=0 else 0)
                 getattr(self,key+"_cut_angle").setValue(p.get(key+"_cut_angle",0.0))
+            trans=self.section_transition.findData(p.get("section_transition","linear"))
+            self.section_transition.setCurrentIndex(trans if trans>=0 else 0)
             self.rotation.setValue(p["rotation"]);mi=self.material.findData(p.get("material_name"));self.material.setCurrentIndex(mi if mi>=0 else 0)
             for key,b in self.anchor_buttons.items():b.setChecked(key==p.get("anchor","mc"))
             linked=p.get("top_mode")=="level" and p.get("top_level");self.height.setEnabled(not linked);self.top_offset.setEnabled(bool(linked));self._update_section_widgets(p)
@@ -329,7 +336,8 @@ class ColumnController(QWidget):
                              base_cut_mode=self.base_cut_mode.currentData() or "horizontal",
                              top_cut_mode=self.top_cut_mode.currentData() or "horizontal",
                              base_cut_angle=float(self.base_cut_angle.value()),
-                             top_cut_angle=float(self.top_cut_angle.value()))
+                             top_cut_angle=float(self.top_cut_angle.value()),
+                             section_transition=self.section_transition.currentData() or "linear")
         if self.defaults.get("base_level"):self.defaults["base_offset"]=float(self.base_offset.value())
         else:self.defaults["base_z"]=float(self.base_offset.value())
         if self.defaults.get("top_mode")=="level":self.defaults["top_offset"]=float(self.top_offset.value())

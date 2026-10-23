@@ -427,6 +427,17 @@ class ContextualBar(QWidget):
             self._field(p, "Base", column.base_offset, width=77, grouped=True, name="column_base")
             self._section(p, t("Âncora · 9 pontos"))
             self._anchor_grid(p, column, "column")
+            self._section(p, t("Transição de seções"))
+            source=column.section_transition
+            transition=QComboBox(self)
+            transition.setObjectName("opentrace_context_column_section_transition")
+            for i in range(source.count()):
+                transition.addItem(source.itemText(i),source.itemData(i))
+            transition.activated.connect(
+                lambda i, box=transition, original=source:
+                    self._select_combo(original,box.itemData(i)))
+            self._target(p).addWidget(transition)
+            self._combo_controls.append((transition,lambda ctrl=source:ctrl.currentData(),source))
             self._section(p, t("Cortes de base e topo"))
             for cut, label in (("base","Base"),("top","Topo")):
                 source=getattr(column,cut+"_cut_mode")

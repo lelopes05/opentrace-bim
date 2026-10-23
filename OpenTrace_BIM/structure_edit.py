@@ -351,12 +351,13 @@ class ColumnCurveTool(Tool):
         sagitta=_resolve_column_curve_guidance(
             self.controller,self.values,self.segment_index,sagitta)
         if sagitta is None:
-            return
+            return False
         vals=self._preview_values(sagitta)
         viewport.history.execute(EditColumn(viewport.scene,self.group,vals))
         if viewport.history.last_error:raise ColumnError(viewport.history.last_error)
         viewport.notify_scene_changed();msg=(f"Segmento {self.segment_index+1} endireitado." if abs(float(sagitta))<1e-7 else f"Segmento {self.segment_index+1} curvado em arco.")
         self.controller.message(msg);self.reset();self.controller.return_to_select()
+        return True
     def on_click(self,ctx):
         from .column_model import ColumnError
         try:self.sagitta=self._sagitta_from_world(ctx.world);self._commit(ctx.viewport,self.sagitta)
@@ -368,7 +369,7 @@ class ColumnCurveTool(Tool):
             if not isinstance(value,(int,float)) or not math.isfinite(value):raise ColumnError("Digite uma flecha válida.")
             h=float(value)
             if h>=0.0 and self.sagitta<0.0:h=-h
-            self._commit(viewport,h);return True
+            return self._commit(viewport,h) is not False
         except ColumnError as exc:self.controller.message(str(exc),error=True);return False
     def on_cancel(self,viewport):self.reset();self.controller.return_to_select();self.controller.message("Curvatura cancelada.");viewport.update()
     def rubber_band_lines(self):
