@@ -70,6 +70,26 @@ class ColumnController(QWidget):
         self.inclination=QDoubleSpinBox();self.inclination.setLocale(ui_locale());self.inclination.setDecimals(2);self.inclination.setRange(0,85);self.inclination.setSingleStep(1);self.inclination.setSuffix("°");self.inclination.setKeyboardTracking(False);self.inclination.valueChanged.connect(self.values_changed);form.addRow(t("Inclinação segmento"),self.inclination)
         self.inclination_azimuth=QDoubleSpinBox();self.inclination_azimuth.setLocale(ui_locale());self.inclination_azimuth.setDecimals(2);self.inclination_azimuth.setRange(-360,360);self.inclination_azimuth.setSingleStep(5);self.inclination_azimuth.setSuffix("°");self.inclination_azimuth.setKeyboardTracking(False);self.inclination_azimuth.valueChanged.connect(self.values_changed);form.addRow(t("Direção segmento"),self.inclination_azimuth)
         self.curvature=self._spin(0.05,-MAX_DIM,MAX_DIM);form.addRow(t("Flecha / curvatura"),self.curvature)
+        # Explicit end-cut controls: orientation may differ from the axis
+        # inclination, just as the reference Archicad column dialog allows.
+        self.base_cut_mode=QComboBox()
+        self.top_cut_mode=QComboBox()
+        for combo in (self.base_cut_mode,self.top_cut_mode):
+            combo.addItem(t("Horizontal"),"horizontal")
+            combo.addItem(t("Perpendicular ao eixo"),"normal")
+            combo.addItem(t("Ângulo personalizado"),"angle")
+            combo.currentIndexChanged.connect(self.values_changed)
+        form.addRow(t("Corte na base"),self.base_cut_mode)
+        form.addRow(t("Corte no topo"),self.top_cut_mode)
+        self.base_cut_angle=QDoubleSpinBox();self.top_cut_angle=QDoubleSpinBox()
+        for control in (self.base_cut_angle,self.top_cut_angle):
+            control.setLocale(ui_locale());control.setDecimals(2)
+            control.setRange(-85.0,85.0);control.setSingleStep(1.0)
+            control.setSuffix("°");control.setKeyboardTracking(False)
+            control.valueChanged.connect(self.values_changed)
+            control.setToolTip(t("Ângulo do plano da seção em relação à horizontal."))
+        form.addRow(t("Ângulo corte base"),self.base_cut_angle)
+        form.addRow(t("Ângulo corte topo"),self.top_cut_angle)
         self.rotation=QDoubleSpinBox();self.rotation.setLocale(ui_locale());self.rotation.setDecimals(2);self.rotation.setRange(-360,360);self.rotation.setSingleStep(5);self.rotation.setSuffix("°");self.rotation.setKeyboardTracking(False);self.rotation.valueChanged.connect(self.values_changed);form.addRow(t("Rotação"),self.rotation)
         self.material=MaterialPickerCombo();self.material.currentIndexChanged.connect(self.values_changed);self.material.setToolTip('Named IngeTrazo material applied to the column faces. IfcMaterial still depends on the exporter.');form.addRow(t("Material"),self.material)
         anchor_box=QWidget();grid=QGridLayout(anchor_box);grid.setContentsMargins(0,0,0,0);grid.setSpacing(2);self.anchor_buttons={}
@@ -224,7 +244,14 @@ class ColumnController(QWidget):
         try:
             self.defaults.update(p);name=p.get("base_level");i=self.base_level.findData(name);self.base_level.setCurrentIndex(i if i>=0 else 0);self.base_offset.setValue(p.get("base_offset",0.0) if name else p.get("base_z",0.0))
             tname=p.get("top_level") if p.get("top_mode")=="level" else None;i=self.top_level.findData(tname);self.top_level.setCurrentIndex(i if i>=0 else 0);self.top_offset.setValue(p.get("top_offset",0.0));self.height.setValue(p["height"])
-            self.refresh_complex_profile_options(p.get("profile_ref"),p.get("profile_data"));self.section_type.setCurrentIndex(max(0,self.section_type.findData(p.get("section_type","simple"))));self.profile.setCurrentIndex(max(0,self.profile.findData(p["profile"])));ci=self.complex_profile.findData(p.get("profile_ref"));self.complex_profile.setCurrentIndex(ci if ci>=0 else 0);self._load_segment_fields(p);self.rotation.setValue(p["rotation"]);mi=self.material.findData(p.get("material_name"));self.material.setCurrentIndex(mi if mi>=0 else 0)
+            self.refresh_complex_profile_options(p.get("profile_ref"),p.get("profile_data"));self.section_type.setCurrentIndex(max(0,self.section_type.findData(p.get("section_type","simple"))));self.profile.setCurrentIndex(max(0,self.profile.findData(p["profile"])));ci=self.complex_profile.findData(p.get("profile_ref"));self.complex_profile.setCurrentIndex(ci if ci>=0 else 0);self._load_segment_fields(p)
+            for key in ("base","top"):
+                combo=getattr(self,key+"_cut_mode")
+                mode=p.get(key+"_cut_mode","horizontal")
+                index=combo.findData(mode)
+                combo.setCurrentIndex(index if index>=0 else 0)
+                getattr(self,key+"_cut_angle").setValue(p.get(key+"_cut_angle",0.0))
+            self.rotation.setValue(p["rotation"]);mi=self.material.findData(p.get("material_name"));self.material.setCurrentIndex(mi if mi>=0 else 0)
             for key,b in self.anchor_buttons.items():b.setChecked(key==p.get("anchor","mc"))
             linked=p.get("top_mode")=="level" and p.get("top_level");self.height.setEnabled(not linked);self.top_offset.setEnabled(bool(linked));self._update_section_widgets(p)
         finally:self._loading=False
@@ -244,6 +271,9 @@ class ColumnController(QWidget):
         self.segment.setVisible(True)
         for w in (self.width,self.width_end,self.depth,self.depth_end):self._set_form_field_visible(w,simple and rect)
         for w in (self.diameter,self.diameter_end):self._set_form_field_visible(w,simple and circ)
+        for cut in ("base","top"):
+            mode=getattr(self,cut+"_cut_mode").currentData()
+            self._set_form_field_visible(getattr(self,cut+"_cut_angle"),mode=="angle")
 
     def segment_changed(self,*_):
         if self._loading:
@@ -295,7 +325,11 @@ class ColumnController(QWidget):
         b.update(width=float(self.width_end.value()),depth=float(self.depth_end.value()),diameter=float(self.diameter_end.value()))
         ref=self.complex_profile.currentData() if (self.section_type.currentData() or "simple")=="complex" else None
         embedded=self.defaults.get("profile_data") if ref and self.defaults.get("profile_ref")==ref else profile_by_id(ref)
-        self.defaults.update(section_type=self.section_type.currentData() or "simple",profile_ref=ref,profile_data=embedded,profile=self.profile.currentData(),stations=stations,width=float(stations[0]["width"]),depth=float(stations[0]["depth"]),diameter=float(stations[0]["diameter"]),inclination=float(stations[0].get("inclination",0.0)),inclination_azimuth=float(stations[0].get("inclination_azimuth",0.0)),curvature=float(stations[0].get("curvature",0.0)),rotation=float(self.rotation.value()),material_name=self.material.currentData())
+        self.defaults.update(section_type=self.section_type.currentData() or "simple",profile_ref=ref,profile_data=embedded,profile=self.profile.currentData(),stations=stations,width=float(stations[0]["width"]),depth=float(stations[0]["depth"]),diameter=float(stations[0]["diameter"]),inclination=float(stations[0].get("inclination",0.0)),inclination_azimuth=float(stations[0].get("inclination_azimuth",0.0)),curvature=float(stations[0].get("curvature",0.0)),rotation=float(self.rotation.value()),material_name=self.material.currentData(),
+                             base_cut_mode=self.base_cut_mode.currentData() or "horizontal",
+                             top_cut_mode=self.top_cut_mode.currentData() or "horizontal",
+                             base_cut_angle=float(self.base_cut_angle.value()),
+                             top_cut_angle=float(self.top_cut_angle.value()))
         if self.defaults.get("base_level"):self.defaults["base_offset"]=float(self.base_offset.value())
         else:self.defaults["base_z"]=float(self.base_offset.value())
         if self.defaults.get("top_mode")=="level":self.defaults["top_offset"]=float(self.top_offset.value())

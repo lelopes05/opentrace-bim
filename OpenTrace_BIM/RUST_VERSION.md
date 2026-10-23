@@ -50,3 +50,19 @@ O CI valida sintaxe e compilação Rust, mas não substitui testes reais de Qt/G
 O Perfil Complexo usa diretamente as ações nativas do menu Draw como botões
 CAD na subpaleta inferior; a página da biblioteca deixa de bloquear a
 navegação para outras ferramentas, sincronizando na troca efetiva de ferramenta.
+
+## Curvas de pilar e cortes (2026-10-23)
+
+- O código Rust posiciona cada anel do pilar por rotação rígida: as dimensões
+  internas da seção escolhida nunca são ampliadas nem reduzidas pelo arco.
+- Nas extremidades há cortes independentes Horizontal, Normal ao eixo ou
+  Inclinação personalizada (-85° a 85°). A mesma parametrização vale para
+  pilares de seção única ou com segmentos múltiplos; medidas iniciais e
+  finais de cada segmento foram mantidas.
+- O Rust calcula alertas geométricos opcionais de L/30, relação 80% de medidas
+  centrais, 70% de área central, dimensões 14/19 cm, área 360 cm² e uma
+  esbeltez indicativa usando hipótese simplificada L_eff=L.
+- Alertas não são validação estrutural nem garantia de atendimento à NBR 6118.
+  A janela de confirmação oferece Ajustar à flecha L/30, Modelagem livre
+  ou Cancelar. Em perfis complexos não calculamos I/r; só avisamos sobre
+  flecha, por enquanto.

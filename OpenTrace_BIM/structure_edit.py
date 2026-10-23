@@ -239,6 +239,48 @@ class BeamCurveTool(Tool):
         return (f"{self.sagitta:.4f} m".replace(".", ","),)
 
 
+def _resolve_column_curve_guidance(controller, values, segment_index, sagitta):
+    """Ask before exceeding optional architectural geometry guidelines.
+
+    Never claim load-bearing safety. Free modelling stays available even if
+    a warning is raised. The only automatic change is clamping sagitta.
+    """
+    from .column_model import column_curve_guidance
+    from PySide6.QtWidgets import QMessageBox
+    report=column_curve_guidance(values,segment_index,sagitta)
+    flags=report["flags"]
+    if not flags:
+        return float(sagitta)
+    details=[]
+    if flags&1:details.append("A flecha supera L/30 para este segmento.")
+    if flags&2:details.append("A dimensão no meio fica abaixo de 80% da maior extremidade.")
+    if flags&4:details.append("A área no meio fica abaixo de 70% da maior extremidade.")
+    if flags&8:details.append("A menor dimensão do trecho é inferior a 14 cm.")
+    elif flags&16:details.append("Dimensão inferior a 19 cm: a NBR 6118 exige verificações específicas.")
+    if flags&32:details.append("A área da seção é inferior a 360 cm².")
+    if flags&64:details.append("Esbeltez indicativa L/r acima de 90 (comprimento efetivo não verificado).")
+    question=QMessageBox(controller.app.window)
+    question.setIcon(QMessageBox.Warning)
+    question.setWindowTitle("Curvatura do pilar · orientação de modelagem")
+    question.setText("A curvatura solicitada ultrapassa recomendações geométricas.")
+    question.setInformativeText(
+        "\n".join("• "+s for s in details) +
+        "\n\nPara uso em obra, geometria, esbeltez, cargas e ancoragens "
+        "devem ser verificadas por engenheiro estrutural; esta "
+        "verificação não certifica segurança.")
+    fit=question.addButton("Ajustar à flecha L/30",QMessageBox.AcceptRole)
+    free=question.addButton("Continuar modelagem livre",QMessageBox.DestructiveRole)
+    question.addButton("Cancelar",QMessageBox.RejectRole)
+    question.setDefaultButton(fit)
+    question.exec()
+    selected=question.clickedButton()
+    if selected is free:
+        return float(sagitta)
+    if selected is fit:
+        return math.copysign(min(abs(float(sagitta)),report["max_sagitta"]),sagitta)
+    return None
+
+
 class ColumnCurveTool(Tool):
     step_id = "column.edit.curve"
     """Edit only the selected column segment curvature."""
@@ -306,6 +348,10 @@ class ColumnCurveTool(Tool):
     def _commit(self,viewport,sagitta):
         from .column_commands import EditColumn
         from .column_model import ColumnError
+        sagitta=_resolve_column_curve_guidance(
+            self.controller,self.values,self.segment_index,sagitta)
+        if sagitta is None:
+            return
         vals=self._preview_values(sagitta)
         viewport.history.execute(EditColumn(viewport.scene,self.group,vals))
         if viewport.history.last_error:raise ColumnError(viewport.history.last_error)
