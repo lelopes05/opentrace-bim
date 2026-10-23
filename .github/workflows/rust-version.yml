@@ -41,6 +41,8 @@ jobs:
           $actual = (Get-FileHash 'OpenTrace_BIM-v0.44.0.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
           $expected = 'b03455f4c24b95592e4ce671bdb85eb60e06bff02a617bcc497d8697fa40a937'
           if ($actual -ne $expected) { throw "Source package SHA-256 mismatch: $actual" }
+      - name: Compare full geometry against original 0.44.0
+        run: python OpenTrace_BIM/rust_core/verify_geometry.py OpenTrace_BIM-v0.44.0.zip
       - name: Build OpenTrace BIM 0.44.0 Rust ZIP
         run: python ci/package_rust.py OpenTrace_BIM-v0.44.0.zip
       - name: Upload Windows installation ZIP

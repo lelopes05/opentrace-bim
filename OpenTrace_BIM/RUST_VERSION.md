@@ -27,3 +27,7 @@ O workflow Windows compila cargo, executa testes e publica um artefato ZIP.
 A validação real no IngeTrazo Windows ainda deve ser feita pelo usuário.
 
 Não alterar main, publicar release ou atualizar catálogo.
+
+Além dos testes Rust, o workflow compara milhares de casos diretamente com os
+algoritmos Python do ZIP original, incluindo bordas curvas, interseções, perfis,
+vigas e prismas.

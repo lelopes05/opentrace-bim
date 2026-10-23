@@ -27,6 +27,7 @@ OVERLAYS = [
     "OpenTrace_BIM/rust_core/Cargo.toml",
     "OpenTrace_BIM/rust_core/src/lib.rs",
     "OpenTrace_BIM/rust_core/verify_rust.py",
+    "OpenTrace_BIM/rust_core/verify_geometry.py",
 ]
 DLL = "OpenTrace_BIM/rust_core/target/release/opentrace_rust_core.dll"
 

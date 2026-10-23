@@ -353,6 +353,8 @@ def arc_points(start, end, sagitta):
     h = float(sagitta)
     if not math.isfinite(h):
         raise WallError("Curvatura da parede inválida.")
+    if abs(h) < ARC_EPS:
+        return [a, b]
     sampled = _rust_geometry.sample_arc_xy(
         (a.x(), a.y()), (b.x(), b.y()), h,
         step_deg=ARC_MAX_STEP_DEG, max_segment=ARC_MAX_SEGMENT,

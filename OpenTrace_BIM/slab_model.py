@@ -174,6 +174,8 @@ def arc_points(start, end, sagitta):
     if length < MIN_DIM:
         raise SlabError("A aresta da laje é curta demais para ser curvada.")
     h = float(sagitta)
+    if abs(h) < ARC_EPS:
+        return [a, b]
     sampled = _rust_geometry.sample_arc_xy(
         (a.x(),a.y()), (b.x(),b.y()), h,
         step_deg=ARC_MAX_STEP_DEG, max_segment=ARC_MAX_SEGMENT,
