@@ -6,7 +6,7 @@ coherent English UI, applied explicitly to OpenTrace-owned widgets only.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QSettings
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -2100,7 +2100,18 @@ _DOOR_EDITOR_EN = {'A parede hospedadora da porta não existe.': 'The door host 
 
 
 def english(text: str) -> str:
-    """Return extension-owned UI text in English, regardless of host locale."""
+    """Extension-owned UI text in English -- unless OpenTrace runs in
+    Portuguese, its source language, where the text is returned as is.
+
+    Older code calls this directly on text it shows; :func:`t` is the T2
+    way. Audits that need English regardless use :func:`_english`."""
+    if language() == "pt-BR":
+        return text
+    return _english(text)
+
+
+def _english(text: str) -> str:
+    """Return extension-owned UI text in English, regardless of language."""
     if not isinstance(text, str) or not text:
         return text
     if text in _DOOR_EDITOR_EN:
@@ -2125,7 +2136,10 @@ def englishize_widget(root) -> None:
     User-editable field contents are intentionally left alone.  Labels,
     buttons, tabs, non-editable combo items, placeholders, group titles,
     dock/window titles and tooltips are extension chrome and are translated.
+    In Portuguese (the source language) there is nothing to translate.
     """
+    if language() == "pt-BR":
+        return
     try:
         from PySide6.QtWidgets import (
             QWidget, QLabel, QAbstractButton, QGroupBox, QDockWidget,
@@ -2200,12 +2214,63 @@ def translate_widget(root) -> None:
         englishize_widget(root)
 
 
+#: QSettings key of the user's choice: "auto" (follow IngeTrazo) or a code.
+LANGUAGE_SETTING = "OpenTrace_BIM/language"
+#: Interface languages OpenTrace can show, in their own names. Spanish is
+#: opt-in until es.json covers the interface; missing texts show in English.
+LANGUAGE_CHOICES = (
+    ("en", "English"),
+    ("pt-BR", "Português (Brasil)"),
+    ("es", "Español (parcial)"),
+)
+_SUPPORTED = {code for code, _ in LANGUAGE_CHOICES}
+_LANGUAGE: str | None = None
+
+
+def language_preference() -> str:
+    """The saved choice: ``"auto"`` or one of :data:`LANGUAGE_CHOICES`."""
+    try:
+        value = str(QSettings().value(LANGUAGE_SETTING, "auto") or "auto")
+    except Exception:  # noqa: BLE001 - settings unavailable: follow the host
+        return "auto"
+    return value if value in _SUPPORTED else "auto"
+
+
+def set_language_preference(code: str) -> None:
+    """Save the choice; like IngeTrazo's own language, it applies on the
+    next start (widgets are translated as they are built)."""
+    QSettings().setValue(LANGUAGE_SETTING,
+                         code if code in _SUPPORTED else "auto")
+
+
+def _host_language() -> str:
+    try:
+        from core.i18n import current_language
+        return str(current_language() or "en")
+    except Exception:  # noqa: BLE001 - outside IngeTrazo (tests, audits)
+        return "en"
+
+
 def language() -> str:
-    """English-only OpenTrace chrome in this ISOLATED experimental build.
+    """OpenTrace's interface language, decided once per session.
+
+    The user's choice wins; otherwise OpenTrace follows IngeTrazo when it
+    runs in Portuguese (the source language, always complete) and uses
+    English for every other host language. Spanish follows IngeTrazo too
+    once es.json covers the interface; until then it is opt-in.
 
     This does not affect IngeTrazo's locale, IFC codes, or user-entered names.
     """
-    return "en"
+    global _LANGUAGE
+    if _LANGUAGE is None:
+        chosen = language_preference()
+        if chosen != "auto":
+            _LANGUAGE = chosen
+        elif _host_language() == "pt-BR":
+            _LANGUAGE = "pt-BR"
+        else:
+            _LANGUAGE = "en"
+    return _LANGUAGE
 
 
 def t(text: str, *, _locale: str | None = None, **kw) -> str:
@@ -2223,8 +2288,10 @@ def t(text: str, *, _locale: str | None = None, **kw) -> str:
             out = catalog[text]
         else:
             MISSING.add((lang, text))
-            # English's legacy fallback is removed in T2.
-            out = english(text) if lang == "en" else text
+            # Not translated yet: English reads better than the Portuguese
+            # source for anyone who did not choose Portuguese. The legacy
+            # English tables are removed in T2.
+            out = _english(text)
     return out.format(**kw) if kw else out
 
 

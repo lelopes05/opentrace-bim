@@ -316,6 +316,30 @@ class ArchitectureSuitePanel:
         update_lay.addWidget(self.update_button)
         lay.addWidget(update_box)
 
+        # Interface language: follow IngeTrazo, or a fixed choice.
+        from .i18n import LANGUAGE_CHOICES, language_preference, set_language_preference
+        language_box = QFrame(content)
+        language_box.setFrameShape(QFrame.StyledPanel)
+        language_lay = QVBoxLayout(language_box)
+        language_lay.setContentsMargins(8, 8, 8, 8)
+        language_lay.setSpacing(6)
+        language_lay.addWidget(QLabel(t("Idioma da interface"), language_box))
+        self.language_combo = QComboBox(language_box)
+        self.language_combo.setObjectName("opentrace_language")
+        self.language_combo.addItem(t("Seguir o IngeTrazo"), "auto")
+        for code, name in LANGUAGE_CHOICES:
+            self.language_combo.addItem(name, code)
+        self.language_combo.setCurrentIndex(
+            max(0, self.language_combo.findData(language_preference())))
+        self.language_combo.currentIndexChanged.connect(
+            lambda _i: set_language_preference(self.language_combo.currentData()))
+        language_lay.addWidget(self.language_combo)
+        language_hint = QLabel(t("Aplica-se ao reiniciar o IngeTrazo."), language_box)
+        language_hint.setWordWrap(True)
+        language_hint.setProperty("visualRole", "hint")
+        language_lay.addWidget(language_hint)
+        lay.addWidget(language_box)
+
         # Single, real updater instance owned by the Home panel.
         # Do not contact the network until a manual click or opt-in startup check.
         from .updater import UpdateManager, auto_check_enabled

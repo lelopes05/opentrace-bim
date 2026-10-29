@@ -77,7 +77,11 @@ class LiveCommitAndEnglishUITests(unittest.TestCase):
 
     def test_open_trace_english_only_does_not_rename_objects(self):
         s=code('i18n.py')
-        self.assertIn('return "en"',s[s.index('def language()'):s.index('def t(')])
+        # English unless the user chose otherwise or IngeTrazo runs in
+        # Portuguese, the source language.
+        section=s[s.index('def language()'):s.index('def t(')]
+        self.assertIn('_LANGUAGE = "en"',section)
+        self.assertIn('_host_language() == "pt-BR"',section)
         # This is only chrome translation; no global name replacement or
         # mutation of scene/material/preset identifiers in i18n.py.
         self.assertNotIn('scene.materials.update(',s)
