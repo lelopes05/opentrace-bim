@@ -43,6 +43,7 @@ from .door_window_commands import EditHostedFill, reverse_hosted_door, sync_host
 from .door_window_core import normalize_fill, reanchor_fill, edit_fill_from_cut_dimension
 from .door_window_properties import FillPropertiesPanel
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
+from .length_field import LengthField, format_length
 from .i18n import t, ui_locale
 from .icons import icon as pa_icon, set_symbol_icon
 from .bim import ensure_ifc_identity, ifc_identity_data, set_ifc_metadata
@@ -254,7 +255,7 @@ class WallController(QObject):
         self.top_level.currentIndexChanged.connect(self.top_level_changed)
         form.addRow(t("Nível topo"), self.top_level)
 
-        self.top_offset = QDoubleSpinBox()
+        self.top_offset = LengthField()
         self.top_offset.setLocale(ui_locale())
         self.top_offset.setDecimals(4)
         self.top_offset.setRange(-MAX_DIM, MAX_DIM)
@@ -269,7 +270,7 @@ class WallController(QObject):
         self.refresh_level_options()
         for key, title in (("length", t("Comprimento")), ("thickness", t("Espessura")),
                            ("height", t("Altura")), ("base", t("Cota de base"))):
-            field = QDoubleSpinBox()
+            field = LengthField()
             field.setLocale(ui_locale())
             field.setDecimals(4)
             field.setRange(-MAX_DIM if key == "base" else MIN_DIM, MAX_DIM)
@@ -337,7 +338,7 @@ class WallController(QObject):
         oform.addRow("Selected opening",self.opening_selector)
         opening_rows=(("position",t("Posição ao longo da parede"),0.10),("width",t("Clear width at narrowest span"),0.10),("sill",t("Peitoril"),0.10),("height",t("Altura da abertura"),0.10))
         for key,label,step in opening_rows:
-            f=QDoubleSpinBox();f.setLocale(ui_locale());f.setDecimals(4);f.setRange(0.0,MAX_DIM);f.setSingleStep(step);f.setSuffix(" m");f.setKeyboardTracking(False);f.valueChanged.connect(self.opening_changed);self.opening_fields[key]=f;oform.addRow(label,f)
+            f=LengthField();f.setLocale(ui_locale());f.setDecimals(4);f.setRange(0.0,MAX_DIM);f.setSingleStep(step);f.setSuffix(" m");f.setKeyboardTracking(False);f.valueChanged.connect(self.opening_changed);self.opening_fields[key]=f;oform.addRow(label,f)
         self.opening_fields["width"].setToolTip(t("Largura livre mínima da abertura. Em paredes curvas, as faces interna e externa podem ter larguras projetadas diferentes; o valor informado é garantido no menor vão, para representar a passagem realmente disponível."))
         self._free_opening_width_tip = self.opening_fields["width"].toolTip()
         self.opening_fields["position"].setToolTip(t("Distância da abertura medida ao longo da linha de referência da parede."))
@@ -1401,7 +1402,7 @@ class WallController(QObject):
                     z = float(level["z"])
                 except (KeyError, TypeError, ValueError):
                     continue
-                label = f"{name}  ({z:+.2f} m)"
+                label = f"{name}  ({format_length(z, signed=True)})"
                 self.base_level.addItem(label, name)
                 self.top_level.addItem(label, name)
             index = self.base_level.findData(current_base)

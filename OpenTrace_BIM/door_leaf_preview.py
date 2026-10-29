@@ -11,6 +11,7 @@ import hashlib
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF, QFont, QBrush, QPixmap, QPainterPath
 from PySide6.QtWidgets import QWidget
+from .length_field import format_length
 from .door_grooves import groove_spans, normalize_grooves
 from .door_leaf_grid import (leaf_shapes, part_group, member_widths, arc_height,
                              grid_material, cell_rectangles, resolved_member)
@@ -300,7 +301,7 @@ class LeafPreview(QWidget):
             self._draw_grooved(painter,transform)
             painter.setFont(QFont('Sans Serif',9))
             painter.setPen(QColor('#34495e'))
-            painter.drawText(16,h-16,f'{self._width:.3f} × {self._height:.3f} m · '
+            painter.drawText(16,h-16,f'{format_length(self._width)} × {format_length(self._height)} · '
                 + (f'{self._angle}° · 45° steps' if self._isometric else 'Groove layout'))
             painter.end()
             return
@@ -392,7 +393,7 @@ class LeafPreview(QWidget):
                     painter.drawPolygon(poly)
         painter.setFont(QFont('Sans Serif',9))
         painter.setPen(QColor('#34495e'))
-        painter.drawText(16,h-16,f'{self._width:.3f} × {self._height:.3f} m · '
+        painter.drawText(16,h-16,f'{format_length(self._width)} × {format_length(self._height)} · '
                          +(f'{self._angle}° · 45° steps' if self._isometric
                            else 'drag the inset to reposition'))
         painter.end()

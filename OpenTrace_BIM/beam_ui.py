@@ -2,6 +2,7 @@
 """Beam toolbar action, side palette and graphical axis handles."""
 from __future__ import annotations
 import logging, math
+from .length_field import LengthField
 from .materials_ui import MaterialPickerCombo
 from PySide6.QtCore import QEvent,QPoint,QPointF,QRectF,QTimer,Qt
 from PySide6.QtGui import QAction,QColor,QIcon,QPainter,QPen,QPixmap,QVector3D
@@ -52,7 +53,7 @@ class BeamController(QWidget):
         self._make_panel();self._make_action();self._make_endpoint_palette();app.add_overlay(self.draw_overlay);app.viewport.installEventFilter(self)
         app.viewport.sceneVersionChanged.connect(self.schedule_refresh);self.schedule_refresh()
     def _spin(self,step=.01,minv=MIN_DIM,maxv=MAX_DIM):
-        w=QDoubleSpinBox();w.setLocale(ui_locale());w.setDecimals(4);w.setRange(minv,maxv);w.setSingleStep(step);w.setSuffix(" m");w.setKeyboardTracking(False);w.valueChanged.connect(self.values_changed);return w
+        w=LengthField();w.setLocale(ui_locale());w.setDecimals(4);w.setRange(minv,maxv);w.setSingleStep(step);w.setSuffix(" m");w.setKeyboardTracking(False);w.valueChanged.connect(self.values_changed);return w
     def _make_panel(self):
         self.panel=QWidget();lay=QVBoxLayout(self.panel);lay.addWidget(QLabel(t("Viga")));form=QFormLayout();self.form=form;lay.addLayout(form)
         self.level=QComboBox();self.level.currentIndexChanged.connect(self.level_changed);form.addRow(t("Nível"),self.level)

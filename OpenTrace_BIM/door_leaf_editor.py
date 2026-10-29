@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QPushButton, QScrollArea, QSpinBox, QSplitter,
     QToolButton, QVBoxLayout, QWidget,
 )
+from .length_field import LengthField, has_document_units
 from .door_leaf_grid import (DEFAULT_GRID, MATERIAL_GROUPS, PANEL_KINDS,
                              normalize_leaf_grid, part_group, leaf_shapes,
                              member_family, member_linked, resolved_member)
@@ -249,7 +250,7 @@ class DoorLeafGridDialog(QDialog):
             ('groove_end_margin','Top/bottom margin',.01,1.0,.005),
             ('groove_offset','Horizontal offset',-.30,.30,.005),
         ):
-            control=QSpinBox(groove_group) if name=='groove_count' else QDoubleSpinBox(groove_group)
+            control=QSpinBox(groove_group) if name=='groove_count' else LengthField(groove_group)
             control.setRange(minimum,maximum)
             if name!='groove_count':
                 control.setDecimals(4);control.setSuffix(' m')
@@ -334,7 +335,7 @@ class DoorLeafGridDialog(QDialog):
         self._insert_fields={}
         for key,title in (('width','Largura do visor'),('height','Altura do visor'),
                           ('frame_width','Largura da moldura')):
-            field=QDoubleSpinBox(inset)
+            field=LengthField(inset)
             field.setLocale(ui_locale())
             field.setDecimals(4)
             field.setRange(.001,1 if key in ('x','z') else 4)
@@ -349,17 +350,23 @@ class DoorLeafGridDialog(QDialog):
         self._unit_factors={'m':1.,'cm':.01,'mm':.001}
         self._display_unit=str(QSettings().value('OpenTrace_BIM/length_unit','cm'))
         if self._display_unit not in self._unit_factors:self._display_unit='cm'
+        if has_document_units():self._display_unit='m'
         self._unit_selector=QComboBox(inset)
         for unit in ('m','cm','mm'):self._unit_selector.addItem(unit,unit)
         self._unit_selector.setCurrentIndex(self._unit_selector.findData(self._display_unit))
         self._unit_selector.currentIndexChanged.connect(self._change_length_unit)
         form.addRow(t('Unidades de deslocamento'),self._unit_selector)
+        if has_document_units():
+            # The document's units decide; this selector predates them.
+            self._unit_selector.hide()
+            selector_label=form.labelForField(self._unit_selector)
+            if selector_label is not None:selector_label.hide()
         self._edge_fields={}
         for key,title in (('left','Afastamento esquerdo · folha → visor'),
                           ('right','Afastamento direito · visor → folha'),
                           ('bottom','Afastamento inferior · folha → visor'),
                           ('top','Afastamento superior · visor → folha')):
-            edge=QDoubleSpinBox(inset)
+            edge=LengthField(inset)
             edge.setLocale(ui_locale());edge.setDecimals(3)
             edge.setRange(0,10000);edge.setSingleStep(1)
             edge.setKeyboardTracking(False)
@@ -384,13 +391,13 @@ class DoorLeafGridDialog(QDialog):
             for text,value in SHAPES: mode.addItem(t(text),value)
             mode.currentIndexChanged.connect(self._recalculate)
             form.addRow(t(description),mode)
-            diameter=QDoubleSpinBox(profile_group)
+            diameter=LengthField(profile_group)
             diameter.setRange(.002,.5);diameter.setDecimals(4)
             diameter.setSingleStep(.005);diameter.setSuffix(' m')
             diameter.setLocale(ui_locale());diameter.setKeyboardTracking(False)
             diameter.valueChanged.connect(self._recalculate)
             form.addRow(t('Diâmetro · '+description),diameter)
-            depth=QDoubleSpinBox(profile_group)
+            depth=LengthField(profile_group)
             depth.setRange(.002,.5);depth.setDecimals(4)
             depth.setSingleStep(.005);depth.setSuffix(' m')
             depth.setLocale(ui_locale());depth.setKeyboardTracking(False)
@@ -445,7 +452,7 @@ class DoorLeafGridDialog(QDialog):
                           'em um montante ou travessa na elevação 2D.'),individual)
         self._individual_help.setWordWrap(True)
         form.addRow(self._individual_help)
-        self._individual_width=QDoubleSpinBox(individual)
+        self._individual_width=LengthField(individual)
         self._individual_width.setRange(.001,.5);self._individual_width.setDecimals(4)
         self._individual_width.setSingleStep(.005)
         self._individual_width.setSuffix(' m')
@@ -456,13 +463,13 @@ class DoorLeafGridDialog(QDialog):
         for title,value in SHAPES:self._individual_shape.addItem(t(title),value)
         self._individual_shape.currentIndexChanged.connect(self._recalculate)
         form.addRow(t('Seção individual'),self._individual_shape)
-        self._individual_diameter=QDoubleSpinBox(individual)
+        self._individual_diameter=LengthField(individual)
         self._individual_diameter.setRange(.002,.5);self._individual_diameter.setDecimals(4)
         self._individual_diameter.setSingleStep(.005);self._individual_diameter.setSuffix(' m')
         self._individual_diameter.setLocale(ui_locale());self._individual_diameter.setKeyboardTracking(False)
         self._individual_diameter.valueChanged.connect(self._recalculate)
         form.addRow(t('Diâmetro individual'),self._individual_diameter)
-        self._individual_depth=QDoubleSpinBox(individual)
+        self._individual_depth=LengthField(individual)
         self._individual_depth.setRange(.002,.5);self._individual_depth.setDecimals(4)
         self._individual_depth.setSingleStep(.005);self._individual_depth.setSuffix(' m')
         self._individual_depth.setLocale(ui_locale());self._individual_depth.setKeyboardTracking(False)
@@ -523,7 +530,7 @@ class DoorLeafGridDialog(QDialog):
         englishize_widget(self)
 
     def _add_measure(self,form,key,title,maximum=1.0):
-        field=QDoubleSpinBox(self)
+        field=LengthField(self)
         field.setLocale(ui_locale())
         field.setDecimals(4)
         field.setRange(.001,maximum)
@@ -594,7 +601,8 @@ class DoorLeafGridDialog(QDialog):
         try:
             for key,field in self._edge_fields.items():
                 field.setSuffix(' '+self._display_unit)
-                field.setValue(round(max(0.,sides[key])/factor,3))
+                value=max(0.,sides[key])/factor
+                field.setValue(value if has_document_units() else round(value,3))
         finally:self._update_lock=previous
 
     def _edge_changed(self,key):

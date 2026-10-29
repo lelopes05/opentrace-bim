@@ -18,6 +18,7 @@ from .i18n import t, ui_locale, englishize_widget, english
 from .materials import material_catalog
 from .materials_ui import MaterialPickerCombo
 from .widgets import FlexibleDoubleSpinBox
+from .length_field import LengthField, format_length
 
 
 class FillPropertiesPanel(QWidget):
@@ -197,7 +198,9 @@ class FillPropertiesPanel(QWidget):
 
     def _number(self, section, key, label, minimum, step, *,
                 maximum=100.0, decimals=4, suffix=" m"):
-        field = FlexibleDoubleSpinBox(self)
+        # Metre fields are lengths: shown in the document's units.
+        field = (LengthField(self) if suffix.strip() == "m"
+                 else FlexibleDoubleSpinBox(self))
         field.setLocale(ui_locale())
         field.setDecimals(decimals)
         field.setRange(minimum, maximum)
@@ -350,7 +353,7 @@ class FillPropertiesPanel(QWidget):
                           unit_height_manual="unit_height" in spec))
             for key, field in self._fields.items():
                 if key in ("rough_width", "rough_height"):
-                    self._set_label(field, f'{values[key]:.4f} m')
+                    self._set_label(field, format_length(values[key]))
                 elif isinstance(field, QCheckBox):
                     field.setChecked(bool(values.get(key, False)))
                 elif isinstance(field, QComboBox) and key.startswith("material_"):

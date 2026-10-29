@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 from core.history import MoveGroupCommand
+from .length_field import format_length
 from .step_guide import show_step, step_text
 
 
@@ -236,7 +237,7 @@ class BeamCurveTool(Tool):
         return list(zip(pts, pts[1:]))
 
     def value_label(self):
-        return (f"{self.sagitta:.4f} m".replace(".", ","),)
+        return (format_length(self.sagitta),)
 
 
 class ColumnCurveTool(Tool):
@@ -331,7 +332,7 @@ class ColumnCurveTool(Tool):
         try:pts=reference_path_world_for(self.group,self._preview_values(self.sagitta))
         except Exception:return []
         return list(zip(pts,pts[1:]))
-    def value_label(self):return (f"{self.sagitta:.4f} m".replace(".",","),)
+    def value_label(self):return (format_length(self.sagitta),)
 
 
 class BeamVerticalCurveTool(Tool):
@@ -435,7 +436,7 @@ class BeamVerticalCurveTool(Tool):
         return list(zip(pts, pts[1:]))
 
     def value_label(self):
-        return (f"{self.sagitta:.4f} m".replace(".", ","),)
+        return (format_length(self.sagitta),)
 
 
 class BeamInclineTool(Tool):
@@ -718,4 +719,4 @@ class MoveColumnStationVerticalTool(Tool):
         try:pts=reference_path_world_for(self.group,self._candidate_values(self.hover_z))
         except Exception:return []
         return list(zip(pts,pts[1:]))
-    def value_label(self):return ((f"{self.hover_z:.4f} m".replace(".",",")) if self.hover_z is not None else "",)
+    def value_label(self):return ((format_length(self.hover_z)) if self.hover_z is not None else "",)

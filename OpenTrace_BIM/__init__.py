@@ -47,6 +47,13 @@ def setup(app, *, translate_widgets=True):
 
     require_reference_host(app)
 
+    # Length fields follow the document's units and re-render when they
+    # change (Preferences, New, Open).
+    _on_doc = getattr(app, "on_document_changed", None)
+    if callable(_on_doc):
+        from .length_field import refresh_all as _refresh_length_fields
+        _on_doc(_refresh_length_fields)
+
     # Bundled since 0.11.1: one catalog download installs the full workflow.
     _setup_bundled_layer_combinations(app)
 

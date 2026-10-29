@@ -14,6 +14,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import AxisMagnet, Tool
 
+from .length_field import format_length
 from .commands import root_edit_allowed
 from .slab_commands import EditSlab
 from .slab_edit import _distance_xy, _preview_lines, _project_to_segment
@@ -329,7 +330,7 @@ class OffsetOpeningTool(_OpeningEditBase):
         except SlabError as exc:self.controller.message(str(exc),error=True);return False
     def value_label(self):
         if self.anchor is None or self.normal is None:return None
-        return (f"{self.distance:+.4f} m".replace(".",","),self.anchor+self.normal*self.distance)
+        return (format_length(self.distance, signed=True),self.anchor+self.normal*self.distance)
     def rubber_band_lines(self):
         if self.original is None:return []
         try:return _preview_lines(*offset_boundary(self.original,self.specs,self.distance))

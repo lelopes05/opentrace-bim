@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
 
+from .length_field import LengthField, format_length
 from .bim import (ifc_identity_data, new_ifc_guid, record_for,
                   set_ifc_metadata)
 from .bim_library import (merged_library, put_classification,
@@ -174,7 +175,7 @@ class BimAdvancedDialog(QDialog):
         basic.addRow("Coordinate system",self.geo["epsg"])
         coord=QWidget(); cr=QHBoxLayout(coord); cr.setContentsMargins(0,0,0,0)
         for key,lab in (("eastings","E"),("northings","N"),("orthogonal_height","Z")):
-            sp=QDoubleSpinBox();sp.setDecimals(4);sp.setRange(-1e12,1e12);sp.setSingleStep(1.0);sp.setSuffix(" m");self.geo[key]=sp;cr.addWidget(QLabel(lab));cr.addWidget(sp,1)
+            sp=LengthField();sp.setDecimals(4);sp.setRange(-1e12,1e12);sp.setSingleStep(1.0);sp.setSuffix(" m");self.geo[key]=sp;cr.addWidget(QLabel(lab));cr.addWidget(sp,1)
         basic.addRow("Survey / model origin",coord)
         self.geo_rotation=QDoubleSpinBox();self.geo_rotation.setDecimals(6);self.geo_rotation.setRange(-360.0,360.0);self.geo_rotation.setSuffix("°");self.geo_rotation.setToolTip("Rotation of the local X axis relative to CRS east.")
         basic.addRow("Rotation",self.geo_rotation)
@@ -307,7 +308,7 @@ class BimAdvancedDialog(QDialog):
             self.layer_kind.setText(f"IfcMaterialLayerSet · {len(layers)} layers · direction {direction}")
             for item in layers:
                 row=self.layer_table.rowCount();self.layer_table.insertRow(row)
-                vals=(item.get("name") or "Layer",item.get("function") or "",item.get("material") or item.get("material_name") or "Default",f"{float(item.get('thickness',0.0) or 0.0):.4f} m")
+                vals=(item.get("name") or "Layer",item.get("function") or "",item.get("material") or item.get("material_name") or "Default",format_length(float(item.get('thickness',0.0) or 0.0)))
                 for col,val in enumerate(vals): self.layer_table.setItem(row,col,QTableWidgetItem(str(val)))
             profile=str(self.controller.data.get("export",{}).get("profile") or "bonsai")
             if cls=="IfcWall" and profile=="bonsai":

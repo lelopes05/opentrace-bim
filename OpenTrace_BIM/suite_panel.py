@@ -14,6 +14,7 @@ from .icons import icon
 from .preset_catalog import builtins
 from .profile_library import load_profiles
 from .i18n import t, englishize_widget, english
+from .length_field import LengthField
 from .style import SIZES, qss, theme_font
 
 # Home is onboarding + the actual project-information form, not a second
@@ -598,7 +599,7 @@ class ArchitectureSuitePanel:
         size_layout=QGridLayout(dimensions)
         for row,(key,title) in enumerate((('width','Largura'),('height','Altura'),
                                           ('sill','Peitoril'))):
-            value=QDoubleSpinBox(dimensions)
+            value=LengthField(dimensions)
             value.setDecimals(3);value.setRange(0 if key=='sill' else .05,100)
             value.setSingleStep(.01);value.setSuffix(' m')
             value.setKeyboardTracking(False)
@@ -1078,7 +1079,7 @@ class ArchitectureSuitePanel:
             ("width","Largura"), ("height","Altura"), ("sill","Peitoril"),
         )):
             label=QLabel(t(title),body)
-            field=QDoubleSpinBox(body)
+            field=LengthField(body)
             field.setObjectName("opentrace_opening_"+key)
             field.setDecimals(2)
             field.setRange(0 if key=="sill" else 0.05,100.0)

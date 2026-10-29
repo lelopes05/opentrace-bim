@@ -8,6 +8,7 @@ from tools.base import AxisMagnet, Tool
 
 from core.geometry import Face as PreviewFace
 
+from .length_field import format_length
 from .commands import CreateWall, CreateWalls, root_edit_allowed
 from .model import (ARC_EPS, FACE_LOOPS, MIN_DIM, WallError, arc_points, build_body,
                     local_corners, make_arc_wall, make_wall, path_length, validate)
@@ -271,7 +272,7 @@ class WallTool(AxisMagnet, Tool):
         origin = self.second_point if (self.mode == self.MODE_RECT_BASE_WIDTH and self.second_point is not None) else self.start_point
         distance = (self.hover_point - origin).length()
         return (
-            f"{distance:.4f} m".replace(".", ","),
+            format_length(distance),
             QVector3D(self.hover_point),
         )
 
@@ -627,7 +628,7 @@ class CurvedWallTool(WallTool):
         if spec is None:
             return ("Definindo arco", QVector3D(self.hover_point))
         return (
-            f"flecha {spec[2]:.4f} m".replace(".", ","),
+            f"flecha {format_length(spec[2])}",
             QVector3D(self.hover_point),
         )
 

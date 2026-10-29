@@ -22,6 +22,7 @@ from core.history import History
 from core.scene import Scene
 from tools.base import Tool
 
+from .length_field import LengthField, format_length
 from .i18n import t, ui_locale
 from .step_guide import show_step, step_text
 from .host import activate_tool, register_tool
@@ -289,7 +290,7 @@ class ComplexProfileController(QObject):
         self.editor_widget=QWidget();eb=QVBoxLayout(self.editor_widget);eb.setContentsMargins(0,0,0,0)
         form=QFormLayout();self.name=QLineEdit();self.name.textChanged.connect(self.name_changed);form.addRow(t("Nome"),self.name)
         self.folder=QLineEdit();self.folder.setPlaceholderText("Meus Perfis / Categoria");self.folder.textChanged.connect(self.folder_changed);form.addRow(t("Pasta"),self.folder)
-        self.anchor_x=QDoubleSpinBox();self.anchor_y=QDoubleSpinBox()
+        self.anchor_x=LengthField();self.anchor_y=LengthField()
         for f in (self.anchor_x,self.anchor_y):f.setLocale(ui_locale());f.setDecimals(4);f.setRange(-10000,10000);f.setSingleStep(.01);f.setSuffix(" m");f.setKeyboardTracking(False);f.valueChanged.connect(self.anchor_numeric_changed)
         form.addRow(t("Origem X"),self.anchor_x);form.addRow(t("Origem Y"),self.anchor_y);eb.addLayout(form)
         orow=QHBoxLayout();self.pick_origin=QPushButton(t("Definir origem no desenho"));self.pick_origin.clicked.connect(self.begin_pick_origin);orow.addWidget(self.pick_origin);eb.addLayout(orow)
@@ -331,7 +332,7 @@ class ComplexProfileController(QObject):
         for p in sorted(profiles,key=lambda x:(str(x.get("folder") or "").casefold(),str(x.get("name") or "").casefold())):
             b=p.get("bounds",{});w=float(b.get("width",0));h=float(b.get("height",0));parent=folder_item(p.get("folder"))
             suffix="  · catálogo" if p.get("builtin") else ""
-            label=f"{p['name']}   ·   {w:.3f} × {h:.3f} m{suffix}"
+            label=f"{p['name']}   ·   {format_length(w)} × {format_length(h)}{suffix}"
             item=QTreeWidgetItem([label]);item.setData(0,Qt.UserRole,p["id"]);item.setToolTip(0,(p.get("source") or "Perfil pessoal")+(f" · {p.get('catalog')}" if p.get("catalog") else ""))
             if parent is not None:parent.addChild(item)
             else:self.list.addTopLevelItem(item)

@@ -5,6 +5,7 @@ import math
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QVector3D
 from tools.base import Tool
+from .length_field import format_length
 from .column_commands import EditColumn
 from .step_guide import show_step, step_text
 from .column_model import ColumnError,MIN_DIM,MAX_DIM,read_column,insertion_world,top_world,make_column
@@ -104,5 +105,5 @@ class ChangeColumnHeightTool(Tool):
     def value_label(self):
         if self.new_height is None or self.anchor is None or self.values is None:return None
         p=QVector3D(self.anchor.x(),self.anchor.y(),self.values["base_z"]+self.new_height)
-        return (f"{self.new_height:.4f} m".replace(".",","),p)
+        return (format_length(self.new_height),p)
     def on_cancel(self,viewport):self._show_original();self.controller.return_to_select();self.controller.message("Alteração de altura cancelada.");viewport.update()

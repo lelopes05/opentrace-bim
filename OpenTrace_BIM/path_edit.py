@@ -12,6 +12,7 @@ from tools.base import AxisMagnet, Tool
 from core.geometry import Face as PreviewFace
 from core.history import MoveGroupCommand
 
+from .length_field import format_length
 from .commands import EditWall, ReplaceWallWithSegments, ReplaceArcWallWithArcs, ReshapeWall, SetWallArc
 from .host import activate_select
 from .levels import level_by_name
@@ -472,7 +473,7 @@ class ArcWallTool(Tool):
         return out
 
     def value_label(self):
-        return (f"{self.sagitta:.4f} m".replace(".", ","),)
+        return (format_length(self.sagitta),)
 
 
 class MoveWallVertexTool(AxisMagnet, Tool):
@@ -1040,7 +1041,7 @@ class ChangeWallHeightTool(Tool):
         if self.new_top is None or self.values is None or self.endpoint is None:return None
         h=self.new_top-float(self.values["base_profile"][self.endpoint])
         p=QVector3D(self.anchor.x(),self.anchor.y(),float(self.values["base"])+self.new_top)
-        return (f"{h:.4f} m".replace(".",","),p)
+        return (format_length(h),p)
 
     def on_cancel(self,viewport):
         if self.group is not None and self._preview_hidden is not None:
@@ -1141,7 +1142,7 @@ class ChangeWholeWallHeightTool(Tool):
         if self.values is None or self.endpoint is None or self.anchor is None:return None
         h=(float(self.values["top_profile"][self.endpoint])+self.new_delta-float(self.values["base_profile"][self.endpoint]))
         p=QVector3D(self.anchor.x(),self.anchor.y(),self.original_anchor_z+self.new_delta)
-        return (f"{h:.4f} m".replace(".",","),p)
+        return (format_length(h),p)
     def on_cancel(self,viewport):self._show_original();self.reset();activate_select(self.controller.app);self.controller.message("Alteração da altura total cancelada.");viewport.update()
 
 
@@ -1223,7 +1224,7 @@ class MoveWallStationZTool(Tool):
     def value_label(self):
         if self.new_base is None or self.values is None:return None
         world_z=float(self.values["base"])+self.new_base
-        return (f"{world_z:.4f} m".replace(".",","),QVector3D(self.anchor.x(),self.anchor.y(),world_z))
+        return (format_length(world_z),QVector3D(self.anchor.x(),self.anchor.y(),world_z))
     def on_cancel(self,viewport):
         if self.group is not None and self._preview_hidden is not None:
             from .preview_utils import restore_original_after_preview

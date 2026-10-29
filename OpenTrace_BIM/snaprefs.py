@@ -7,6 +7,7 @@ import math
 from PySide6.QtGui import QVector3D
 from core.snap import SnapResult
 
+from .length_field import format_length
 from . import wall_cache
 from .model import WallError, wall_record
 
@@ -180,7 +181,7 @@ def snap_to_wall_top_references(app, viewport, snap, px, py):
         return None
     _d, point, z = best
     return SnapResult(point, "reference", COLOR,
-                      label=f"Topo da parede · {z:+.3f} m")
+                      label=f"Topo da parede · {format_length(z, signed=True)}")
 
 
 def snap_to_structure_reference_endpoints(app, viewport, snap, px, py):

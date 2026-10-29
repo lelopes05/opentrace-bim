@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from .length_field import LengthField
 from .membrane_model import (
     EditMembrane, MembraneError, read_membrane, selected_boundary,
     make_membrane, CreateMembrane, boundary_edge_polyline,
@@ -168,7 +169,7 @@ class MembraneController:
         self.structure.addItem('Single surface', "simple")
         self.structure.addItem('Composite / layers', "composite")
         form.addRow("Estrutura", self.structure)
-        self.thickness = QDoubleSpinBox()
+        self.thickness = LengthField()
         self.thickness.setDecimals(4)
         self.thickness.setRange(0.0, 100.0)
         self.thickness.setSingleStep(.01)

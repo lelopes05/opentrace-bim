@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import math
 
+from .length_field import LengthField
 from .materials_ui import MaterialPickerCombo
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QVector3D
@@ -122,9 +123,9 @@ class SlabController(QObject):
         self.panel = QWidget(); lay = QVBoxLayout(self.panel); lay.addWidget(QLabel(t("Laje")))
         form = QFormLayout(); lay.addLayout(form)
         self.level = QComboBox(); self.level.currentIndexChanged.connect(self.level_changed); form.addRow(t("Nível"), self.level)
-        self.offset = QDoubleSpinBox(); self.offset.setLocale(ui_locale()); self.offset.setDecimals(4); self.offset.setRange(-MAX_DIM, MAX_DIM); self.offset.setSingleStep(0.05); self.offset.setSuffix(" m"); self.offset.setKeyboardTracking(False); self.offset.valueChanged.connect(self.values_changed)
+        self.offset = LengthField(); self.offset.setLocale(ui_locale()); self.offset.setDecimals(4); self.offset.setRange(-MAX_DIM, MAX_DIM); self.offset.setSingleStep(0.05); self.offset.setSuffix(" m"); self.offset.setKeyboardTracking(False); self.offset.valueChanged.connect(self.values_changed)
         self.offset.setToolTip("With Free elevation, this value is absolute elevation. With a linked level, it is an offset."); form.addRow(t("Cota / offset"), self.offset)
-        self.thickness = QDoubleSpinBox(); self.thickness.setLocale(ui_locale()); self.thickness.setDecimals(4); self.thickness.setRange(0.001, MAX_DIM); self.thickness.setSingleStep(0.01); self.thickness.setSuffix(" m"); self.thickness.setKeyboardTracking(False); self.thickness.valueChanged.connect(self.values_changed); form.addRow(t("Espessura"), self.thickness)
+        self.thickness = LengthField(); self.thickness.setLocale(ui_locale()); self.thickness.setDecimals(4); self.thickness.setRange(0.001, MAX_DIM); self.thickness.setSingleStep(0.01); self.thickness.setSuffix(" m"); self.thickness.setKeyboardTracking(False); self.thickness.valueChanged.connect(self.values_changed); form.addRow(t("Espessura"), self.thickness)
         self.reference_plane = QComboBox(); self.reference_plane.addItem(t("Inferior"), "bottom"); self.reference_plane.addItem(t("Superior"), "top"); self.reference_plane.currentIndexChanged.connect(self.values_changed); self.reference_plane.setToolTip('Slab reference plane is either bottom or top; there is no center reference.'); form.addRow(t("Referência"), self.reference_plane)
         self.material=MaterialPickerCombo();self.material.currentIndexChanged.connect(self.values_changed);self.material.setToolTip("Named IngeTrazo material applied to a simple slab. A composite slab can use a different material for each layer.");form.addRow(t("Material"),self.material)
         self.structure=QComboBox();self.structure.addItem(t("Simples"),"simple");self.structure.addItem(t("Composta / camadas"),"composite");self.structure.currentIndexChanged.connect(self.structure_changed);form.addRow(t("Estrutura"),self.structure)

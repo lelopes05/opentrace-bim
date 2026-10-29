@@ -8,6 +8,7 @@ from PySide6.QtGui import QMatrix4x4, QVector3D
 from tools.base import AxisMagnet, Tool
 from core.history import MoveGroupCommand
 
+from .length_field import format_length
 from .commands import root_edit_allowed
 from .slab_commands import EditSlab
 from .step_guide import show_step, step_text
@@ -508,7 +509,7 @@ class ChangeSlabThicknessTool(Tool):
     def value_label(self):
         if self.new_thickness is None or self.anchor is None or self.values is None:return None
         p=QVector3D(self.anchor.x(),self.anchor.y(),self.values["base_z"]+self.new_thickness)
-        return (f"{self.new_thickness:.4f} m".replace(".",","),p)
+        return (format_length(self.new_thickness),p)
 
     def on_cancel(self,viewport):
         if self.preview:viewport.end_groups_preview();self.preview=False
@@ -554,7 +555,7 @@ class OffsetSlabBoundaryTool(_SlabEditBase):
     def value_label(self):
         if self.anchor is None or self.normal is None:return None
         p=self.anchor+self.normal*self.distance
-        return (f"{self.distance:+.4f} m".replace(".",","),p)
+        return (format_length(self.distance, signed=True),p)
 
     def rubber_band_lines(self):
         if self.original is None:return []

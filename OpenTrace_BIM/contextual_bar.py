@@ -19,6 +19,7 @@ from .icons import icon
 from .i18n import t, englishize_widget, english
 from .style import SIZES, qss, theme_font
 from .model import MIN_DIM
+from .length_field import LengthField
 
 
 class _CompactStack(QStackedWidget):
@@ -206,7 +207,9 @@ class ContextualBar(QWidget):
                 label.hide()
         else:
             label = self._section(layout, text)
-        mirror = QDoubleSpinBox(self)
+        # A length is mirrored as a length, in the document's units.
+        mirror = (LengthField(self) if isinstance(source, LengthField)
+                  else QDoubleSpinBox(self))
         mirror.setLocale(source.locale())
         mirror.setDecimals(source.decimals())
         mirror.setRange(source.minimum(), source.maximum())
@@ -297,7 +300,7 @@ class ContextualBar(QWidget):
         heading.setObjectName("opentrace_label_" + name)
         heading.setProperty("designRole", "field-label")
         vertical.addWidget(heading)
-        spin = QDoubleSpinBox(self)
+        spin = LengthField(self)
         spin.setObjectName("opentrace_field_" + name)
         spin.setAccessibleName(t(label))
         spin.setLocale(source.locale())
@@ -779,7 +782,7 @@ class ContextualBar(QWidget):
         """Width, height and sill spin boxes on ``tool.sizes[kind_of()]``."""
         for key, label in (("width", "Largura"), ("height", "Altura"), ("sill", "Peitoril")):
             title = self._section(layout, t(label))
-            spin = QDoubleSpinBox(self)
+            spin = LengthField(self)
             spin.installEventFilter(self._focus_return)
             spin.lineEdit().installEventFilter(self._focus_return)
             spin.setDecimals(2)

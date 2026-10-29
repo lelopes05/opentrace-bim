@@ -40,6 +40,7 @@ from .layers import (
     total_thickness,
 )
 from .widgets import FlexibleDoubleSpinBox as QDoubleSpinBox
+from .length_field import LengthField, format_length
 from .i18n import t, ui_locale
 
 
@@ -435,7 +436,7 @@ class LayerEditor(QWidget):
         return combo
 
     def _thickness_spin(self, layer):
-        spin = QDoubleSpinBox(self.table)
+        spin = LengthField(self.table)
         spin.setLocale(ui_locale())
         spin.setDecimals(4)
         spin.setRange(0.001, 10000.0)
@@ -512,13 +513,11 @@ class LayerEditor(QWidget):
             self._loading = False
 
     def _update_total(self):
-        total = ui_locale().toString(
-            total_thickness(self._layers), "f", 4
-        )
+        total = format_length(total_thickness(self._layers))
         count = len(self._layers)
         noun = t("camada") if count == 1 else t("camadas")
         self.total.setText(
-            f"{t('Espessura total')}: {total} m  ·  {count} {noun}"
+            f"{t('Espessura total')}: {total}  ·  {count} {noun}"
         )
         self.stack_preview.set_layers(self._layers)
 

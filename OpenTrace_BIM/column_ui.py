@@ -2,6 +2,7 @@
 """Column palette, toolbar action and graphical top handle."""
 from __future__ import annotations
 import logging, math
+from .length_field import LengthField
 from .materials_ui import MaterialPickerCombo
 from PySide6.QtCore import QEvent,QPoint,QPointF,QRectF,QSize,Qt,QTimer
 from PySide6.QtGui import QAction,QColor,QIcon,QPainter,QPen,QPixmap,QVector3D
@@ -51,7 +52,7 @@ class ColumnController(QWidget):
         app.viewport.sceneVersionChanged.connect(self.schedule_refresh);self.schedule_refresh()
 
     def _spin(self,step=0.01,minv=MIN_DIM,maxv=MAX_DIM):
-        w=QDoubleSpinBox();w.setLocale(ui_locale());w.setDecimals(4);w.setRange(minv,maxv);w.setSingleStep(step);w.setSuffix(" m");w.setKeyboardTracking(False);w.valueChanged.connect(self.values_changed);return w
+        w=LengthField();w.setLocale(ui_locale());w.setDecimals(4);w.setRange(minv,maxv);w.setSingleStep(step);w.setSuffix(" m");w.setKeyboardTracking(False);w.valueChanged.connect(self.values_changed);return w
 
     def _make_panel(self):
         self.panel=QWidget();lay=QVBoxLayout(self.panel);lay.addWidget(QLabel(t("Pilar")));form=QFormLayout();self.form=form;lay.addLayout(form)
