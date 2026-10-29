@@ -1356,7 +1356,7 @@ class ArchitectureSuitePanel:
         if key=='door':
             self._route_hosted_editor('door')
         elif key=='wall':
-            selected=getattr(self.controllers['wall'].fill_properties,'_spec',None)
+            selected=self._selected_fill_spec()
             if (not isinstance(selected,dict) or selected.get('kind')!='door') and \
                     self._opening_tool_and_kind()[1]!='door':
                 self._route_hosted_editor('wall')
@@ -1400,6 +1400,19 @@ class ArchitectureSuitePanel:
         for key in ("column","beam"):
             if self._mode_buttons.get(key):self._set_mode_button(key,0)
 
+    def _selected_fill_spec(self):
+        """The door/window shown in the wall's opening editor, or None.
+
+        The editor keeps its last spec after the selection moves on, so it
+        only counts while a wall is still the wall controller's target.
+        Without this check a slab, column or empty selection kept being
+        sent to the Door page (issue #14).
+        """
+        wall=self.controllers.get('wall')
+        if wall is None or getattr(wall,'target',None) is None:
+            return None
+        return getattr(getattr(wall,'fill_properties',None),'_spec',None)
+
     def _show_context_settings(self,key):
         """Open the full form for a new active tool or selected object."""
         self.show_page(key)
@@ -1432,7 +1445,7 @@ class ArchitectureSuitePanel:
         if opening_tool is not None:
             self._show_context_settings("door" if opening_kind=="door" else "wall")
             return
-        current_fill=getattr(self.controllers['wall'].fill_properties,'_spec',None)
+        current_fill=self._selected_fill_spec()
         if (isinstance(current_fill,dict) and current_fill.get('kind')=='door'):
             self._show_context_settings('door')
             return

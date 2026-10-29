@@ -624,6 +624,10 @@ class WallController(QObject):
         if not ops:
             self._active_opening_id=None
             self._fields_opening_id=None
+            # Forget the last door/window too: the suite panel reads this
+            # spec to decide whether the Door page is the current context
+            # (issue #14).
+            self.fill_properties.load(None, self.app.scene)
             self.opening_widget.hide()
             return
         item=next((x for x in ops if x.get("id")==self._active_opening_id),ops[0]);self._active_opening_id=item.get("id")
