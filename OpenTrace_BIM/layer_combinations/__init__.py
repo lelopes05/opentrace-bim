@@ -502,10 +502,82 @@ def _essential_template():
     }
 
 
+def _combo_factory(layer_names, groups, prefix_of):
+    """``make_combo`` for a template whose disciplines are read by
+    ``prefix_of`` (the same rules as the one inside ``_complete_template``)."""
+    def make_combo(name, show_prefixes=(), show_exact=(), lock_prefixes=(),
+                   lock_exact=(), hide_exact=(), group_overrides=None):
+        show_prefixes = set(show_prefixes)
+        show_exact = set(show_exact)
+        lock_prefixes = set(lock_prefixes)
+        lock_exact = set(lock_exact)
+        hide_exact = set(hide_exact)
+        group_overrides = dict(group_overrides or {})
+        states = {}
+        for lname in layer_names:
+            p = prefix_of(lname)
+            visible = (
+                lname in show_exact
+                or p in show_prefixes
+                or lname == "Layer 0"
+            )
+            if lname in hide_exact:
+                visible = False
+            locked = visible and (
+                lname in lock_exact or p in lock_prefixes
+            )
+            states[lname] = _state(
+                visible, locked,
+                group_overrides.get(lname, groups.get(lname, 0))
+            )
+        return {"id": _uid(), "name": name, "layers": states}
+    return make_combo
+
+
+def _template_from_defs(layer_defs, prefix_of, combinations, *, name,
+                        description, default_combination):
+    """A template from ``(name, folder, group)`` rows and a function that
+    builds its combinations with ``make_combo``."""
+    folder_paths = sorted({folder for _name, folder, _group in layer_defs})
+    folders, folder_ids = _folder_data(folder_paths)
+    layer_names = [lname for lname, _folder, _group in layer_defs]
+    groups = {lname: group for lname, _folder, group in layer_defs}
+    layer_folders = {
+        lname: folder_ids.get(" / ".join(
+            p.strip() for p in folder.split("/") if p.strip()
+        ))
+        for lname, folder, _group in layer_defs
+    }
+    make_combo = _combo_factory(layer_names, groups, prefix_of)
+    return {
+        "format": TEMPLATE_FORMAT,
+        "version": TEMPLATE_VERSION,
+        "name": name,
+        "description": description,
+        "layer_names": layer_names,
+        "folders": folders,
+        "layer_folders": layer_folders,
+        "combinations": combinations(make_combo),
+        "default_combination": default_combination,
+    }
+
+
+def _us_ncs_template():
+    """US office template with National CAD Standard layer names."""
+    from . import us_ncs
+    return _template_from_defs(
+        us_ncs.LAYER_DEFS, us_ncs.discipline, us_ncs.combinations,
+        name=us_ncs.NAME, description=us_ncs.DESCRIPTION,
+        default_combination=us_ncs.DEFAULT_COMBINATION,
+    )
+
+
 def builtin_templates():
+    from .us_ncs import NAME as _US_NCS
     return {
         "Arquitetura Completa": _complete_template(),
         "Arquitetura Essencial": _essential_template(),
+        _US_NCS: _us_ncs_template(),
     }
 
 
