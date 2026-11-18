@@ -1002,7 +1002,7 @@ def build_fill_parts(raw, *, wall_thickness=0.10, wall_faces=None):
         frame_material = spec.get("material_window_frame") or general
         glass_material = spec.get("material_window_glass") or general
         for part in parts:
-            component = getattr(part, "ext", {}).get("opentrace_component", "")
+            component = (getattr(part, "ext", None) or {}).get("opentrace_component", "")
             material = (glass_material if (part.name.startswith("Vidro ")
                            or component == "window_glass") else frame_material)
             if component == "window_glass" and material is None:
